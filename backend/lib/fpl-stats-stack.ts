@@ -5,6 +5,12 @@ import {
   Table,
   TableEncryption,
 } from 'aws-cdk-lib/aws-dynamodb';
+import {
+  CorsHttpMethod,
+  HttpApi,
+  HttpMethod,
+} from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { Construct } from 'constructs';
 import { FplPythonFunction } from './fpl-python-function';
 
@@ -20,7 +26,7 @@ export class FplStatsStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    new FplPythonFunction(this, 'Health', {
+    const healthFn = new FplPythonFunction(this, 'Health', {
       name: 'health',
       description: 'Health-check Lambda — returns ok + current UTC time.',
       environment: {
@@ -28,10 +34,31 @@ export class FplStatsStack extends cdk.Stack {
       },
     });
 
+    const httpApi = new HttpApi(this, 'HttpApi', {
+      description: 'FPL Stats public HTTP API.',
+      corsPreflight: {
+        allowOrigins: ['*'],
+        allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.OPTIONS],
+        allowHeaders: ['*'],
+      },
+    });
+
+    httpApi.addRoutes({
+      path: '/health',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration('HealthIntegration', healthFn),
+    });
+
     new cdk.CfnOutput(this, 'CacheTableName', {
       value: cacheTable.tableName,
       description: 'DynamoDB cache table name',
       exportName: `${this.stackName}-CacheTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'ApiBaseUrl', {
+      value: httpApi.apiEndpoint,
+      description: 'HTTP API base URL',
+      exportName: `${this.stackName}-ApiBaseUrl`,
     });
   }
 }
