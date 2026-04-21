@@ -54,7 +54,20 @@ Should print `CREATE_COMPLETE`.
 - `npm run test` — jest unit tests (CDK stack assertions)
 - `npx cdk synth` — render CloudFormation locally (no deploy)
 - `npx cdk diff` — diff deployed vs local
-- `npx cdk deploy` — deploy (requires bootstrap; Docker must be running once we start using `PythonFunction` for Lambda bundling)
+- `npm run deploy` — deploy and write stack outputs to `.deploy-outputs.json` (gitignored). Requires bootstrap (above) and Docker running locally for Python Lambda bundling.
+
+## Deploy and verify
+
+1. Confirm Docker is running: `docker info` should print server info without errors.
+2. Run `npm run deploy` from `backend/`. On first deploy CDK will print an IAM-changes summary and ask you to confirm (`y`). Expect ~2–4 minutes.
+3. Grab the API base URL from `.deploy-outputs.json` (or from the `FplStatsStack.ApiBaseUrl` key in the CDK deploy output):
+
+   ```bash
+   API_URL=$(jq -r '.FplStatsStack.ApiBaseUrl' .deploy-outputs.json)
+   curl -i "$API_URL/health"
+   ```
+
+4. Expect `HTTP/2 200` and a JSON body like `{"ok":true,"time":"2026-04-21T17:30:00.000000+00:00"}`.
 
 ## Lambda handlers
 
