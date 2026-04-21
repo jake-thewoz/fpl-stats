@@ -1,0 +1,6 @@
+node_modules/
+.expo/
+dist/
+.env*
+aws-exports.js
+amplify/#current-cloud-backend
