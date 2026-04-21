@@ -1,16 +1,14 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { FplPythonFunction } from './fpl-python-function';
 
 export class FplStatsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'BackendQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    new FplPythonFunction(this, 'Healthcheck', {
+      name: 'healthcheck',
+      description: 'Smoke-test Lambda that validates the Python build pattern.',
+    });
   }
 }
