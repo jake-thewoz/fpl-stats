@@ -20,9 +20,9 @@ export class FplStatsStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    new FplPythonFunction(this, 'Healthcheck', {
-      name: 'healthcheck',
-      description: 'Smoke-test Lambda that validates the Python build pattern.',
+    new FplPythonFunction(this, 'Health', {
+      name: 'health',
+      description: 'Health-check Lambda — returns ok + current UTC time.',
       environment: {
         CACHE_TABLE_NAME: cacheTable.tableName,
       },
