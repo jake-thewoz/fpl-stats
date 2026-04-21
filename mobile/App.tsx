@@ -14,14 +14,6 @@ export default function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
 
   useEffect(() => {
-    if (!API_BASE_URL) {
-      setState({
-        status: 'error',
-        message: 'EXPO_PUBLIC_API_BASE_URL is not set. See mobile/.env.example.',
-      });
-      return;
-    }
-
     fetch(`${API_BASE_URL}/health`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
