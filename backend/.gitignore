@@ -7,6 +7,9 @@ node_modules
 .cdk.staging
 cdk.out
 
+# Local deploy artifacts
+.deploy-outputs*
+
 # Python (Lambda handlers)
 .venv/
 __pycache__/
