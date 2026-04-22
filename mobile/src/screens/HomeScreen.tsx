@@ -1,13 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Button,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useLayoutEffect } from 'react';
+import { Button, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import {
@@ -15,17 +7,14 @@ import {
   type Fixture,
   type GameweekCurrentResponse,
 } from '../api/gameweekCurrent';
+import { useFetch } from '../hooks/useFetch';
+import { LoadingView } from '../components/LoadingView';
+import { ErrorView } from '../components/ErrorView';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-type State =
-  | { status: 'loading' }
-  | { status: 'ok'; data: GameweekCurrentResponse }
-  | { status: 'error'; message: string };
-
 export default function HomeScreen({ navigation }: Props) {
-  const [state, setState] = useState<State>({ status: 'loading' });
-  const [refreshing, setRefreshing] = useState(false);
+  const { state, refreshing, onRefresh, onRetry } = useFetch(fetchGameweekCurrent);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -35,49 +24,10 @@ export default function HomeScreen({ navigation }: Props) {
     });
   }, [navigation]);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const data = await fetchGameweekCurrent(signal);
-      setState({ status: 'ok', data });
-    } catch (err: unknown) {
-      if (signal?.aborted) return;
-      const message = err instanceof Error ? err.message : String(err);
-      setState({ status: 'error', message });
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    load(controller.signal);
-    return () => controller.abort();
-  }, [load]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }, [load]);
-
-  const onRetry = useCallback(() => {
-    setState({ status: 'loading' });
-    load();
-  }, [load]);
-
-  if (state.status === 'loading') {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
+  if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorTitle}>Couldn't load gameweek</Text>
-        <Text style={styles.errorBody}>{state.message}</Text>
-        <Button title="Retry" onPress={onRetry} />
-      </View>
+      <ErrorView title="Couldn't load gameweek" message={state.message} onRetry={onRetry} />
     );
   }
 
@@ -95,9 +45,7 @@ export default function HomeScreen({ navigation }: Props) {
         ) : null
       }
       contentContainerStyle={styles.listContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
@@ -160,7 +108,6 @@ function formatKickoff(iso: string | null): string {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   listContent: { paddingBottom: 32 },
   header: { padding: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
   headerTitle: { fontSize: 24, fontWeight: '600' },
@@ -177,6 +124,4 @@ const styles = StyleSheet.create({
   fixtureTeamAway: { textAlign: 'right' },
   fixtureScore: { paddingHorizontal: 12, color: '#333', fontVariant: ['tabular-nums'] },
   emptyBody: { padding: 20, color: '#555', textAlign: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '600' },
-  errorBody: { color: '#b00020', textAlign: 'center' },
 });
