@@ -20,7 +20,7 @@ from typing import Any
 
 import boto3
 
-from schemas import SCHEMA_VERSION, Fixture, Gameweek
+from schemas import SCHEMA_VERSION, Bootstrap, Fixture, Gameweek
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -60,10 +60,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "stored": stored_version,
             })
 
-    gameweeks = [Gameweek.model_validate(g) for g in bootstrap_item["data"]["gameweeks"]]
+    bootstrap = Bootstrap.model_validate(bootstrap_item["data"])
     fixtures = [Fixture.model_validate(f) for f in fixtures_item["data"]]
 
-    current = next((g for g in gameweeks if g.is_current), None)
+    current = next((g for g in bootstrap.gameweeks if g.is_current), None)
 
     if current is None:
         return _response(200, {
@@ -72,10 +72,35 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "fixtures": [],
         })
 
-    current_fixtures = [f for f in fixtures if f.event == current.id]
+    teams_by_id = {t.id: t for t in bootstrap.teams}
+    current_fixtures = [
+        _fixture_response(f, teams_by_id)
+        for f in fixtures
+        if f.event == current.id
+    ]
 
     return _response(200, {
         "schema_version": SCHEMA_VERSION,
         "gameweek": current.model_dump(),
-        "fixtures": [f.model_dump() for f in current_fixtures],
+        "fixtures": current_fixtures,
     })
+
+
+def _fixture_response(fixture: Fixture, teams_by_id: dict) -> dict[str, Any]:
+    return {
+        "id": fixture.id,
+        "kickoff_time": fixture.kickoff_time,
+        "started": fixture.started,
+        "finished": fixture.finished,
+        "home": _side(teams_by_id.get(fixture.team_h), fixture.team_h, fixture.team_h_score),
+        "away": _side(teams_by_id.get(fixture.team_a), fixture.team_a, fixture.team_a_score),
+    }
+
+
+def _side(team, team_id: int, score: int | None) -> dict[str, Any]:
+    return {
+        "id": team_id,
+        "short_name": team.short_name if team else None,
+        "name": team.name if team else None,
+        "score": score,
+    }
