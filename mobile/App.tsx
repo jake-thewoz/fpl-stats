@@ -1,54 +1,24 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { API_BASE_URL } from './src/config';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import HomeScreen from './src/screens/HomeScreen';
+import PlayersScreen from './src/screens/PlayersScreen';
 
-type HealthResponse = { ok: boolean; time: string };
+export type RootStackParamList = {
+  Home: undefined;
+  Players: undefined;
+};
 
-type State =
-  | { status: 'loading' }
-  | { status: 'ok'; time: string }
-  | { status: 'error'; message: string };
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const [state, setState] = useState<State>({ status: 'loading' });
-
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/health`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as HealthResponse;
-        if (!body.ok) throw new Error('Health response returned ok=false');
-        setState({ status: 'ok', time: body.time });
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setState({ status: 'error', message });
-      });
-  }, []);
-
   return (
-    <View style={styles.container}>
-      {state.status === 'loading' && <ActivityIndicator />}
-      {state.status === 'ok' && <Text>OK: {state.time}</Text>}
-      {state.status === 'error' && (
-        <Text style={styles.error}>Error: {state.message}</Text>
-      )}
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'FPL Stats' }} />
+        <Stack.Screen name="Players" component={PlayersScreen} />
+      </Stack.Navigator>
       <StatusBar style="auto" />
-    </View>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  error: {
-    color: '#b00020',
-    textAlign: 'center',
-  },
-});
