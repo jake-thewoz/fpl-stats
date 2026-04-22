@@ -11,6 +11,7 @@ os.environ.setdefault("CACHE_TABLE_NAME", "test-cache-table")
 
 import handler  # noqa: E402
 from handler import BOOTSTRAP_URL, FIXTURES_URL, lambda_handler  # noqa: E402
+from schemas import SCHEMA_VERSION  # noqa: E402
 
 
 BOOTSTRAP_PAYLOAD = {
@@ -86,23 +87,30 @@ def test_happy_path_writes_both_endpoints(mock_table):
     result = lambda_handler({}, None)
 
     assert result["ok"] is True
+    assert result["schema_version"] == SCHEMA_VERSION
     assert result["counts"] == {
         "teams": 2,
         "players": 1,
-        "events": 1,
+        "gameweeks": 1,
         "fixtures": 1,
     }
     assert mock_table.put_item.call_count == 2
 
-    written_pks = {
-        call.kwargs["Item"]["pk"] for call in mock_table.put_item.call_args_list
+    items_by_pk = {
+        call.kwargs["Item"]["pk"]: call.kwargs["Item"]
+        for call in mock_table.put_item.call_args_list
     }
-    assert written_pks == {"fpl#bootstrap", "fpl#fixtures"}
+    assert set(items_by_pk) == {"fpl#bootstrap", "fpl#fixtures"}
 
-    for call in mock_table.put_item.call_args_list:
-        item = call.kwargs["Item"]
+    for item in items_by_pk.values():
         assert item["sk"] == "latest"
+        assert item["schema_version"] == SCHEMA_VERSION
         assert item["fetched_at"] == result["fetched_at"]
+
+    bootstrap_data = items_by_pk["fpl#bootstrap"]["data"]
+    assert set(bootstrap_data) == {"teams", "positions", "players", "gameweeks"}
+    assert bootstrap_data["players"][0]["web_name"] == "Saka"
+    assert bootstrap_data["gameweeks"][0]["is_current"] is True
 
 
 @responses.activate

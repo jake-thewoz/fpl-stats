@@ -2,7 +2,7 @@
 
 Fetches the two FPL endpoints we care about (bootstrap-static + fixtures),
 parses a small typed subset with pydantic, and caches each endpoint as a
-single item in DynamoDB.
+single item in DynamoDB with a schema version and freshness timestamp.
 
 Invariant: both fetches must succeed before we write anything — we never
 overwrite a previously good cache entry with partial data.
@@ -16,9 +16,10 @@ from typing import Any
 
 import boto3
 import requests
-from pydantic import BaseModel
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from schemas import SCHEMA_VERSION, Bootstrap, Fixture
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -28,59 +29,6 @@ BOOTSTRAP_URL = f"{FPL_BASE_URL}/bootstrap-static/"
 FIXTURES_URL = f"{FPL_BASE_URL}/fixtures/"
 
 HTTP_TIMEOUT_SECONDS = 10
-
-
-class Team(BaseModel):
-    id: int
-    name: str
-    short_name: str
-    code: int
-
-
-class ElementType(BaseModel):
-    id: int
-    singular_name: str
-    singular_name_short: str
-
-
-class Player(BaseModel):
-    id: int
-    first_name: str
-    second_name: str
-    web_name: str
-    team: int
-    element_type: int
-    total_points: int
-    form: str
-    now_cost: int
-
-
-class Event(BaseModel):
-    id: int
-    name: str
-    deadline_time: str
-    is_current: bool
-    is_next: bool
-    finished: bool
-
-
-class Bootstrap(BaseModel):
-    teams: list[Team]
-    element_types: list[ElementType]
-    elements: list[Player]
-    events: list[Event]
-
-
-class Fixture(BaseModel):
-    id: int
-    event: int | None = None
-    kickoff_time: str | None = None
-    team_h: int
-    team_a: int
-    team_h_score: int | None = None
-    team_a_score: int | None = None
-    finished: bool
-    started: bool | None = None
 
 
 def _make_session() -> requests.Session:
@@ -120,6 +68,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         Item={
             "pk": "fpl#bootstrap",
             "sk": "latest",
+            "schema_version": SCHEMA_VERSION,
             "fetched_at": fetched_at,
             "data": bootstrap.model_dump(),
         }
@@ -128,6 +77,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         Item={
             "pk": "fpl#fixtures",
             "sk": "latest",
+            "schema_version": SCHEMA_VERSION,
             "fetched_at": fetched_at,
             "data": [f.model_dump() for f in fixtures],
         }
@@ -135,9 +85,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     counts = {
         "teams": len(bootstrap.teams),
-        "players": len(bootstrap.elements),
-        "events": len(bootstrap.events),
+        "players": len(bootstrap.players),
+        "gameweeks": len(bootstrap.gameweeks),
         "fixtures": len(fixtures),
     }
     log.info("Ingestion complete: %s", counts)
-    return {"ok": True, "fetched_at": fetched_at, "counts": counts}
+    return {
+        "ok": True,
+        "schema_version": SCHEMA_VERSION,
+        "fetched_at": fetched_at,
+        "counts": counts,
+    }
