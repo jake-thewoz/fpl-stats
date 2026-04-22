@@ -75,6 +75,12 @@ export class FplStatsStack extends cdk.Stack {
       exportName: `${this.stackName}-CacheTableName`,
     });
 
+    new cdk.CfnOutput(this, 'IngestFplFunctionName', {
+      value: ingestFn.functionName,
+      description: 'FPL ingestion Lambda function name',
+      exportName: `${this.stackName}-IngestFplFunctionName`,
+    });
+
     new cdk.CfnOutput(this, 'ApiBaseUrl', {
       value: httpApi.apiEndpoint,
       description: 'HTTP API base URL',
