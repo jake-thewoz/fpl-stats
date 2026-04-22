@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Button,
   FlatList,
   Pressable,
   RefreshControl,
@@ -11,57 +9,26 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { fetchPlayers, type Player, type PlayersResponse } from '../api/players';
-
-type State =
-  | { status: 'loading' }
-  | { status: 'ok'; data: PlayersResponse }
-  | { status: 'error'; message: string };
+import { fetchPlayers, type Player } from '../api/players';
+import { useFetch } from '../hooks/useFetch';
+import { LoadingView } from '../components/LoadingView';
+import { ErrorView } from '../components/ErrorView';
 
 const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'];
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function PlayersScreen() {
-  const [state, setState] = useState<State>({ status: 'loading' });
-  const [refreshing, setRefreshing] = useState(false);
+  const { state, refreshing, onRefresh, onRetry } = useFetch(fetchPlayers);
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState<string | null>(null);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const data = await fetchPlayers(signal);
-      setState({ status: 'ok', data });
-    } catch (err: unknown) {
-      if (signal?.aborted) return;
-      const message = err instanceof Error ? err.message : String(err);
-      setState({ status: 'error', message });
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    load(controller.signal);
-    return () => controller.abort();
-  }, [load]);
-
   useEffect(() => {
     const handle = setTimeout(() => setSearchQuery(searchInput.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [searchInput]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }, [load]);
-
-  const onRetry = useCallback(() => {
-    setState({ status: 'loading' });
-    load();
-  }, [load]);
 
   const players = state.status === 'ok' ? state.data.players : [];
 
@@ -81,21 +48,10 @@ export default function PlayersScreen() {
     });
   }, [players, searchQuery, teamFilter, positionFilter]);
 
-  if (state.status === 'loading') {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
+  if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorTitle}>Couldn't load players</Text>
-        <Text style={styles.errorBody}>{state.message}</Text>
-        <Button title="Retry" onPress={onRetry} />
-      </View>
+      <ErrorView title="Couldn't load players" message={state.message} onRetry={onRetry} />
     );
   }
 
@@ -228,7 +184,6 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   listContent: { paddingBottom: 32 },
   headerBg: {
     backgroundColor: '#fff',
@@ -274,6 +229,4 @@ const styles = StyleSheet.create({
   rowPoints: { fontSize: 15, fontWeight: '600' },
   rowPrice: { marginTop: 2, color: '#444', fontSize: 13 },
   emptyBody: { padding: 32, color: '#555', textAlign: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '600' },
-  errorBody: { color: '#b00020', textAlign: 'center' },
 });
