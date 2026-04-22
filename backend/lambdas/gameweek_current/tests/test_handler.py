@@ -40,14 +40,22 @@ def _fixture(fx_id: int, *, event: int | None, team_h: int = 1,
     }
 
 
-def _bootstrap_item(gameweeks: list[dict], schema_version: int = SCHEMA_VERSION) -> dict:
+TEAMS = [
+    {"id": 1, "name": "Arsenal", "short_name": "ARS", "code": 3},
+    {"id": 2, "name": "Aston Villa", "short_name": "AVL", "code": 7},
+    {"id": 3, "name": "Brentford", "short_name": "BRE", "code": 94},
+]
+
+
+def _bootstrap_item(gameweeks: list[dict], *, teams: list[dict] | None = None,
+                    schema_version: int = SCHEMA_VERSION) -> dict:
     return {
         "pk": "fpl#bootstrap",
         "sk": "latest",
         "schema_version": schema_version,
         "fetched_at": "2026-04-22T00:00:00+00:00",
         "data": {
-            "teams": [],
+            "teams": TEAMS if teams is None else teams,
             "positions": [],
             "players": [],
             "gameweeks": gameweeks,
@@ -95,8 +103,8 @@ def test_happy_path_returns_current_gameweek_and_its_fixtures(mock_table):
         ]),
         fixtures=_fixtures_item([
             _fixture(100, event=1),
-            _fixture(200, event=2),
-            _fixture(201, event=2),
+            _fixture(200, event=2, team_h=1, team_a=2),
+            _fixture(201, event=2, team_h=3, team_a=1),
             _fixture(300, event=3),
             _fixture(400, event=None),
         ]),
@@ -111,6 +119,40 @@ def test_happy_path_returns_current_gameweek_and_its_fixtures(mock_table):
     assert body["gameweek"]["is_current"] is True
     fixture_ids = [f["id"] for f in body["fixtures"]]
     assert fixture_ids == [200, 201]
+
+
+def test_happy_path_resolves_team_info_per_fixture(mock_table):
+    _wire_get_item(
+        mock_table,
+        bootstrap=_bootstrap_item([_gameweek(2, is_current=True)]),
+        fixtures=_fixtures_item([_fixture(200, event=2, team_h=1, team_a=2)]),
+    )
+
+    body = json.loads(lambda_handler({}, None)["body"])
+    fixture = body["fixtures"][0]
+
+    assert fixture["home"] == {"id": 1, "short_name": "ARS", "name": "Arsenal", "score": None}
+    assert fixture["away"] == {"id": 2, "short_name": "AVL", "name": "Aston Villa", "score": None}
+    assert fixture["kickoff_time"] == "2025-08-15T19:00:00Z"
+    assert fixture["finished"] is False
+    assert fixture["started"] is False
+
+
+def test_played_fixture_exposes_scores(mock_table):
+    played = _fixture(200, event=2, team_h=1, team_a=2)
+    played.update({"team_h_score": 2, "team_a_score": 1, "finished": True, "started": True})
+    _wire_get_item(
+        mock_table,
+        bootstrap=_bootstrap_item([_gameweek(2, is_current=True)]),
+        fixtures=_fixtures_item([played]),
+    )
+
+    body = json.loads(lambda_handler({}, None)["body"])
+    fixture = body["fixtures"][0]
+
+    assert fixture["home"]["score"] == 2
+    assert fixture["away"]["score"] == 1
+    assert fixture["finished"] is True
 
 
 def test_pre_season_returns_null_gameweek_and_empty_fixtures(mock_table):
