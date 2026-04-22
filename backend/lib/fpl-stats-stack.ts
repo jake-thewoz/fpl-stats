@@ -70,6 +70,16 @@ export class FplStatsStack extends cdk.Stack {
     });
     cacheTable.grantReadData(gameweekCurrentFn);
 
+    const playersFn = new FplPythonFunction(this, 'Players', {
+      name: 'players',
+      description: 'Read API — returns a summarized player list, filterable by team/position.',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+      },
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadData(playersFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
@@ -97,6 +107,15 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'GameweekCurrentIntegration',
         gameweekCurrentFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/players',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'PlayersIntegration',
+        playersFn,
       ),
     });
 
