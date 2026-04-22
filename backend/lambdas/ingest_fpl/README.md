@@ -22,11 +22,17 @@ fails, nothing is written, and the previously good data stays put.
 
 ## Schema versioning
 
-The pydantic models in [`schemas.py`](./schemas.py) are the authoritative
-definition of what's in the cache. The module-level `SCHEMA_VERSION`
-constant is stamped on every stored item. Readers should pin to the
-version they were built against and either degrade gracefully or raise
-loudly on a mismatch.
+The pydantic models in
+[`backend/layers/fpl_schemas/python/schemas.py`](../../layers/fpl_schemas/python/schemas.py)
+are the authoritative definition of what's in the cache. The
+module-level `SCHEMA_VERSION` constant is stamped on every stored item.
+Readers should pin to the version they were built against and either
+degrade gracefully or raise loudly on a mismatch.
+
+The schemas ship as a Lambda layer (`FplSchemasLayer` in the stack) and
+are attached to both the ingest Lambda and each read-path Lambda, so
+there's a single source of truth. Local pytest finds them via a
+`sys.path` insert in each lambda's `conftest.py`.
 
 When to bump `SCHEMA_VERSION`:
 
@@ -38,10 +44,3 @@ When to bump `SCHEMA_VERSION`:
 - **FPL drift** — FPL adds or renames a field we parse: update the
   model; bump only if our stored shape changes breakingly.
 
-## Where the schema lives
-
-For now `schemas.py` lives alongside this Lambda because it's the only
-consumer. The first time a read-path Lambda (e.g. `GET /players`,
-`GET /gameweek/current`) needs to import it, promote `schemas.py` into a
-Lambda layer (or equivalent shared-bundling setup) so both sides share
-one source of truth.
