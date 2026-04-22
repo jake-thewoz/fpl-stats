@@ -12,11 +12,17 @@ import {
   HttpMethod,
 } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
 import { Code, LayerVersion, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { Topic } from 'aws-cdk-lib/aws-sns';
+import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import { FplPythonFunction } from './fpl-python-function';
+
+const ALERT_EMAIL = 'jake.thewoz@gmail.com';
 
 export class FplStatsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -85,6 +91,26 @@ export class FplStatsStack extends cdk.Stack {
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
       targets: [new LambdaTarget(ingestFn)],
     });
+
+    const alertsTopic = new Topic(this, 'IngestionAlertsTopic', {
+      displayName: 'FPL Stats ingestion alerts',
+    });
+    alertsTopic.addSubscription(new EmailSubscription(ALERT_EMAIL));
+
+    const ingestErrorsAlarm = ingestFn
+      .metricErrors({
+        period: cdk.Duration.minutes(30),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'IngestFplErrorsAlarm', {
+        alarmDescription:
+          'FPL ingestion Lambda returned an error — cached data may be going stale.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    ingestErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const httpApi = new HttpApi(this, 'HttpApi', {
       description: 'FPL Stats public HTTP API.',
