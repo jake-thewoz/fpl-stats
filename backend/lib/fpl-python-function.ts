@@ -18,7 +18,7 @@ export interface FplPythonFunctionProps
 
 /**
  * PythonFunction with the defaults this project standardizes on:
- * Python 3.12, 128MB memory, 10s timeout, 1-month log retention.
+ * Python 3.12, 128MB memory, 10s timeout, 1-week log retention.
  * Any default can be overridden via props.
  */
 export class FplPythonFunction extends PythonFunction {
@@ -31,7 +31,7 @@ export class FplPythonFunction extends PythonFunction {
       runtime: Runtime.PYTHON_3_12,
       memorySize: 128,
       timeout: cdk.Duration.seconds(10),
-      logRetention: RetentionDays.ONE_MONTH,
+      logRetention: RetentionDays.ONE_WEEK,
       bundling: {
         assetExcludes: [
           'tests',
