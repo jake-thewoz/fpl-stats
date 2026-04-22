@@ -37,6 +37,7 @@ export class FplPythonFunction extends PythonFunction {
           'tests',
           'conftest.py',
           'requirements-dev.txt',
+          'README.md',
           '.venv',
           '__pycache__',
           '.pytest_cache',
