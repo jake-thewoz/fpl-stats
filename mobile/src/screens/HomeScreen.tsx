@@ -10,6 +10,7 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -108,20 +109,30 @@ function formatKickoff(iso: string | null): string {
 }
 
 const styles = StyleSheet.create({
-  listContent: { paddingBottom: 32 },
-  header: { padding: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
-  headerTitle: { fontSize: 24, fontWeight: '600' },
-  headerSubtitle: { marginTop: 4, color: '#555' },
+  listContent: { paddingBottom: 32, backgroundColor: colors.background },
+  header: {
+    padding: 20,
+    backgroundColor: colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { fontSize: 24, fontWeight: '600', color: colors.textPrimary },
+  headerSubtitle: { marginTop: 4, color: colors.textMuted },
   fixtureRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
-  fixtureTeam: { flex: 1, fontSize: 16, fontWeight: '500' },
+  fixtureTeam: { flex: 1, fontSize: 16, fontWeight: '500', color: colors.textPrimary },
   fixtureTeamAway: { textAlign: 'right' },
-  fixtureScore: { paddingHorizontal: 12, color: '#333', fontVariant: ['tabular-nums'] },
-  emptyBody: { padding: 20, color: '#555', textAlign: 'center' },
+  fixtureScore: {
+    paddingHorizontal: 12,
+    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  emptyBody: { padding: 20, color: colors.textMuted, textAlign: 'center' },
 });

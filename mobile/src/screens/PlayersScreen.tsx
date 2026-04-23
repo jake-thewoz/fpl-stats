@@ -13,6 +13,7 @@ import { fetchPlayers, type Player } from '../api/players';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { colors } from '../theme';
 
 const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'];
 const SEARCH_DEBOUNCE_MS = 300;
@@ -184,13 +185,13 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 const styles = StyleSheet.create({
-  listContent: { paddingBottom: 32 },
+  listContent: { paddingBottom: 32, backgroundColor: colors.background },
   headerBg: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.border,
   },
   search: {
     marginHorizontal: 16,
@@ -198,35 +199,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.background,
+    color: colors.textPrimary,
     fontSize: 16,
   },
   chipRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  chipLabel: { width: 72, paddingLeft: 16, color: '#555', fontSize: 13, fontWeight: '500' },
+  chipLabel: {
+    width: 72,
+    paddingLeft: 16,
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
+  },
   chipScroll: { paddingRight: 16, gap: 8 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#eee',
+    backgroundColor: colors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  chipSelected: { backgroundColor: '#37003c' },
-  chipText: { color: '#333', fontSize: 13, fontWeight: '500' },
-  chipTextSelected: { color: '#fff' },
-  countLine: { marginTop: 6, marginLeft: 16, color: '#666', fontSize: 12 },
+  chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  chipTextSelected: { color: colors.onAccent, fontWeight: '600' },
+  countLine: { marginTop: 6, marginLeft: 16, color: colors.textMuted, fontSize: 12 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
   rowLeft: { flex: 1 },
-  rowName: { fontSize: 16, fontWeight: '500' },
-  rowMeta: { marginTop: 2, color: '#666', fontSize: 13 },
+  rowName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary },
+  rowMeta: { marginTop: 2, color: colors.textMuted, fontSize: 13 },
   rowRight: { alignItems: 'flex-end' },
-  rowPoints: { fontSize: 15, fontWeight: '600' },
-  rowPrice: { marginTop: 2, color: '#444', fontSize: 13 },
-  emptyBody: { padding: 32, color: '#555', textAlign: 'center' },
+  rowPoints: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+  rowPrice: { marginTop: 2, color: colors.warm, fontSize: 13, fontWeight: '500' },
+  emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
 });
