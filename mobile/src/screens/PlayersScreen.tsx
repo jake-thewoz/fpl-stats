@@ -51,7 +51,8 @@ export default function PlayersScreen({ navigation }: Props) {
       headerRight: () => (
         <View style={styles.headerRightGroup}>
           <HeaderButton label="Team" onPress={() => navigation.navigate('MyTeam')} />
-          <HeaderButton label="Gameweek" onPress={() => navigation.navigate('Gameweek')} />
+          <HeaderButton label="Friends" onPress={() => navigation.navigate('Friends')} />
+          <HeaderButton label="GW" onPress={() => navigation.navigate('Gameweek')} />
         </View>
       ),
     });
