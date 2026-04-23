@@ -5,6 +5,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PlayersScreen from './src/screens/PlayersScreen';
 import GameweekScreen from './src/screens/GameweekScreen';
 import MyTeamScreen from './src/screens/MyTeamScreen';
+import FriendsScreen from './src/screens/FriendsScreen';
+import AddFriendScreen from './src/screens/AddFriendScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { LoadingView } from './src/components/LoadingView';
@@ -16,6 +18,8 @@ export type RootStackParamList = {
   Players: undefined;
   Gameweek: undefined;
   MyTeam: undefined;
+  Friends: undefined;
+  AddFriend: undefined;
   Settings: undefined;
 };
 
@@ -75,6 +79,12 @@ export default function App() {
           name="MyTeam"
           component={MyTeamScreen}
           options={{ title: 'My Team' }}
+        />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
+        <Stack.Screen
+          name="AddFriend"
+          component={AddFriendScreen}
+          options={{ title: 'Add Friend' }}
         />
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
