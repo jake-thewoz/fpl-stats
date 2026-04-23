@@ -100,3 +100,22 @@ class Fixture(BaseModel):
     team_a_score: int | None = None
     finished: bool
     started: bool | None = None
+
+
+class Entry(BaseModel):
+    """Subset of FPL ``/entry/{id}/`` we cache per-team."""
+
+    id: int
+    name: str
+    player_first_name: str
+    player_last_name: str
+    started_event: int
+    favourite_team: int | None = None
+    summary_overall_points: int | None = None
+    summary_overall_rank: int | None = None
+    summary_event_points: int | None = None
+    summary_event_rank: int | None = None
+    current_event: int | None = None
+    last_deadline_value: int | None = None
+    last_deadline_bank: int | None = None
+    last_deadline_total_transfers: int | None = None
