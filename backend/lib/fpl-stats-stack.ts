@@ -115,6 +115,19 @@ export class FplStatsStack extends cdk.Stack {
     });
     cacheTable.grantReadWriteData(entryGameweekFn);
 
+    const gameweekLiveFn = new FplPythonFunction(this, 'GameweekLive', {
+      name: 'gameweek_live',
+      description:
+        'Read API — cache-aside GET /gameweek/{gw}/live (per-player points + minutes).',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+        GAMEWEEK_LIVE_TTL_SECONDS: '1800',
+      },
+      timeout: cdk.Duration.seconds(15),
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadWriteData(gameweekLiveFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
@@ -186,6 +199,15 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'EntryGameweekIntegration',
         entryGameweekFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/gameweek/{gw}/live',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'GameweekLiveIntegration',
+        gameweekLiveFn,
       ),
     });
 

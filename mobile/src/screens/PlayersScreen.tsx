@@ -49,7 +49,10 @@ export default function PlayersScreen({ navigation }: Props) {
         <HeaderButton label="Settings" onPress={() => navigation.navigate('Settings')} />
       ),
       headerRight: () => (
-        <HeaderButton label="Gameweek" onPress={() => navigation.navigate('Gameweek')} />
+        <View style={styles.headerRightGroup}>
+          <HeaderButton label="Team" onPress={() => navigation.navigate('MyTeam')} />
+          <HeaderButton label="Gameweek" onPress={() => navigation.navigate('Gameweek')} />
+        </View>
       ),
     });
   }, [navigation]);
@@ -413,4 +416,5 @@ const styles = StyleSheet.create({
   rowPoints: { fontWeight: '700' },
   emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
   pressed: { opacity: 0.5 },
+  headerRightGroup: { flexDirection: 'row', gap: 8 },
 });

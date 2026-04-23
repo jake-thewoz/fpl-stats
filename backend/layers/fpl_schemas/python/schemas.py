@@ -152,3 +152,19 @@ class EntryPicks(BaseModel):
     active_chip: str | None = None
     picks: list[EntryPick]
     entry_history: EntryHistory
+
+
+class GameweekLiveElement(BaseModel):
+    """Per-player live stats for a gameweek — what we keep is tight on
+    purpose: id, points, minutes. Any future needs (bonus, goals, xG join
+    targets) can be added as optional fields without a schema bump."""
+
+    id: int
+    total_points: int
+    minutes: int
+
+
+class GameweekLive(BaseModel):
+    """Subset of FPL ``/event/{gw}/live/`` we cache per gameweek."""
+
+    elements: list[GameweekLiveElement]
