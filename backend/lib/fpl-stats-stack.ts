@@ -34,6 +34,10 @@ export class FplStatsStack extends cdk.Stack {
       billingMode: BillingMode.PAY_PER_REQUEST,
       encryption: TableEncryption.AWS_MANAGED,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Native TTL — items with a numeric `ttl` attribute (unix seconds) are
+      // eventually garbage-collected by DynamoDB. Items without it are
+      // unaffected, so bootstrap/fixtures rows stay put.
+      timeToLiveAttribute: 'ttl',
     });
 
     const fplSchemasLayer = new LayerVersion(this, 'FplSchemasLayer', {
@@ -85,6 +89,18 @@ export class FplStatsStack extends cdk.Stack {
       layers: [fplSchemasLayer],
     });
     cacheTable.grantReadData(playersFn);
+
+    const entryFn = new FplPythonFunction(this, 'Entry', {
+      name: 'entry',
+      description: 'Read API — cache-aside GET /entry/{teamId} backed by FPL.',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+        ENTRY_TTL_SECONDS: '1800',
+      },
+      timeout: cdk.Duration.seconds(15),
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadWriteData(entryFn);
 
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
@@ -143,6 +159,12 @@ export class FplStatsStack extends cdk.Stack {
         'PlayersIntegration',
         playersFn,
       ),
+    });
+
+    httpApi.addRoutes({
+      path: '/entry/{teamId}',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration('EntryIntegration', entryFn),
     });
 
     new cdk.CfnOutput(this, 'CacheTableName', {
