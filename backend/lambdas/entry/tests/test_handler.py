@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,21 @@ os.environ.setdefault("CACHE_TABLE_NAME", "test-cache-table")
 import handler  # noqa: E402
 from handler import lambda_handler  # noqa: E402
 from schemas import SCHEMA_VERSION  # noqa: E402
+
+
+def _as_ddb(value):
+    """Recursively wrap numbers in Decimal to match what boto3's resource
+    API actually returns from DynamoDB. Booleans are left alone because
+    ``isinstance(True, int)`` is True in Python."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _as_ddb(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_as_ddb(v) for v in value]
+    return value
 
 
 TEAM_ID = 1234567
@@ -64,7 +80,10 @@ def frozen_time():
 
 
 def _cached_item(expires_at: float, schema_version: int = SCHEMA_VERSION) -> dict:
-    return {
+    # Mirror what boto3's DynamoDB resource returns: every number comes back
+    # as decimal.Decimal, not int/float. Keeping the mock realistic is what
+    # lets this test actually cover the freshness + JSON-serialization paths.
+    return _as_ddb({
         "pk": f"entry#{TEAM_ID}",
         "sk": "latest",
         "schema_version": schema_version,
@@ -79,7 +98,7 @@ def _cached_item(expires_at: float, schema_version: int = SCHEMA_VERSION) -> dic
             "current_event",
             "last_deadline_value", "last_deadline_bank", "last_deadline_total_transfers",
         }},
-    }
+    })
 
 
 # ---- Miss -> fetch + cache ---------------------------------------------------

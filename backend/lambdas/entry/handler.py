@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import time
+from decimal import Decimal
 from typing import Any
 
 import boto3
@@ -45,11 +46,20 @@ class EntryNotFound(Exception):
     """FPL said this team ID doesn't exist."""
 
 
+def _json_default(o: Any) -> Any:
+    # DynamoDB's resource API returns numeric attributes as decimal.Decimal,
+    # which the default json encoder can't serialize. Convert to int when the
+    # value is a whole number, otherwise float.
+    if isinstance(o, Decimal):
+        return int(o) if o == int(o) else float(o)
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+
 def _response(status: int, body: dict[str, Any]) -> dict[str, Any]:
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
-        "body": json.dumps(body),
+        "body": json.dumps(body, default=_json_default),
     }
 
 
@@ -93,9 +103,15 @@ def _is_fresh(item: dict[str, Any]) -> bool:
     if item.get("schema_version") != SCHEMA_VERSION:
         return False
     expires_at = item.get("expires_at")
-    if not isinstance(expires_at, (int, float)):
+    if expires_at is None:
         return False
-    return time.time() < float(expires_at)
+    # DynamoDB hands back Decimal for numeric attributes; coerce to float so
+    # the comparison works regardless of what we got.
+    try:
+        deadline = float(expires_at)
+    except (TypeError, ValueError):
+        return False
+    return time.time() < deadline
 
 
 def _ttl_seconds() -> int:
