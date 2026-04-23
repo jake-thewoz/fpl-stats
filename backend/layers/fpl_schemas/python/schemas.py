@@ -119,3 +119,36 @@ class Entry(BaseModel):
     last_deadline_value: int | None = None
     last_deadline_bank: int | None = None
     last_deadline_total_transfers: int | None = None
+
+
+class EntryPick(BaseModel):
+    """One of the 15 squad slots for a given gameweek."""
+
+    element: int
+    position: int
+    multiplier: int
+    is_captain: bool
+    is_vice_captain: bool
+
+
+class EntryHistory(BaseModel):
+    """Per-gameweek score + bank/value snapshot for an entry."""
+
+    event: int
+    points: int
+    total_points: int
+    rank: int | None = None
+    overall_rank: int | None = None
+    bank: int | None = None
+    value: int | None = None
+    event_transfers: int | None = None
+    event_transfers_cost: int | None = None
+    points_on_bench: int | None = None
+
+
+class EntryPicks(BaseModel):
+    """Subset of FPL ``/entry/{id}/event/{gw}/picks/`` we cache per (team, gw)."""
+
+    active_chip: str | None = None
+    picks: list[EntryPick]
+    entry_history: EntryHistory
