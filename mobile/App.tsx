@@ -54,7 +54,10 @@ export default function App() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator initialRouteName={bootstrap.initialRoute}>
+      <Stack.Navigator
+        initialRouteName={bootstrap.initialRoute}
+        screenOptions={{ headerTitleAlign: 'center' }}
+      >
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
   isValidFplTeamId,
   setFplTeamId,
 } from '../storage/user';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -24,6 +24,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   useEffect(() => {
     getFplTeamId().then(setCurrentId);
@@ -42,25 +43,14 @@ export default function SettingsScreen({ navigation }: Props) {
     setInput('');
   }
 
-  function onClear() {
-    Alert.alert(
-      'Clear team ID?',
-      'You will need to enter your team ID again to use the app.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            await clearFplTeamId();
-            navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
-          },
-        },
-      ],
-    );
+  async function onConfirmClear() {
+    setClearConfirmOpen(false);
+    await clearFplTeamId();
+    navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
   }
 
   return (
+    <>
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>FPL TEAM ID</Text>
 
@@ -80,7 +70,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <Text style={styles.secondaryBtnText}>Change</Text>
             </Pressable>
             <Pressable
-              onPress={onClear}
+              onPress={() => setClearConfirmOpen(true)}
               style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}
               accessibilityRole="button"
               disabled={currentId === null}
@@ -129,6 +119,17 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
       )}
     </View>
+    <ConfirmDialog
+      visible={clearConfirmOpen}
+      title="Clear team ID?"
+      message="You will need to enter your team ID again to use the app."
+      confirmLabel="Clear"
+      cancelLabel="Cancel"
+      destructive
+      onConfirm={onConfirmClear}
+      onCancel={() => setClearConfirmOpen(false)}
+    />
+    </>
   );
 }
 
