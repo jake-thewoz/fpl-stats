@@ -190,11 +190,8 @@ function sortRows(
   column: SortColumn,
   dir: SortDir,
 ): ComparisonRow[] {
-  const me = rows.find((r) => r.target.isMe);
-  const others = rows.filter((r) => !r.target.isMe);
-
   const mul = dir === 'asc' ? 1 : -1;
-  const sorted = others.slice().sort((a, b) => {
+  return rows.slice().sort((a, b) => {
     const av = sortValue(a, column);
     const bv = sortValue(b, column);
     // Errors / nulls always sink to the bottom regardless of direction.
@@ -204,10 +201,6 @@ function sortRows(
     if (av === bv) return a.target.alias.localeCompare(b.target.alias);
     return av < bv ? -1 * mul : 1 * mul;
   });
-
-  // Me is always pinned first so you can see your reference point regardless
-  // of where it would sort into the list.
-  return me ? [me, ...sorted] : sorted;
 }
 
 function sortValue(row: ComparisonRow, column: SortColumn): number | null {
@@ -326,7 +319,7 @@ function Row({ row }: { row: ComparisonRow }) {
       <View style={styles.colAlias}>
         <View style={styles.aliasLine}>
           <Text style={styles.rowAlias} numberOfLines={1}>
-            {target.alias}
+            {displayAlias(row)}
           </Text>
           {aliasBadge}
         </View>
@@ -337,6 +330,17 @@ function Row({ row }: { row: ComparisonRow }) {
       <CellValue state={state} field="total" />
     </View>
   );
+}
+
+function displayAlias(row: ComparisonRow): string {
+  // For the signed-in user, prefer the real team name once it loads — the
+  // 'You' badge next to it is what identifies the row. Fall back to a
+  // neutral placeholder while the fetch is in flight or if it failed.
+  if (row.target.isMe) {
+    if (row.state.status === 'ok') return row.state.data.name;
+    return 'Your team';
+  }
+  return row.target.alias;
 }
 
 function RowSubtext({ state, teamId }: { state: RowState; teamId: string }) {
