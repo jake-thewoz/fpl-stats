@@ -19,7 +19,7 @@ import { colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
-export default function SettingsScreen({ navigation }: Props) {
+export default function SettingsScreen(_props: Props) {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
@@ -46,7 +46,7 @@ export default function SettingsScreen({ navigation }: Props) {
   async function onConfirmClear() {
     setClearConfirmOpen(false);
     await clearFplTeamId();
-    navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+    setCurrentId(null);
   }
 
   return (
@@ -122,7 +122,7 @@ export default function SettingsScreen({ navigation }: Props) {
     <ConfirmDialog
       visible={clearConfirmOpen}
       title="Clear team ID?"
-      message="You will need to enter your team ID again to use the app."
+      message="You can add it again any time from this screen."
       confirmLabel="Clear"
       cancelLabel="Cancel"
       destructive

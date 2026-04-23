@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { isValidFplTeamId, setFplTeamId } from '../storage/user';
+import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
 import { colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
@@ -31,10 +31,19 @@ export default function OnboardingScreen({ navigation }: Props) {
     setSaving(true);
     try {
       await setFplTeamId(trimmed);
+      await setOnboardingSeen();
       navigation.reset({ index: 0, routes: [{ name: 'Players' }] });
     } catch (e) {
       setSaving(false);
       setError("Couldn't save. Try again.");
+    }
+  }
+
+  async function onSkip() {
+    try {
+      await setOnboardingSeen();
+    } finally {
+      navigation.reset({ index: 0, routes: [{ name: 'Players' }] });
     }
   }
 
@@ -75,20 +84,33 @@ export default function OnboardingScreen({ navigation }: Props) {
       </Pressable>
 
       <Pressable
-        onPress={() => Linking.openURL(FPL_POINTS_URL)}
-        hitSlop={6}
-        accessibilityRole="link"
+        onPress={onSkip}
+        disabled={saving}
+        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
       >
-        {({ pressed }) => (
-          <Text style={[styles.helperLink, pressed && styles.pressed]}>
-            Find my team ID
-          </Text>
-        )}
+        <Text style={styles.secondaryBtnText}>Skip for now</Text>
       </Pressable>
-      <Text style={styles.helperHint}>
-        Opens the FPL site. Once you're signed in, the ID appears in the URL
-        (e.g. .../entry/<Text style={styles.mono}>1234567</Text>/...).
-      </Text>
+
+      <View style={styles.helperGroup}>
+        <Pressable
+          onPress={() => Linking.openURL(FPL_POINTS_URL)}
+          hitSlop={6}
+          accessibilityRole="link"
+        >
+          {({ pressed }) => (
+            <Text style={[styles.helperLink, pressed && styles.pressed]}>
+              Find my team ID
+            </Text>
+          )}
+        </Pressable>
+        <Text style={styles.helperHint}>
+          Opens the FPL site. Sign in if prompted, then tap{' '}
+          <Text style={styles.helperEmphasis}>Points</Text> in the top nav.
+          Your team ID is the number in the URL:{' '}
+          <Text style={styles.mono}>.../entry/YOUR_ID/event/...</Text>
+        </Text>
+      </View>
     </View>
   );
 }
@@ -123,8 +145,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: '600' },
+  secondaryBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  secondaryBtnText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  helperGroup: { marginTop: 16, gap: 4 },
   helperLink: {
-    marginTop: 16,
     color: colors.accent,
     fontSize: 15,
     fontWeight: '600',
@@ -136,6 +167,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
+  helperEmphasis: { color: colors.textPrimary, fontWeight: '700' },
   mono: { fontVariant: ['tabular-nums'], fontWeight: '600' },
   pressed: { opacity: 0.5 },
 });

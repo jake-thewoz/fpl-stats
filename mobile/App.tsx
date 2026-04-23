@@ -7,7 +7,7 @@ import GameweekScreen from './src/screens/GameweekScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { LoadingView } from './src/components/LoadingView';
-import { getFplTeamId } from './src/storage/user';
+import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
 import { colors } from './src/theme';
 
 export type RootStackParamList = {
@@ -40,10 +40,10 @@ export default function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapState>({ status: 'loading' });
 
   useEffect(() => {
-    getFplTeamId().then((id) => {
+    Promise.all([getFplTeamId(), getOnboardingSeen()]).then(([id, seen]) => {
       setBootstrap({
         status: 'ready',
-        initialRoute: id ? 'Players' : 'Onboarding',
+        initialRoute: id || seen ? 'Players' : 'Onboarding',
       });
     });
   }, []);
