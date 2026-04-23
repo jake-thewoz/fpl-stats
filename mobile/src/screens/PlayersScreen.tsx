@@ -44,6 +44,18 @@ export default function PlayersScreen({ navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => navigation.navigate('Settings')}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          {({ pressed }) => (
+            <Text style={[styles.headerLink, pressed && styles.pressed]}>Settings</Text>
+          )}
+        </Pressable>
+      ),
       headerRight: () => (
         <Pressable
           onPress={() => navigation.navigate('Gameweek')}
