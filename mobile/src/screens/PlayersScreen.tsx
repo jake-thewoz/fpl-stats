@@ -238,6 +238,6 @@ const styles = StyleSheet.create({
   rowMeta: { marginTop: 2, color: colors.textMuted, fontSize: 13 },
   rowRight: { alignItems: 'flex-end' },
   rowPoints: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  rowPrice: { marginTop: 2, color: colors.warm, fontSize: 13, fontWeight: '500' },
+  rowPrice: { marginTop: 2, color: colors.accent, fontSize: 13, fontWeight: '600' },
   emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
 });

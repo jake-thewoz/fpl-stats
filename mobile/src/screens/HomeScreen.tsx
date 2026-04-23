@@ -1,5 +1,5 @@
 import { useLayoutEffect } from 'react';
-import { Button, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import {
@@ -20,7 +20,18 @@ export default function HomeScreen({ navigation }: Props) {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Button title="Players" onPress={() => navigation.navigate('Players')} />
+        <Pressable
+          onPress={() => navigation.navigate('Players')}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Players"
+        >
+          {({ pressed }) => (
+            <Text style={[styles.headerButtonText, pressed && styles.headerButtonPressed]}>
+              Players
+            </Text>
+          )}
+        </Pressable>
       ),
     });
   }, [navigation]);
@@ -135,4 +146,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   emptyBody: { padding: 20, color: colors.textMuted, textAlign: 'center' },
+  headerButtonText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  headerButtonPressed: { opacity: 0.5 },
 });
