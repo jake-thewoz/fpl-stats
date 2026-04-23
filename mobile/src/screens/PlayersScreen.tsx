@@ -15,6 +15,7 @@ import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { FilterDialog } from '../components/FilterDialog';
+import { HeaderButton } from '../components/HeaderButton';
 import { colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Players'>;
@@ -44,17 +45,11 @@ export default function PlayersScreen({ navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerLeft: () => (
+        <HeaderButton label="Settings" onPress={() => navigation.navigate('Settings')} />
+      ),
       headerRight: () => (
-        <Pressable
-          onPress={() => navigation.navigate('Gameweek')}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Gameweek"
-        >
-          {({ pressed }) => (
-            <Text style={[styles.headerLink, pressed && styles.pressed]}>Gameweek</Text>
-          )}
-        </Pressable>
+        <HeaderButton label="Gameweek" onPress={() => navigation.navigate('Gameweek')} />
       ),
     });
   }, [navigation]);
@@ -417,6 +412,5 @@ const styles = StyleSheet.create({
   rowCell: { color: colors.textPrimary, fontSize: 14 },
   rowPoints: { fontWeight: '700' },
   emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
-  headerLink: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   pressed: { opacity: 0.5 },
 });
