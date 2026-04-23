@@ -168,3 +168,32 @@ class GameweekLive(BaseModel):
     """Subset of FPL ``/event/{gw}/live/`` we cache per gameweek."""
 
     elements: list[GameweekLiveElement]
+
+
+class LeagueInfo(BaseModel):
+    """Minimal classic-league metadata we surface to clients."""
+
+    id: int
+    name: str
+
+
+class LeagueMember(BaseModel):
+    """One entry in a classic league's standings. ``entry`` is the FPL
+    team ID used everywhere else; ``entry_name`` is that team's name;
+    ``player_name`` is the manager."""
+
+    entry: int
+    entry_name: str
+    player_name: str
+    rank: int
+    total: int
+
+
+class LeagueStandings(BaseModel):
+    """Subset of FPL ``/leagues-classic/{id}/standings/`` we cache per league.
+    MVP keeps only page 1 (FPL paginates 50-per-page); ``has_more`` flags
+    when the upstream had additional pages we didn't fetch."""
+
+    league: LeagueInfo
+    members: list[LeagueMember]
+    has_more: bool = False
