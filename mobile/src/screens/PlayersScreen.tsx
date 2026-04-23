@@ -1,30 +1,63 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../App';
 import { fetchPlayers, type Player } from '../api/players';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { FilterDialog } from '../components/FilterDialog';
 import { colors } from '../theme';
 
-const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'];
+type Props = NativeStackScreenProps<RootStackParamList, 'Players'>;
+
+const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
 const SEARCH_DEBOUNCE_MS = 300;
 
-export default function PlayersScreen() {
+type SortColumn = 'form' | 'price' | 'total_points';
+type SortDir = 'asc' | 'desc';
+
+const COLUMNS: { key: SortColumn; label: string }[] = [
+  { key: 'form', label: 'Form' },
+  { key: 'price', label: 'Price' },
+  { key: 'total_points', label: 'Points' },
+];
+
+export default function PlayersScreen({ navigation }: Props) {
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetchPlayers);
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
-  const [positionFilter, setPositionFilter] = useState<string | null>(null);
+  const [teamFilters, setTeamFilters] = useState<string[]>([]);
+  const [positionFilters, setPositionFilters] = useState<string[]>([]);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('total_points');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('Gameweek')}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Gameweek"
+        >
+          {({ pressed }) => (
+            <Text style={[styles.headerLink, pressed && styles.pressed]}>Gameweek</Text>
+          )}
+        </Pressable>
+      ),
+    });
+  }, [navigation]);
 
   useEffect(() => {
     const handle = setTimeout(() => setSearchQuery(searchInput.trim()), SEARCH_DEBOUNCE_MS);
@@ -39,15 +72,48 @@ export default function PlayersScreen() {
     return Array.from(set).sort();
   }, [players]);
 
-  const filteredPlayers = useMemo(() => {
+  const visiblePlayers = useMemo(() => {
     const needle = searchQuery.toLowerCase();
-    return players.filter((p) => {
-      if (teamFilter && p.team !== teamFilter) return false;
-      if (positionFilter && p.position !== positionFilter) return false;
+    const teamSet = new Set(teamFilters);
+    const posSet = new Set(positionFilters);
+
+    const filtered = players.filter((p) => {
+      if (teamSet.size > 0 && !teamSet.has(p.team)) return false;
+      if (posSet.size > 0 && !posSet.has(p.position)) return false;
       if (needle && !p.name.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [players, searchQuery, teamFilter, positionFilter]);
+
+    const mul = sortDir === 'asc' ? 1 : -1;
+    return filtered.slice().sort((a, b) => {
+      const av = sortValue(a, sortColumn);
+      const bv = sortValue(b, sortColumn);
+      if (av === bv) return a.name.localeCompare(b.name);
+      return av < bv ? -1 * mul : 1 * mul;
+    });
+  }, [players, searchQuery, teamFilters, positionFilters, sortColumn, sortDir]);
+
+  function onHeaderPress(col: SortColumn) {
+    if (col === sortColumn) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(col);
+      setSortDir('desc');
+    }
+  }
+
+  function toggleTeam(value: string) {
+    setTeamFilters((xs) => (xs.includes(value) ? xs.filter((x) => x !== value) : [...xs, value]));
+  }
+  function togglePosition(value: string) {
+    setPositionFilters((xs) =>
+      xs.includes(value) ? xs.filter((x) => x !== value) : [...xs, value],
+    );
+  }
+  function clearAllFilters() {
+    setTeamFilters([]);
+    setPositionFilters([]);
+  }
 
   if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
@@ -56,75 +122,137 @@ export default function PlayersScreen() {
     );
   }
 
+  const activeFilterCount = teamFilters.length + positionFilters.length;
+
   return (
-    <FlatList
-      data={filteredPlayers}
-      keyExtractor={(p) => String(p.id)}
-      renderItem={({ item }) => <PlayerRow player={item} />}
-      ListHeaderComponent={
-        <FiltersHeader
-          searchInput={searchInput}
-          onSearchChange={setSearchInput}
-          availableTeams={availableTeams}
-          teamFilter={teamFilter}
-          onTeamChange={setTeamFilter}
-          positionFilter={positionFilter}
-          onPositionChange={setPositionFilter}
-          totalCount={players.length}
-          filteredCount={filteredPlayers.length}
-        />
-      }
-      ListEmptyComponent={<Text style={styles.emptyBody}>No players match these filters.</Text>}
-      stickyHeaderIndices={[0]}
-      contentContainerStyle={styles.listContent}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    />
+    <>
+      <FlatList
+        data={visiblePlayers}
+        keyExtractor={(p) => String(p.id)}
+        renderItem={({ item }) => <PlayerRow player={item} />}
+        ListHeaderComponent={
+          <ListHeader
+            searchInput={searchInput}
+            onSearchChange={setSearchInput}
+            onOpenFilter={() => setFilterOpen(true)}
+            activeFilterCount={activeFilterCount}
+            teamFilters={teamFilters}
+            positionFilters={positionFilters}
+            onRemoveTeam={toggleTeam}
+            onRemovePosition={togglePosition}
+            sortColumn={sortColumn}
+            sortDir={sortDir}
+            onHeaderPress={onHeaderPress}
+            totalCount={players.length}
+            filteredCount={visiblePlayers.length}
+          />
+        }
+        ListEmptyComponent={<Text style={styles.emptyBody}>No players match these filters.</Text>}
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      />
+      <FilterDialog
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        positions={POSITION_ORDER}
+        selectedPositions={positionFilters}
+        onTogglePosition={togglePosition}
+        teams={availableTeams}
+        selectedTeams={teamFilters}
+        onToggleTeam={toggleTeam}
+        onClearAll={clearAllFilters}
+      />
+    </>
   );
 }
 
-type FiltersHeaderProps = {
+function sortValue(p: Player, col: SortColumn): number {
+  if (col === 'form') {
+    const n = parseFloat(p.form);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  if (col === 'price') return p.price;
+  return p.total_points;
+}
+
+type ListHeaderProps = {
   searchInput: string;
   onSearchChange: (v: string) => void;
-  availableTeams: string[];
-  teamFilter: string | null;
-  onTeamChange: (v: string | null) => void;
-  positionFilter: string | null;
-  onPositionChange: (v: string | null) => void;
+  onOpenFilter: () => void;
+  activeFilterCount: number;
+  teamFilters: string[];
+  positionFilters: string[];
+  onRemoveTeam: (v: string) => void;
+  onRemovePosition: (v: string) => void;
+  sortColumn: SortColumn;
+  sortDir: SortDir;
+  onHeaderPress: (col: SortColumn) => void;
   totalCount: number;
   filteredCount: number;
 };
 
-function FiltersHeader(props: FiltersHeaderProps) {
+function ListHeader(props: ListHeaderProps) {
   const {
     searchInput, onSearchChange,
-    availableTeams, teamFilter, onTeamChange,
-    positionFilter, onPositionChange,
+    onOpenFilter, activeFilterCount,
+    teamFilters, positionFilters, onRemoveTeam, onRemovePosition,
+    sortColumn, sortDir, onHeaderPress,
     totalCount, filteredCount,
   } = props;
+
+  const hasChips = teamFilters.length + positionFilters.length > 0;
+
   return (
     <View style={styles.headerBg}>
-      <TextInput
-        style={styles.search}
-        placeholder="Search players"
-        value={searchInput}
-        onChangeText={onSearchChange}
-        autoCorrect={false}
-        autoCapitalize="none"
-        clearButtonMode="while-editing"
-      />
-      <ChipRow
-        label="Team"
-        options={availableTeams}
-        selected={teamFilter}
-        onSelect={onTeamChange}
-      />
-      <ChipRow
-        label="Position"
-        options={POSITION_ORDER}
-        selected={positionFilter}
-        onSelect={onPositionChange}
-      />
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.search}
+          placeholder="Search players"
+          placeholderTextColor={colors.textMuted}
+          value={searchInput}
+          onChangeText={onSearchChange}
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+        />
+        <Pressable
+          onPress={onOpenFilter}
+          style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Open filter"
+        >
+          <Text style={styles.filterBtnText}>
+            Filter{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+          </Text>
+        </Pressable>
+      </View>
+
+      {hasChips && (
+        <View style={styles.chipsRow}>
+          {positionFilters.map((p) => (
+            <FilterChip key={`pos-${p}`} label={p} onRemove={() => onRemovePosition(p)} />
+          ))}
+          {teamFilters.map((t) => (
+            <FilterChip key={`team-${t}`} label={t} onRemove={() => onRemoveTeam(t)} />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.tableHeader}>
+        <Text style={[styles.colHeader, styles.colName]}>Player</Text>
+        {COLUMNS.map((c) => (
+          <ColumnHeaderButton
+            key={c.key}
+            label={c.label}
+            active={sortColumn === c.key}
+            direction={sortColumn === c.key ? sortDir : null}
+            onPress={() => onHeaderPress(c.key)}
+          />
+        ))}
+      </View>
+
       <Text style={styles.countLine}>
         {filteredCount} of {totalCount}
       </Text>
@@ -132,70 +260,92 @@ function FiltersHeader(props: FiltersHeaderProps) {
   );
 }
 
-type ChipRowProps = {
-  label: string;
-  options: string[];
-  selected: string | null;
-  onSelect: (v: string | null) => void;
-};
-
-function ChipRow({ label, options, selected, onSelect }: ChipRowProps) {
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <View style={styles.chipRow}>
+    <Pressable
+      onPress={onRemove}
+      style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`Remove filter ${label}`}
+    >
       <Text style={styles.chipLabel}>{label}</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipScroll}
+      <Text style={styles.chipX}>×</Text>
+    </Pressable>
+  );
+}
+
+function ColumnHeaderButton({
+  label, active, direction, onPress,
+}: {
+  label: string;
+  active: boolean;
+  direction: SortDir | null;
+  onPress: () => void;
+}) {
+  const arrow = direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.colHeaderBtn, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`Sort by ${label}`}
+    >
+      <Text
+        style={[
+          styles.colHeader,
+          styles.colNumeric,
+          active && styles.colHeaderActive,
+        ]}
       >
-        {options.map((opt) => {
-          const isSelected = selected === opt;
-          return (
-            <Pressable
-              key={opt}
-              onPress={() => onSelect(isSelected ? null : opt)}
-              style={[styles.chip, isSelected && styles.chipSelected]}
-            >
-              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                {opt}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
+        {label}{arrow}
+      </Text>
+    </Pressable>
   );
 }
 
 function PlayerRow({ player }: { player: Player }) {
   return (
     <View style={styles.row}>
-      <View style={styles.rowLeft}>
-        <Text style={styles.rowName}>{player.name}</Text>
+      <View style={styles.colName}>
+        <Text style={styles.rowName} numberOfLines={1}>{player.name}</Text>
         <Text style={styles.rowMeta}>
           {player.team} · {player.position}
         </Text>
       </View>
-      <View style={styles.rowRight}>
-        <Text style={styles.rowPoints}>{player.total_points} pts</Text>
-        <Text style={styles.rowPrice}>£{player.price.toFixed(1)}m</Text>
-      </View>
+      <Text style={[styles.rowCell, styles.colNumeric]}>{formatForm(player.form)}</Text>
+      <Text style={[styles.rowCell, styles.colNumeric]}>£{player.price.toFixed(1)}</Text>
+      <Text style={[styles.rowCell, styles.colNumeric, styles.rowPoints]}>
+        {player.total_points}
+      </Text>
     </View>
   );
 }
+
+function formatForm(raw: string): string {
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? raw : n.toFixed(1);
+}
+
+const COL_NUMERIC_WIDTH = 64;
 
 const styles = StyleSheet.create({
   listContent: { paddingBottom: 32, backgroundColor: colors.background },
   headerBg: {
     backgroundColor: colors.surface,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  search: {
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
+    gap: 8,
+  },
+  search: {
+    flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
@@ -203,41 +353,70 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
   },
-  chipRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  chipLabel: {
-    width: 72,
-    paddingLeft: 16,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '500',
+  filterBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
   },
-  chipScroll: { paddingRight: 16, gap: 8 },
+  filterBtnText: { color: colors.onAccent, fontSize: 14, fontWeight: '600' },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 6,
+  },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 10,
+    paddingRight: 8,
+    paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: colors.accent,
+    gap: 4,
   },
-  chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  chipTextSelected: { color: colors.onAccent, fontWeight: '600' },
-  countLine: { marginTop: 6, marginLeft: 16, color: colors.textMuted, fontSize: 12 },
+  chipLabel: { color: colors.onAccent, fontSize: 13, fontWeight: '600' },
+  chipX: { color: colors.onAccent, fontSize: 16, fontWeight: '700', lineHeight: 18 },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  colHeader: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  colHeaderActive: { color: colors.accent },
+  colHeaderBtn: { width: COL_NUMERIC_WIDTH, paddingVertical: 4 },
+  countLine: { marginTop: 2, marginLeft: 16, marginBottom: 4, color: colors.textMuted, fontSize: 12 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  rowLeft: { flex: 1 },
+  colName: { flex: 1, paddingRight: 8 },
+  colNumeric: {
+    width: COL_NUMERIC_WIDTH,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
   rowName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary },
-  rowMeta: { marginTop: 2, color: colors.textMuted, fontSize: 13 },
-  rowRight: { alignItems: 'flex-end' },
-  rowPoints: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  rowPrice: { marginTop: 2, color: colors.accent, fontSize: 13, fontWeight: '600' },
+  rowMeta: { marginTop: 2, color: colors.textMuted, fontSize: 12 },
+  rowCell: { color: colors.textPrimary, fontSize: 14 },
+  rowPoints: { fontWeight: '700' },
   emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
+  headerLink: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  pressed: { opacity: 0.5 },
 });
