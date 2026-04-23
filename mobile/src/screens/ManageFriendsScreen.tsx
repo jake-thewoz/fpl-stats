@@ -42,7 +42,10 @@ export default function ManageFriendsScreen({ navigation }: Props) {
     <>
       <View style={styles.container}>
         {friends.length === 0 ? (
-          <EmptyState onAdd={() => navigation.navigate('AddFriend')} />
+          <EmptyState
+            onAdd={() => navigation.navigate('AddFriend')}
+            onImport={() => navigation.navigate('ImportLeague')}
+          />
         ) : (
           <FlatList
             data={friends}
@@ -52,7 +55,10 @@ export default function ManageFriendsScreen({ navigation }: Props) {
             )}
             contentContainerStyle={styles.listContent}
             ListFooterComponent={
-              <AddButton onPress={() => navigation.navigate('AddFriend')} />
+              <ListFooter
+                onAdd={() => navigation.navigate('AddFriend')}
+                onImport={() => navigation.navigate('ImportLeague')}
+              />
             }
           />
         )}
@@ -75,7 +81,13 @@ export default function ManageFriendsScreen({ navigation }: Props) {
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({
+  onAdd,
+  onImport,
+}: {
+  onAdd: () => void;
+  onImport: () => void;
+}) {
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>No friends yet</Text>
@@ -88,6 +100,13 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         accessibilityRole="button"
       >
         <Text style={styles.primaryBtnText}>Add a friend</Text>
+      </Pressable>
+      <Pressable
+        onPress={onImport}
+        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryBtnText}>Import from league</Text>
       </Pressable>
     </View>
   );
@@ -121,15 +140,30 @@ function FriendRow({
   );
 }
 
-function AddButton({ onPress }: { onPress: () => void }) {
+function ListFooter({
+  onAdd,
+  onImport,
+}: {
+  onAdd: () => void;
+  onImport: () => void;
+}) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
-      accessibilityRole="button"
-    >
-      <Text style={styles.addBtnText}>+ Add friend</Text>
-    </Pressable>
+    <View style={styles.footerWrap}>
+      <Pressable
+        onPress={onAdd}
+        style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.addBtnText}>+ Add friend</Text>
+      </Pressable>
+      <Pressable
+        onPress={onImport}
+        style={({ pressed }) => [styles.importBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.importBtnText}>Import from league</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -157,6 +191,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   primaryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
+  secondaryBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  secondaryBtnText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
   pressed: { opacity: 0.5 },
   row: {
     flexDirection: 'row',
@@ -184,12 +231,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   removeBtnText: { color: colors.danger, fontSize: 13, fontWeight: '600' },
+  footerWrap: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
   addBtn: {
-    margin: 16,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
     backgroundColor: colors.accent,
   },
   addBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
+  importBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  importBtnText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });

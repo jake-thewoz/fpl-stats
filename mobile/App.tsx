@@ -8,6 +8,7 @@ import MyTeamScreen from './src/screens/MyTeamScreen';
 import FriendsScreen from './src/screens/FriendsScreen';
 import ManageFriendsScreen from './src/screens/ManageFriendsScreen';
 import AddFriendScreen from './src/screens/AddFriendScreen';
+import ImportLeagueScreen from './src/screens/ImportLeagueScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { LoadingView } from './src/components/LoadingView';
@@ -22,6 +23,7 @@ export type RootStackParamList = {
   Friends: undefined;
   ManageFriends: undefined;
   AddFriend: undefined;
+  ImportLeague: undefined;
   Settings: undefined;
 };
 
@@ -92,6 +94,11 @@ export default function App() {
           name="AddFriend"
           component={AddFriendScreen}
           options={{ title: 'Add Friend' }}
+        />
+        <Stack.Screen
+          name="ImportLeague"
+          component={ImportLeagueScreen}
+          options={{ title: 'Import from League' }}
         />
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
