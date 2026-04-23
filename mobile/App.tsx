@@ -6,6 +6,7 @@ import PlayersScreen from './src/screens/PlayersScreen';
 import GameweekScreen from './src/screens/GameweekScreen';
 import MyTeamScreen from './src/screens/MyTeamScreen';
 import FriendsScreen from './src/screens/FriendsScreen';
+import ManageFriendsScreen from './src/screens/ManageFriendsScreen';
 import AddFriendScreen from './src/screens/AddFriendScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -19,6 +20,7 @@ export type RootStackParamList = {
   Gameweek: undefined;
   MyTeam: undefined;
   Friends: undefined;
+  ManageFriends: undefined;
   AddFriend: undefined;
   Settings: undefined;
 };
@@ -81,6 +83,11 @@ export default function App() {
           options={{ title: 'My Team' }}
         />
         <Stack.Screen name="Friends" component={FriendsScreen} />
+        <Stack.Screen
+          name="ManageFriends"
+          component={ManageFriendsScreen}
+          options={{ title: 'Manage Friends' }}
+        />
         <Stack.Screen
           name="AddFriend"
           component={AddFriendScreen}
