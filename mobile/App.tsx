@@ -1,13 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from './src/screens/HomeScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
+import GameweekScreen from './src/screens/GameweekScreen';
 import { colors } from './src/theme';
 
 export type RootStackParamList = {
-  Home: undefined;
   Players: undefined;
+  Gameweek: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -28,9 +28,13 @@ const navTheme: Theme = {
 export default function App() {
   return (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'FPL Stats' }} />
-        <Stack.Screen name="Players" component={PlayersScreen} />
+      <Stack.Navigator initialRouteName="Players">
+        <Stack.Screen
+          name="Players"
+          component={PlayersScreen}
+          options={{ title: 'FPL Stats' }}
+        />
+        <Stack.Screen name="Gameweek" component={GameweekScreen} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>
