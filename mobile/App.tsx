@@ -4,6 +4,7 @@ import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import PlayersScreen from './src/screens/PlayersScreen';
 import GameweekScreen from './src/screens/GameweekScreen';
+import MyTeamScreen from './src/screens/MyTeamScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { LoadingView } from './src/components/LoadingView';
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Players: undefined;
   Gameweek: undefined;
+  MyTeam: undefined;
   Settings: undefined;
 };
 
@@ -69,6 +71,11 @@ export default function App() {
           options={{ title: 'FPL Stats' }}
         />
         <Stack.Screen name="Gameweek" component={GameweekScreen} />
+        <Stack.Screen
+          name="MyTeam"
+          component={MyTeamScreen}
+          options={{ title: 'My Team' }}
+        />
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
       <StatusBar style="auto" />
