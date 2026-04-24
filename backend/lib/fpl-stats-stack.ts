@@ -94,15 +94,17 @@ export class FplStatsStack extends cdk.Stack {
     const ingestFn = new FplPythonFunction(this, 'IngestFpl', {
       name: 'ingest_fpl',
       description:
-        'Scheduled ingestion — fetch FPL bootstrap-static + fixtures, cache to DDB.',
+        'Scheduled ingestion — fetch FPL bootstrap-static + fixtures, archive raw JSON to S3, cache parsed data to DDB.',
       environment: {
         CACHE_TABLE_NAME: cacheTable.tableName,
+        SNAPSHOTS_BUCKET_NAME: snapshotsBucket.bucketName,
       },
       memorySize: 256,
       timeout: cdk.Duration.seconds(60),
       layers: [fplSchemasLayer],
     });
     cacheTable.grantReadWriteData(ingestFn);
+    snapshotsBucket.grantPut(ingestFn);
 
     const gameweekCurrentFn = new FplPythonFunction(this, 'GameweekCurrent', {
       name: 'gameweek_current',
