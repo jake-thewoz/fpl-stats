@@ -2,16 +2,18 @@ import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { FplStatsStack } from '../lib/fpl-stats-stack';
 
-function synth(): Template {
+// Instantiating FplStatsStack triggers Docker-based PythonFunction
+// bundling for every Lambda — roughly 30 seconds. Do it once per file.
+let template: Template;
+
+beforeAll(() => {
   const app = new cdk.App();
   const stack = new FplStatsStack(app, 'TestStack');
-  return Template.fromStack(stack);
-}
+  template = Template.fromStack(stack);
+});
 
 describe('SnapshotsBucket', () => {
   test('is versioned, encrypted, and blocks public access', () => {
-    const template = synth();
-
     template.hasResourceProperties('AWS::S3::Bucket', {
       VersioningConfiguration: { Status: 'Enabled' },
       PublicAccessBlockConfiguration: {
@@ -31,8 +33,6 @@ describe('SnapshotsBucket', () => {
   });
 
   test('tiers to Standard-IA at 30 days and expires at 90', () => {
-    const template = synth();
-
     template.hasResourceProperties('AWS::S3::Bucket', {
       LifecycleConfiguration: {
         Rules: Match.arrayWith([
@@ -53,7 +53,6 @@ describe('SnapshotsBucket', () => {
   });
 
   test('exposes bucket name as a stack output', () => {
-    const template = synth();
     template.hasOutput('SnapshotsBucketName', {
       Export: { Name: 'TestStack-SnapshotsBucketName' },
     });
