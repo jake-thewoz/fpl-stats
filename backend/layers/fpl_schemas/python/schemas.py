@@ -43,6 +43,9 @@ class Team(BaseModel):
     name: str
     short_name: str
     code: int
+    # FPL's own 1-5 strength rating used in FDR. Optional so older cached
+    # bootstrap rows (written before we started storing it) still parse.
+    strength: int | None = None
 
 
 class Position(BaseModel):
@@ -100,6 +103,10 @@ class Fixture(BaseModel):
     team_a_score: int | None = None
     finished: bool
     started: bool | None = None
+    # FPL's pre-computed 1-5 fixture difficulty per side. Optional so older
+    # cached rows still parse; the analyzer degrades gracefully when absent.
+    team_h_difficulty: int | None = None
+    team_a_difficulty: int | None = None
 
 
 class Entry(BaseModel):
