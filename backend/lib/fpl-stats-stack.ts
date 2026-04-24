@@ -77,10 +77,22 @@ export class FplStatsStack extends cdk.Stack {
     const fplSchemasLayer = new LayerVersion(this, 'FplSchemasLayer', {
       code: Code.fromAsset(
         path.join(__dirname, '..', 'layers', 'fpl_schemas'),
+        {
+          // Keep the runtime zip tight: exclude test scaffolding and
+          // any local dev/test byproducts so only `python/` ships.
+          exclude: [
+            'tests',
+            'conftest.py',
+            'requirements-dev.txt',
+            '.venv',
+            '__pycache__',
+            '.pytest_cache',
+          ],
+        },
       ),
       compatibleRuntimes: [Runtime.PYTHON_3_12],
       description:
-        'Shared pydantic schemas + SCHEMA_VERSION for cached FPL entities.',
+        'Shared pydantic schemas + SCHEMA_VERSION + match-window helper for cached FPL entities.',
     });
 
     const healthFn = new FplPythonFunction(this, 'Health', {
