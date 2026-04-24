@@ -17,6 +17,12 @@ import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets';
 import { Code, LayerVersion, Runtime } from 'aws-cdk-lib/aws-lambda';
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+  StorageClass,
+} from 'aws-cdk-lib/aws-s3';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
@@ -38,6 +44,34 @@ export class FplStatsStack extends cdk.Stack {
       // eventually garbage-collected by DynamoDB. Items without it are
       // unaffected, so bootstrap/fixtures rows stay put.
       timeToLiveAttribute: 'ttl',
+    });
+
+    // Cold archive of raw FPL + external payloads. Written by ingest-style
+    // Lambdas (Phase 3), read by analyzer Lambdas and Athena — never on the
+    // request path. Lifecycle thresholds are conservative; revisit once we
+    // see actual snapshot volume before the first prod deploy.
+    const snapshotsBucket = new Bucket(this, 'SnapshotsBucket', {
+      versioned: true,
+      encryption: BucketEncryption.S3_MANAGED,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      lifecycleRules: [
+        {
+          id: 'tier-and-expire',
+          enabled: true,
+          transitions: [
+            {
+              storageClass: StorageClass.INFREQUENT_ACCESS,
+              transitionAfter: cdk.Duration.days(30),
+            },
+          ],
+          expiration: cdk.Duration.days(90),
+          noncurrentVersionExpiration: cdk.Duration.days(30),
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(7),
+        },
+      ],
     });
 
     const fplSchemasLayer = new LayerVersion(this, 'FplSchemasLayer', {
@@ -237,6 +271,12 @@ export class FplStatsStack extends cdk.Stack {
       value: cacheTable.tableName,
       description: 'DynamoDB cache table name',
       exportName: `${this.stackName}-CacheTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'SnapshotsBucketName', {
+      value: snapshotsBucket.bucketName,
+      description: 'S3 bucket for raw FPL + external data snapshots',
+      exportName: `${this.stackName}-SnapshotsBucketName`,
     });
 
     new cdk.CfnOutput(this, 'IngestFplFunctionName', {
