@@ -1,7 +1,10 @@
-"""Pure computation for the player-xp analyzer.
+"""Pure xP (expected points) computation, shared across analyzers.
 
-Side-effect-free so the math is unit-testable on hand-built data per the
-issue's AC. The handler wires these against DDB I/O.
+Lives in the layer so multiple consumers (``analyze_player_xp``,
+``analyze_transfer_suggestions``, future analyzers) all use one source of
+truth for the per-GW xP math. Side-effect-free — no DDB, no HTTP, no
+time — so each function can be unit-tested in isolation against
+hand-built data.
 """
 from __future__ import annotations
 
@@ -13,9 +16,9 @@ from schemas import Fixture, Gameweek, Player
 
 @dataclass(frozen=True)
 class XpComponents:
-    """Inputs that fed into a player's xP — kept on the output record so
-    the API/UI can show 'why' alongside the value, and so a stale-looking
-    xP can be debugged from the stored row alone."""
+    """Inputs that fed into a player's xP — kept on output records so the
+    API/UI can show 'why' alongside the value, and so a stale-looking xP
+    can be debugged from the stored data alone."""
 
     form_score: float
     fixture_easiness: float
@@ -35,6 +38,21 @@ def upcoming_gameweek(gameweeks: Iterable[Gameweek]) -> Optional[int]:
             return gw.id
     unfinished = sorted(gw.id for gw in gw_list if not gw.finished)
     return unfinished[0] if unfinished else None
+
+
+def upcoming_gameweek_ids(
+    gameweeks: Iterable[Gameweek],
+    horizon: int,
+) -> list[int]:
+    """Return up to ``horizon`` upcoming (un-finished) gameweek ids in
+    ascending order. Used by horizon-based analyzers (transfer suggester)
+    to know which GWs to project xP across.
+
+    Naturally clamps to remaining season: at GW37 with two GWs left and
+    horizon=3, returns [37, 38].
+    """
+    unfinished = sorted(gw.id for gw in gameweeks if not gw.finished)
+    return unfinished[:horizon]
 
 
 def fixtures_in_gw_for_team(
@@ -110,6 +128,38 @@ def expected_points(
     Captain EV is just this doubled (FPL's captain multiplier); a triple-
     captain chip would triple it. Kept multiplier-free so consumers can
     rank for captaincy, vice-captaincy, transfers, or display xP directly
-    without the analyzer baking a captaincy assumption into the data.
+    without the math baking a captaincy assumption into the value.
     """
     return form_score * easiness * minutes_prob * num_fixtures
+
+
+def horizon_xp(
+    player: Player,
+    form_score: float,
+    fixtures: Iterable[Fixture],
+    horizon_gw_ids: Iterable[int],
+) -> float:
+    """Sum of expected_points across multiple gameweeks for one player.
+
+    Reuses the same per-GW math (`fixture_easiness × minutes_prob ×
+    num_fixtures × form_score`) for each GW in the horizon and sums the
+    results. Skipped GWs (the team has no fixture, e.g. blank GW) just
+    contribute 0 — no special-case handling needed.
+
+    Note that ``minutes_prob`` is the *current* availability signal applied
+    uniformly across the horizon. We don't have FPL data for "expected
+    availability in 3 weeks," so a player flagged ``i`` (injured) today
+    gets xP=0 for the whole horizon. Conservative — a flagged player
+    shouldn't surface as a transfer target on the assumption they recover.
+    """
+    fx_list = list(fixtures)
+    mins_prob = minutes_probability(player)
+    total = 0.0
+    for gw in horizon_gw_ids:
+        team_fixtures = fixtures_in_gw_for_team(fx_list, player.team, gw)
+        n = len(team_fixtures)
+        if n == 0:
+            continue
+        easiness = gw_easiness(team_fixtures, player.team)
+        total += expected_points(form_score, easiness, mins_prob, n)
+    return total

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from compute import (
+from xp_compute import (
     expected_points,
     fixture_easiness,
     fixtures_in_gw_for_team,
     gw_easiness,
+    horizon_xp,
     minutes_probability,
     upcoming_gameweek,
+    upcoming_gameweek_ids,
 )
 from schemas import Fixture, Gameweek, Player
 
@@ -231,3 +233,85 @@ def test_expected_points_dgw_doubles_via_num_fixtures():
 
 def test_expected_points_zero_minutes_prob_zeros_out():
     assert expected_points(10.0, 1.0, 0.0, 1) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# upcoming_gameweek_ids
+# ---------------------------------------------------------------------------
+
+
+class TestUpcomingGameweekIds:
+    def test_returns_first_n_unfinished_in_order(self):
+        gws = [
+            _gw(30, finished=True),
+            _gw(31, finished=True),
+            _gw(32),
+            _gw(33),
+            _gw(34),
+        ]
+        assert upcoming_gameweek_ids(gws, 3) == [32, 33, 34]
+
+    def test_clamps_to_remaining_when_horizon_exceeds(self):
+        # GW37 with two GWs left and horizon=3 -> [37, 38].
+        gws = [_gw(37), _gw(38)]
+        assert upcoming_gameweek_ids(gws, 3) == [37, 38]
+
+    def test_returns_empty_when_season_over(self):
+        gws = [_gw(37, finished=True), _gw(38, finished=True)]
+        assert upcoming_gameweek_ids(gws, 3) == []
+
+    def test_unordered_input_returns_ascending(self):
+        gws = [_gw(34), _gw(32, finished=True), _gw(33), _gw(35)]
+        assert upcoming_gameweek_ids(gws, 5) == [33, 34, 35]
+
+
+# ---------------------------------------------------------------------------
+# horizon_xp
+# ---------------------------------------------------------------------------
+
+
+class TestHorizonXp:
+    def test_sums_per_gw_xp_across_horizon(self):
+        # Team 3 plays in GW33 (home, diff 2 -> easiness 0.8) and GW34
+        # (away, diff 4 -> easiness 0.4). Player available, form 5.0,
+        # mins=1.0, single-fixture each GW.
+        # GW33: 5 * 0.8 * 1 * 1 = 4.0
+        # GW34: 5 * 0.4 * 1 * 1 = 2.0
+        # Total: 6.0
+        fixtures = [
+            _fx(1, event=33, team_h=3, team_a=7, team_h_difficulty=2),
+            _fx(2, event=34, team_h=9, team_a=3, team_a_difficulty=4),
+        ]
+        player = _player(1, status="a")
+        player = player.model_copy(update={"team": 3})
+        assert horizon_xp(player, 5.0, fixtures, [33, 34]) == pytest.approx(6.0)
+
+    def test_skipped_gw_contributes_zero(self):
+        # Team 3 has a fixture in GW33 only; GW34 is blank.
+        fixtures = [_fx(1, event=33, team_h=3, team_a=7, team_h_difficulty=2)]
+        player = _player(1, status="a").model_copy(update={"team": 3})
+        # GW33: 5 * 0.8 * 1 * 1 = 4.0; GW34: skipped -> 0.
+        assert horizon_xp(player, 5.0, fixtures, [33, 34]) == pytest.approx(4.0)
+
+    def test_dgw_within_horizon_doubles_that_gw(self):
+        fixtures = [
+            _fx(1, event=33, team_h=3, team_a=7, team_h_difficulty=2),  # 0.8
+            _fx(2, event=33, team_h=3, team_a=9, team_h_difficulty=3),  # 0.6
+            _fx(3, event=34, team_h=5, team_a=3, team_a_difficulty=4),  # 0.4
+        ]
+        player = _player(1, status="a").model_copy(update={"team": 3})
+        # GW33 DGW: avg easiness (0.8+0.6)/2 = 0.7; xp = 5*0.7*1*2 = 7.0
+        # GW34 single: 5*0.4*1*1 = 2.0
+        # Total: 9.0
+        assert horizon_xp(player, 5.0, fixtures, [33, 34]) == pytest.approx(9.0)
+
+    def test_injured_player_zeros_whole_horizon(self):
+        # status='i' -> minutes_probability=0 -> all GWs zero.
+        fixtures = [_fx(1, event=33, team_h=3, team_a=7, team_h_difficulty=1)]
+        player = _player(1, status="i").model_copy(update={"team": 3})
+        assert horizon_xp(player, 8.0, fixtures, [33, 34, 35]) == 0.0
+
+    def test_empty_horizon_returns_zero(self):
+        fixtures = [_fx(1, event=33, team_h=3, team_a=7, team_h_difficulty=1)]
+        player = _player(1, status="a").model_copy(update={"team": 3})
+        assert horizon_xp(player, 5.0, fixtures, []) == 0.0
