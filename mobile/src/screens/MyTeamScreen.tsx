@@ -1,56 +1,74 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeam, type SquadEntry } from '../api/myTeam';
+import { fetchPlayersXp } from '../api/playersXp';
 import type { Entry } from '../api/entry';
-import type { EntryGameweek } from '../api/entryGameweek';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
-import { HeaderButton } from '../components/HeaderButton';
+import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
+import { FilterDialog } from '../components/FilterDialog';
+import {
+  DEFAULT_COLUMNS,
+  DEFAULT_SORT,
+  FIELD_DEFS,
+} from '../players/fields';
+import {
+  loadColumns,
+  loadFilters,
+  loadSort,
+  saveColumns,
+  saveFilters,
+  saveSort,
+} from '../players/storage';
+import {
+  applyAll,
+  activeFilterCount,
+} from '../players/apply';
+import {
+  EMPTY_FILTER,
+  type FieldKey,
+  type FilterState,
+  type JoinedPlayer,
+  type SortState,
+} from '../players/types';
 import type { MyTeamScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
 type Props = MyTeamScreenProps;
 
-type SortColumn = 'gwPoints' | 'form' | 'total';
-type SortDir = 'asc' | 'desc';
+const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
 
-const COLUMNS: { key: SortColumn; label: string }[] = [
-  { key: 'gwPoints', label: 'GW pts' },
-  { key: 'form', label: 'Form' },
-  { key: 'total', label: 'Total' },
-];
+/** Per-row decoration data that's My-Team-specific (captain/bench/this
+ *  GW points). Lives alongside the shared JoinedPlayer fields rather
+ *  than baking them into the cross-screen type. */
+type MyTeamRow = JoinedPlayer & {
+  isStarter: boolean;
+  isCaptain: boolean;
+  isViceCaptain: boolean;
+  /** This GW's contribution to the team total (raw × multiplier).
+   *  null when live data hasn't arrived yet. */
+  gwPoints: number | null;
+};
 
 export default function MyTeamScreen({ navigation }: Props) {
-  // undefined = we haven't finished reading AsyncStorage yet.
   const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     getFplTeamId().then(setTeamId);
   }, []);
 
-  // Gameweek lives in this tab as a drill-down — header button gives one
-  // tap access from the home of the My Team tab.
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <HeaderButton label="GW" onPress={() => navigation.navigate('Gameweek')} />
-      ),
-    });
-  }, [navigation]);
-
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
-    // Settings is on a sibling tab — go via the parent tab navigator
-    // rather than trying to navigate within the MyTeam stack.
     return (
       <NoTeamIdView
         onOpenSettings={() => navigation.getParent()?.navigate('SettingsTab')}
@@ -58,6 +76,341 @@ export default function MyTeamScreen({ navigation }: Props) {
     );
   }
   return <MyTeamContent teamId={teamId} />;
+}
+
+function MyTeamContent({ teamId }: { teamId: string }) {
+  const fetcher = useCallback(
+    async (signal: AbortSignal) => {
+      const [myTeam, xpResp] = await Promise.all([
+        fetchMyTeam(teamId, signal),
+        fetchPlayersXp(signal),
+      ]);
+      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p.xp]));
+      const rows: MyTeamRow[] = myTeam.squad
+        .filter((s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
+          s.player != null,
+        )
+        .map((s) => toMyTeamRow(s, xpById.get(s.player!.id) ?? null));
+      return { myTeam, rows };
+    },
+    [teamId],
+  );
+  const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
+
+  // Columns / filters / sort are shared with the Players tab via single
+  // global keys. Re-read on focus so changes made over there appear here.
+  const [columns, setColumns] = useState<FieldKey[]>(DEFAULT_COLUMNS);
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
+  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
+        ([c, f, s]) => {
+          if (!alive) return;
+          setColumns(c);
+          setFilters(f);
+          setSort(s);
+        },
+      );
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const rows = state.status === 'ok' ? state.data.rows : [];
+
+  const availableTeams = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.team);
+    return [...set].sort();
+  }, [rows]);
+
+  const filteredSorted = useMemo(
+    // Empty search: rely only on filters + sort.
+    () => applyAll(rows, '', filters, sort) as MyTeamRow[],
+    [rows, filters, sort],
+  );
+
+  const onChangeColumns = useCallback((next: FieldKey[]) => {
+    setColumns(next);
+    saveColumns(next);
+  }, []);
+  const onChangeFilters = useCallback((next: FilterState) => {
+    setFilters(next);
+    saveFilters(next);
+  }, []);
+  const onChangeSort = useCallback((next: SortState) => {
+    setSort(next);
+    saveSort(next);
+  }, []);
+
+  const onTapColumnHeader = useCallback(
+    (key: FieldKey) => {
+      if (sort.field === key) {
+        onChangeSort({ field: key, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
+      } else {
+        onChangeSort({ field: key, dir: FIELD_DEFS[key].defaultSortDir });
+      }
+    },
+    [sort, onChangeSort],
+  );
+
+  if (state.status === 'loading') return <LoadingView />;
+  if (state.status === 'error') {
+    return (
+      <ErrorView
+        title="Couldn't load your team"
+        message={state.message}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  const { myTeam } = state.data;
+
+  return (
+    <View style={styles.container}>
+      <Header entry={myTeam.entry} gameweek={myTeam.gameweek} />
+      {myTeam.picksError ? (
+        <PicksUnavailableNote message={myTeam.picksError} />
+      ) : null}
+      <ControlBar
+        filterCount={activeFilterCount(filters)}
+        onOpenFilter={() => setFiltersOpen(true)}
+        onOpenColumns={() => setColumnsOpen(true)}
+      />
+      <ColumnHeaderRow
+        columns={columns}
+        sort={sort}
+        onTapHeader={onTapColumnHeader}
+      />
+      <FlatList
+        data={filteredSorted}
+        keyExtractor={(r) => String(r.id)}
+        renderItem={({ item }) => (
+          <PlayerRow row={item} columns={columns} />
+        )}
+        ListEmptyComponent={
+          <Text style={styles.emptyBody}>
+            {rows.length === 0
+              ? 'No squad data available yet for this gameweek.'
+              : 'No players match your filter. Try widening it.'}
+          </Text>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
+
+      <ColumnPickerDialog
+        visible={columnsOpen}
+        selected={columns}
+        onToggle={(key) =>
+          onChangeColumns(
+            columns.includes(key)
+              ? columns.filter((c) => c !== key)
+              : [...columns, key],
+          )
+        }
+        onClose={() => setColumnsOpen(false)}
+      />
+      <FilterDialog
+        visible={filtersOpen}
+        filter={filters}
+        positions={[...POSITION_ORDER]}
+        teams={availableTeams}
+        onApply={onChangeFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Subcomponents
+// ---------------------------------------------------------------------------
+
+function toMyTeamRow(s: SquadEntry, xp: number | null): MyTeamRow {
+  const player = s.player!;
+  const formNum = parseFloat(player.form);
+  return {
+    id: player.id,
+    name: player.name,
+    team: player.team,
+    position: player.position,
+    price: player.price,
+    total_points: player.total_points,
+    form: Number.isNaN(formNum) ? 0 : formNum,
+    xp,
+    isStarter: s.isStarter,
+    isCaptain: s.pick.is_captain,
+    isViceCaptain: s.pick.is_vice_captain,
+    gwPoints: s.gwPoints,
+  };
+}
+
+function Header({
+  entry, gameweek,
+}: { entry: Entry; gameweek: number | null }) {
+  const eventPts = entry.summary_event_points;
+  const totalPts = entry.summary_overall_points;
+  const overallRank = entry.summary_overall_rank;
+  return (
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>{entry.name}</Text>
+      <Text style={styles.headerSub}>
+        {gameweek != null ? `GW ${gameweek}` : 'Pre-season'}
+        {eventPts != null ? `  ·  ${eventPts} pts` : ''}
+        {totalPts != null ? `  ·  Total ${totalPts}` : ''}
+        {overallRank != null
+          ? `  ·  Rank ${overallRank.toLocaleString()}`
+          : ''}
+      </Text>
+    </View>
+  );
+}
+
+function PicksUnavailableNote({ message }: { message: string }) {
+  return (
+    <View style={styles.notice}>
+      <Text style={styles.noticeText}>{message}</Text>
+    </View>
+  );
+}
+
+function ControlBar({
+  filterCount, onOpenFilter, onOpenColumns,
+}: {
+  filterCount: number;
+  onOpenFilter: () => void;
+  onOpenColumns: () => void;
+}) {
+  return (
+    <View style={styles.controlBar}>
+      <ControlButton
+        label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
+        active={filterCount > 0}
+        onPress={onOpenFilter}
+      />
+      <ControlButton label="Columns" onPress={onOpenColumns} />
+    </View>
+  );
+}
+
+function ControlButton({
+  label, active, onPress,
+}: { label: string; active?: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.controlBtn,
+        active && styles.controlBtnActive,
+        pressed && styles.pressed,
+      ]}
+      accessibilityRole="button"
+    >
+      <Text
+        style={[styles.controlBtnText, active && styles.controlBtnTextActive]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ColumnHeaderRow({
+  columns, sort, onTapHeader,
+}: {
+  columns: FieldKey[];
+  sort: SortState;
+  onTapHeader: (key: FieldKey) => void;
+}) {
+  return (
+    <View style={styles.headerRow}>
+      <Text style={[styles.headerNameCell, styles.headerCellText]}>Player</Text>
+      {columns.map((c) => {
+        const def = FIELD_DEFS[c];
+        const active = sort.field === c;
+        const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+        return (
+          <Pressable
+            key={c}
+            onPress={() => onTapHeader(c)}
+            style={({ pressed }) => [
+              styles.headerCell,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text
+              style={[
+                styles.headerCellText,
+                active && styles.headerCellTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {def.shortLabel}
+              {arrow}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function PlayerRow({
+  row, columns,
+}: { row: MyTeamRow; columns: FieldKey[] }) {
+  // Bench rows are visually de-emphasised — same data, lower visual
+  // priority. Captain/vice get badges. The GW points contribution
+  // appears as a sub-line annotation (it's a useful glance value but
+  // not a sortable column in the unified field set; future field-set
+  // expansion can promote it).
+  const subParts = [row.team, row.position];
+  if (!row.isStarter) subParts.push('Bench');
+  const subline = subParts.join(' · ');
+
+  return (
+    <View style={[styles.row, !row.isStarter && styles.rowBench]}>
+      <View style={styles.nameCell}>
+        <View style={styles.nameLine}>
+          <Text style={styles.nameText} numberOfLines={1}>
+            {row.name}
+          </Text>
+          {row.isCaptain ? (
+            <Text style={styles.playerBadge} accessibilityLabel="captain">
+              C
+            </Text>
+          ) : null}
+          {row.isViceCaptain ? (
+            <Text style={styles.playerBadge} accessibilityLabel="vice-captain">
+              V
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.subText} numberOfLines={1}>
+          {subline}
+          {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
+        </Text>
+      </View>
+      {columns.map((c) => {
+        const def = FIELD_DEFS[c];
+        const value = def.accessor(row);
+        return (
+          <Text key={c} style={styles.dataCell} numberOfLines={1}>
+            {def.format(value)}
+          </Text>
+        );
+      })}
+    </View>
+  );
 }
 
 function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -79,440 +432,138 @@ function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
   );
 }
 
-function MyTeamContent({ teamId }: { teamId: string }) {
-  const fetcher = useCallback(
-    (signal: AbortSignal) => fetchMyTeam(teamId, signal),
-    [teamId],
-  );
-  const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
-
-  const [sortColumn, setSortColumn] = useState<SortColumn>('gwPoints');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  function onHeaderPress(col: SortColumn) {
-    if (col === sortColumn) {
-      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
-    } else {
-      setSortColumn(col);
-      setSortDir('desc');
-    }
-  }
-
-  const sortedSquad = useMemo(() => {
-    if (state.status !== 'ok') return [];
-    return sortSquad(state.data.squad, sortColumn, sortDir);
-  }, [state, sortColumn, sortDir]);
-
-  const formation = useMemo(() => {
-    if (state.status !== 'ok') return null;
-    return deriveFormation(state.data.squad);
-  }, [state]);
-
-  if (state.status === 'loading') return <LoadingView />;
-  if (state.status === 'error') {
-    return (
-      <ErrorView
-        title="Couldn't load your team"
-        message={state.message}
-        onRetry={onRetry}
-      />
-    );
-  }
-
-  const { entry, gameweek, picks, squad, picksError } = state.data;
-  const hasSquad = squad.length > 0;
-
-  return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <SummaryCard
-        entry={entry}
-        gameweek={gameweek}
-        picks={picks}
-        formation={formation}
-      />
-
-      {hasSquad ? (
-        <>
-          <TableHeader
-            sortColumn={sortColumn}
-            sortDir={sortDir}
-            onHeaderPress={onHeaderPress}
-          />
-          {sortedSquad.map((entry) => (
-            <PlayerRow key={entry.pick.element} entry={entry} />
-          ))}
-        </>
-      ) : gameweek == null ? (
-        <MessageCard
-          title="No active gameweek"
-          body="Come back when the season starts to see your squad."
-        />
-      ) : (
-        <MessageCard
-          title={`Picks for Gameweek ${gameweek} aren't available yet`}
-          body={picksError ?? 'Check back after the deadline.'}
-        />
-      )}
-    </ScrollView>
-  );
-}
-
-function sortSquad(
-  squad: SquadEntry[],
-  column: SortColumn,
-  dir: SortDir,
-): SquadEntry[] {
-  const mul = dir === 'asc' ? 1 : -1;
-  return squad.slice().sort((a, b) => {
-    const av = sortValue(a, column);
-    const bv = sortValue(b, column);
-    if (av === bv) {
-      // Stable secondary: starters before bench, then lineup position.
-      if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
-      return a.pick.position - b.pick.position;
-    }
-    return av < bv ? -1 * mul : 1 * mul;
-  });
-}
-
-function sortValue(entry: SquadEntry, column: SortColumn): number {
-  if (column === 'gwPoints') {
-    return entry.gwPoints ?? -Infinity;
-  }
-  if (column === 'form') {
-    const n = parseFloat(entry.player?.form ?? '');
-    return Number.isNaN(n) ? -Infinity : n;
-  }
-  return entry.player?.total_points ?? -Infinity;
-}
-
-function deriveFormation(squad: SquadEntry[]): string | null {
-  const starters = squad.filter((s) => s.isStarter);
-  if (starters.length !== 11) return null;
-  const count = (short: string) =>
-    starters.filter((s) => s.player?.position === short).length;
-  return `${count('DEF')}-${count('MID')}-${count('FWD')}`;
-}
-
-// ---- subcomponents ----------------------------------------------------------
-
-function SummaryCard({
-  entry,
-  gameweek,
-  picks,
-  formation,
-}: {
-  entry: Entry;
-  gameweek: number | null;
-  picks: EntryGameweek | null;
-  formation: string | null;
-}) {
-  const manager = `${entry.player_first_name} ${entry.player_last_name}`.trim();
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle} numberOfLines={1}>
-        {entry.name}
-      </Text>
-      <Text style={styles.cardSubtitle}>{manager}</Text>
-
-      <View style={styles.statRow}>
-        <Stat label="Overall rank" value={formatRank(entry.summary_overall_rank)} />
-        <Stat label="Total" value={formatPoints(entry.summary_overall_points)} />
-      </View>
-
-      {gameweek != null && (
-        <View style={styles.statRow}>
-          <Stat
-            label={`GW ${gameweek}`}
-            value={formatPoints(picks?.points ?? entry.summary_event_points)}
-          />
-          <Stat label="GW rank" value={formatRank(entry.summary_event_rank)} />
-        </View>
-      )}
-
-      {formation && (
-        <Text style={styles.formationLine}>Formation: {formation}</Text>
-      )}
-    </View>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
-
-function TableHeader({
-  sortColumn,
-  sortDir,
-  onHeaderPress,
-}: {
-  sortColumn: SortColumn;
-  sortDir: SortDir;
-  onHeaderPress: (col: SortColumn) => void;
-}) {
-  return (
-    <View style={styles.tableHeader}>
-      <Text style={[styles.colHeader, styles.colName]}>Player</Text>
-      {COLUMNS.map((c) => (
-        <ColumnHeaderButton
-          key={c.key}
-          label={c.label}
-          active={sortColumn === c.key}
-          direction={sortColumn === c.key ? sortDir : null}
-          onPress={() => onHeaderPress(c.key)}
-        />
-      ))}
-    </View>
-  );
-}
-
-function ColumnHeaderButton({
-  label,
-  active,
-  direction,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  direction: SortDir | null;
-  onPress: () => void;
-}) {
-  const arrow = direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '';
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.colHeaderBtn, pressed && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityLabel={`Sort by ${label}`}
-    >
-      <Text
-        style={[styles.colHeader, styles.colNumeric, active && styles.colHeaderActive]}
-      >
-        {label}{arrow}
-      </Text>
-    </Pressable>
-  );
-}
-
-function PlayerRow({ entry }: { entry: SquadEntry }) {
-  const { pick, player, gwPoints, isStarter } = entry;
-  const badge = pick.is_captain ? 'C' : pick.is_vice_captain ? 'V' : null;
-  const roleLabel = isStarter ? 'XI' : 'Bench';
-
-  const teamPos = player
-    ? `${player.team} · ${player.position}`
-    : 'Unknown player';
-
-  return (
-    <View style={[styles.row, !isStarter && styles.rowBench]}>
-      <View style={styles.colName}>
-        <View style={styles.nameLine}>
-          {badge && (
-            <View
-              style={[
-                styles.badge,
-                pick.is_captain ? styles.badgeCaptain : styles.badgeVice,
-              ]}
-              accessibilityLabel={pick.is_captain ? 'Captain' : 'Vice-captain'}
-            >
-              <Text
-                style={[
-                  styles.badgeText,
-                  pick.is_captain ? styles.badgeTextCaptain : styles.badgeTextVice,
-                ]}
-              >
-                {badge}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.rowName} numberOfLines={1}>
-            {player?.name ?? `#${pick.element}`}
-          </Text>
-        </View>
-        <Text style={styles.rowMeta}>
-          {teamPos} · {roleLabel}
-        </Text>
-      </View>
-      <Text style={[styles.rowCell, styles.colNumeric, styles.rowPointsValue]}>
-        {formatCell(gwPoints)}
-      </Text>
-      <Text style={[styles.rowCell, styles.colNumeric]}>
-        {formatForm(player?.form)}
-      </Text>
-      <Text style={[styles.rowCell, styles.colNumeric]}>
-        {formatCell(player?.total_points)}
-      </Text>
-    </View>
-  );
-}
-
-function MessageCard({ title, body }: { title: string; body: string }) {
-  return (
-    <View style={styles.message}>
-      <Text style={styles.messageTitle}>{title}</Text>
-      <Text style={styles.messageBody}>{body}</Text>
-    </View>
-  );
-}
-
-function formatRank(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return n.toLocaleString();
-}
-
-function formatPoints(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return `${n.toLocaleString()} pts`;
-}
-
-function formatCell(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return String(n);
-}
-
-function formatForm(raw: string | null | undefined): string {
-  if (raw == null) return '—';
-  const n = parseFloat(raw);
-  return Number.isNaN(n) ? raw : n.toFixed(1);
-}
-
-const COL_NUMERIC_WIDTH = 64;
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 32,
+  container: { flex: 1, backgroundColor: colors.background },
+
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
+  headerSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+
+  notice: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  noticeText: { color: colors.textMuted, fontSize: 13 },
+
+  controlBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  controlBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.background,
   },
+  controlBtnActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  controlBtnText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
+  controlBtnTextActive: { color: colors.onAccent },
+  pressed: { opacity: 0.6 },
+
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerNameCell: { flex: 2 },
+  headerCell: { flex: 1, alignItems: 'flex-end' },
+  headerCellText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  headerCellTextActive: { color: colors.accent },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  rowBench: { opacity: 0.6 },
+  nameCell: { flex: 2, paddingRight: 8 },
+  nameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
+  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  // Same accent-coloured pill for both captain (C) and vice (V) — only
+  // the letter differentiates. Matches FPL's own visual treatment.
+  playerBadge: {
+    fontSize: 11,
+    color: colors.onAccent,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: 'hidden',
+    fontWeight: '700',
+  },
+  dataCell: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textPrimary,
+    textAlign: 'right',
+  },
+
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-    gap: 12,
     backgroundColor: colors.background,
   },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
-  emptyBody: { color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  primaryBtn: {
-    marginTop: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  pressed: { opacity: 0.5 },
-  card: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  cardTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-  cardSubtitle: { fontSize: 14, color: colors.textMuted },
-  statRow: { flexDirection: 'row', gap: 16, marginTop: 4 },
-  stat: { flex: 1 },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statValue: {
-    marginTop: 2,
-    color: colors.textPrimary,
+  emptyTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  formationLine: {
-    marginTop: 4,
-    color: colors.textMuted,
-    fontSize: 13,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  colHeader: {
-    color: colors.textMuted,
-    fontSize: 12,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  colHeaderActive: { color: colors.accent },
-  colHeaderBtn: { width: COL_NUMERIC_WIDTH, paddingVertical: 4 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  // Subtle tint on bench rows so the XI/bench split is still obvious at
-  // a glance even in a flat sortable list.
-  rowBench: { backgroundColor: colors.background },
-  colName: { flex: 1, paddingRight: 8 },
-  nameLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rowName: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
     color: colors.textPrimary,
+    marginBottom: 8,
   },
-  rowMeta: { marginTop: 2, color: colors.textMuted, fontSize: 12 },
-  colNumeric: {
-    width: COL_NUMERIC_WIDTH,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
-  rowCell: { color: colors.textPrimary, fontSize: 14 },
-  rowPointsValue: { fontWeight: '700' },
-  badge: {
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 6,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeCaptain: { backgroundColor: colors.accent },
-  badgeVice: { backgroundColor: colors.accentSoft },
-  badgeText: { fontSize: 12, fontWeight: '700' },
-  badgeTextCaptain: { color: colors.onAccent },
-  badgeTextVice: { color: colors.onAccentSoft },
-  message: {
-    margin: 16,
+  emptyBody: {
     padding: 16,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    gap: 6,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  messageTitle: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  messageBody: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  primaryBtn: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: colors.accent,
+    borderRadius: 6,
+  },
+  primaryBtnText: { color: colors.onAccent, fontWeight: '600' },
 });
