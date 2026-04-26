@@ -100,6 +100,31 @@ def _parse_horizon(event: dict[str, Any]) -> int:
     return min(value, MAX_HORIZON)
 
 
+# FPL element_type values: 1=GKP, 2=DEF, 3=MID, 4=FWD. We don't validate
+# membership beyond "positive int" — an unknown value just yields zero
+# matches downstream, which is the same effect as filtering nothing.
+def _parse_positions(event: dict[str, Any]) -> set[int] | None:
+    """Parse ``?positions=2,3,4`` into a set of FPL element_type ints.
+
+    Returns ``None`` to mean "no filter" — which is distinct from an
+    empty set (which would mean "filter to nothing, return zero
+    suggestions"). An empty/missing query param parses as None so the
+    default behaviour is unchanged.
+    """
+    params = event.get("queryStringParameters") or {}
+    raw = params.get("positions") if isinstance(params, dict) else None
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    out: set[int] = set()
+    for token in raw.split(","):
+        token = token.strip()
+        if token.isdigit():
+            value = int(token)
+            if value > 0:
+                out.add(value)
+    return out if out else None
+
+
 def _is_fresh(item: dict[str, Any]) -> bool:
     if item.get("schema_version") != SCHEMA_VERSION:
         return False
@@ -235,6 +260,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if team_id is None:
         return _response(400, {"error": "invalid team id"})
     horizon = _parse_horizon(event)
+    position_filter = _parse_positions(event)
 
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
@@ -337,10 +363,22 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             len(squad),
         )
 
+    # Position filter applies to BOTH sides of every swap. FPL's same-
+    # position rule (enforced inside is_valid_swap) means a swap is
+    # always position(out) == position(in), so filtering both squad and
+    # candidate pool to the same set yields the right answer naturally.
+    if position_filter is not None:
+        squad = [p for p in squad if p.element_type in position_filter]
+        candidate_pool = [
+            p for p in bootstrap.players if p.element_type in position_filter
+        ]
+    else:
+        candidate_pool = bootstrap.players
+
     candidates = suggest_transfers(
         squad=squad,
         bank=entry.last_deadline_bank or 0,
-        candidate_pool=bootstrap.players,
+        candidate_pool=candidate_pool,
         horizon_xps=horizon_xps,
         top_n=TOP_N,
     )
