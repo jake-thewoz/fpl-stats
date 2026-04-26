@@ -255,6 +255,10 @@ def test_double_gameweek_doubles_expected_points(mock_table):
     """Team 2 has two fixtures in GW33 (DGW). Palmer's xP should reflect
     num_fixtures=2 — same form/easiness/mins, but doubled."""
     table, writer = mock_table
+    # Both kickoffs deliberately set far in the past so the match-window
+    # guard never trips — the test exercises DGW handling, not match-live
+    # behaviour. (Originally the second kickoff was 2026-04-26T15:00:00Z
+    # which silently broke this test on April 26 between 15:00-17:00 UTC.)
     dgw_fixtures = [
         {
             "id": 301, "event": 33, "kickoff_time": "2026-04-24T17:30:00Z",
@@ -262,7 +266,7 @@ def test_double_gameweek_doubles_expected_points(mock_table):
             "team_h_difficulty": 3, "team_a_difficulty": 4,
         },
         {
-            "id": 302, "event": 33, "kickoff_time": "2026-04-26T15:00:00Z",
+            "id": 302, "event": 33, "kickoff_time": "2026-04-24T20:00:00Z",
             "team_h": 2, "team_a": 99, "finished": False, "started": False,
             "team_h_difficulty": 4, "team_a_difficulty": 5,
         },
