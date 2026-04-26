@@ -138,7 +138,7 @@ def mock_table():
 
 @pytest.fixture
 def no_retry_session(monkeypatch):
-    monkeypatch.setattr(handler, "_make_session", __import__("requests").Session)
+    monkeypatch.setattr(handler, "make_fpl_session", __import__("requests").Session)
 
 
 def _register_gw_live_mocks():

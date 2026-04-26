@@ -30,9 +30,8 @@ from typing import Any
 
 import boto3
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
+from fpl_session import make_fpl_session
 from schemas import (
     SCHEMA_VERSION,
     LeagueInfo,
@@ -77,20 +76,6 @@ def _parse_league_id(event: dict[str, Any]) -> int | None:
 
 def _cache_key(league_id: int) -> dict[str, str]:
     return {"pk": f"league#{league_id}", "sk": "latest"}
-
-
-def _make_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset({"GET"}),
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
 
 
 def _fetch_standings(
@@ -211,7 +196,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ))
 
     try:
-        raw = _fetch_standings(_make_session(), league_id)
+        raw = _fetch_standings(make_fpl_session(), league_id)
     except LeagueNotFound:
         log.info("FPL reports league %s not found", league_id)
         return _response(404, {"error": "league not found", "league_id": league_id})

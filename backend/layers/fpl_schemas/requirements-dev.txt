@@ -1,2 +1,5 @@
 pydantic>=2,<3
 pytest>=8
+# fpl_session imports requests — Lambdas that use the helper bring requests
+# via their own requirements.txt, but the layer's own pytest run needs it too.
+requests>=2.31,<3

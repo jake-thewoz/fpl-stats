@@ -39,10 +39,9 @@ from typing import Any
 import boto3
 import requests
 from boto3.dynamodb.conditions import Key
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 from compute import TransferCandidate, suggest_transfers
+from fpl_session import make_fpl_session
 from schemas import SCHEMA_VERSION, Bootstrap, Entry, EntryPicks, Fixture
 from xp_compute import horizon_xp, upcoming_gameweek_ids
 
@@ -99,20 +98,6 @@ def _parse_horizon(event: dict[str, Any]) -> int:
     if value <= 0:
         return DEFAULT_HORIZON
     return min(value, MAX_HORIZON)
-
-
-def _make_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset({"GET"}),
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
 
 
 def _is_fresh(item: dict[str, Any]) -> bool:
@@ -253,7 +238,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
-    session = _make_session()
+    session = make_fpl_session()
 
     try:
         entry = _fetch_entry_with_cache(table, session, team_id)
