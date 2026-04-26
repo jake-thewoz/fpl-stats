@@ -26,10 +26,13 @@ from handler import CLUBELO_BASE_URL, lambda_handler  # noqa: E402
 # ---------------------------------------------------------------------------
 
 # Real format from ClubELO's date endpoint. Some plausible 2026 numbers.
+# Mirrors ClubELO's actual CSV shape: club names use spaces (e.g.
+# "Man City", not "ManCity"). The first deploy of #38 had this wrong
+# in the mapping JSON and ~8 PL clubs failed to resolve.
 SAMPLE_CSV = """\
 Rank,Club,Country,Level,Elo,From,To
-1,RealMadrid,ESP,1,2110.0,2026-04-26,2026-04-30
-2,ManCity,ENG,1,2050.5,2026-04-26,2026-04-30
+1,Real Madrid,ESP,1,2110.0,2026-04-26,2026-04-30
+2,Man City,ENG,1,2050.5,2026-04-26,2026-04-30
 3,Liverpool,ENG,1,1985.2,2026-04-26,2026-04-30
 4,Arsenal,ENG,1,1970.0,2026-04-26,2026-04-30
 5,Bournemouth,ENG,1,1750.3,2026-04-26,2026-04-30
@@ -208,7 +211,7 @@ def test_csv_with_unparseable_row_skips_it(
     bad_csv = (
         "Rank,Club,Country,Level,Elo,From,To\n"
         "1,Arsenal,ENG,1,1970.0,2026-04-26,2026-04-30\n"
-        "2,ManCity,ENG,1,not-a-number,2026-04-26,2026-04-30\n"
+        "2,Man City,ENG,1,not-a-number,2026-04-26,2026-04-30\n"
         "3,Tottenham,ENG,1,1830.7,2026-04-26,2026-04-30\n"
     )
     responses.get(_csv_url_for_today(), body=bad_csv)
