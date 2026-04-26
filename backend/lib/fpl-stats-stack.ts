@@ -189,10 +189,36 @@ export class FplStatsStack extends cdk.Stack {
     });
     cacheTable.grantReadWriteData(leagueMembersFn);
 
+    const analyzePlayerFormFn = new FplPythonFunction(
+      this,
+      'AnalyzePlayerForm',
+      {
+        name: 'analyze_player_form',
+        description:
+          'Scheduled analyzer — writes rolling form + upcoming fixture difficulty per player to analytics#player_form.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+          RECENT_GW_COUNT: '5',
+          UPCOMING_FIXTURES_COUNT: '5',
+        },
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(60),
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadWriteData(analyzePlayerFormFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
       targets: [new LambdaTarget(ingestFn)],
+    });
+
+    new Rule(this, 'AnalyzePlayerFormSchedule', {
+      description:
+        'Trigger player-form analyzer daily at 04:00 UTC (post-match quiet window).',
+      schedule: Schedule.cron({ minute: '0', hour: '4' }),
+      targets: [new LambdaTarget(analyzePlayerFormFn)],
     });
 
     const alertsTopic = new Topic(this, 'IngestionAlertsTopic', {
@@ -214,6 +240,22 @@ export class FplStatsStack extends cdk.Stack {
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
     ingestErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
+    const analyzePlayerFormErrorsAlarm = analyzePlayerFormFn
+      .metricErrors({
+        // 24h window so the once-a-day trigger has a full cycle to be counted.
+        period: cdk.Duration.hours(24),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'AnalyzePlayerFormErrorsAlarm', {
+        alarmDescription:
+          'Player-form analyzer returned an error — analytics#player_form rows may be stale.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    analyzePlayerFormErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const httpApi = new HttpApi(this, 'HttpApi', {
       description: 'FPL Stats public HTTP API.',
