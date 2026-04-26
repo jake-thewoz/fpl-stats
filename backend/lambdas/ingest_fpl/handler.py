@@ -20,9 +20,8 @@ from typing import Any
 
 import boto3
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
+from fpl_session import make_fpl_session
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture
 
 log = logging.getLogger()
@@ -41,20 +40,6 @@ BOOTSTRAP_S3_PREFIX = "fpl/bootstrap-static"
 FIXTURES_S3_PREFIX = "fpl/fixtures"
 
 
-def _make_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset({"GET"}),
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
-
-
 def _fetch_json(session: requests.Session, url: str) -> Any:
     response = session.get(url, timeout=HTTP_TIMEOUT_SECONDS)
     response.raise_for_status()
@@ -68,7 +53,7 @@ def _snapshot_id(now: datetime) -> str:
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     table_name = os.environ["CACHE_TABLE_NAME"]
     bucket_name = os.environ["SNAPSHOTS_BUCKET_NAME"]
-    session = _make_session()
+    session = make_fpl_session()
 
     bootstrap_raw = _fetch_json(session, BOOTSTRAP_URL)
     fixtures_raw = _fetch_json(session, FIXTURES_URL)

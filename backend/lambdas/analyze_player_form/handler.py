@@ -19,9 +19,8 @@ from typing import Any
 
 import boto3
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
+from fpl_session import make_fpl_session
 from compute import (
     UpcomingFixture,
     average_difficulty,
@@ -43,20 +42,6 @@ RECENT_GW_COUNT = int(os.environ.get("RECENT_GW_COUNT", "5"))
 UPCOMING_FIXTURES_COUNT = int(os.environ.get("UPCOMING_FIXTURES_COUNT", "5"))
 # Linear decay, most recent heavy. len must be >= RECENT_GW_COUNT.
 FORM_WEIGHTS = [5.0, 4.0, 3.0, 2.0, 1.0]
-
-
-def _make_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset({"GET"}),
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
 
 
 def _fetch_gw_live(session: requests.Session, gw: int) -> dict[int, int]:
@@ -116,7 +101,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         log.info("No finished gameweeks yet — nothing to analyze")
         return {"ok": True, "skipped": "no_finished_gameweeks"}
 
-    session = _make_session()
+    session = make_fpl_session()
     gw_points: dict[int, dict[int, int]] = {
         gw: _fetch_gw_live(session, gw) for gw in recent_gws
     }

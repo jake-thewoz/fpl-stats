@@ -225,6 +225,25 @@ export class FplStatsStack extends cdk.Stack {
     );
     cacheTable.grantReadWriteData(analyzePlayerXpFn);
 
+    const analyzeTransferSuggestionsFn = new FplPythonFunction(
+      this,
+      'AnalyzeTransferSuggestions',
+      {
+        name: 'analyze_transfer_suggestions',
+        description:
+          'Read API — GET /analytics/squad/{teamId}/transfers. On-demand single-transfer suggestions across the next N gameweeks.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+        },
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(15),
+        layers: [fplSchemasLayer],
+      },
+    );
+    // Read-write: reads cached entry/picks/bootstrap/fixtures + analyzer
+    // outputs; writes back when entry/picks fall through to FPL (cache-aside).
+    cacheTable.grantReadWriteData(analyzeTransferSuggestionsFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
@@ -299,6 +318,25 @@ export class FplStatsStack extends cdk.Stack {
       });
     analyzePlayerXpErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
+    // Read API rather than scheduled — alarm on any errored request in a
+    // 30-min window. Threshold 5 keeps noise low if a single user hits a
+    // transient FPL upstream blip; a real algorithm break would error on
+    // every request and trip well past 5.
+    const analyzeTransferSuggestionsErrorsAlarm = analyzeTransferSuggestionsFn
+      .metricErrors({
+        period: cdk.Duration.minutes(30),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'AnalyzeTransferSuggestionsErrorsAlarm', {
+        alarmDescription:
+          'Transfer-suggestions endpoint errored 5+ times in 30 min — algorithm bug or DDB issue.',
+        threshold: 5,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    analyzeTransferSuggestionsErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
     const httpApi = new HttpApi(this, 'HttpApi', {
       description: 'FPL Stats public HTTP API.',
       corsPreflight: {
@@ -362,6 +400,15 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'LeagueMembersIntegration',
         leagueMembersFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/analytics/squad/{teamId}/transfers',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'AnalyzeTransferSuggestionsIntegration',
+        analyzeTransferSuggestionsFn,
       ),
     });
 

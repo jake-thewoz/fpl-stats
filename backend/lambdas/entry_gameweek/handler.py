@@ -28,8 +28,8 @@ from typing import Any
 
 import boto3
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
+from fpl_session import make_fpl_session
 
 from schemas import SCHEMA_VERSION, EntryPicks
 
@@ -78,20 +78,6 @@ def _parse_positive_int(raw: Any) -> int | None:
 
 def _cache_key(team_id: int, gw: int) -> dict[str, str]:
     return {"pk": f"entry#{team_id}#gw#{gw}", "sk": "latest"}
-
-
-def _make_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset({"GET"}),
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
 
 
 def _fetch_picks(
@@ -213,7 +199,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
 
     try:
-        raw = _fetch_picks(_make_session(), team_id, gw)
+        raw = _fetch_picks(make_fpl_session(), team_id, gw)
     except PicksNotFound:
         log.info("FPL reports picks not found for team %s gw %s", team_id, gw)
         return _response(

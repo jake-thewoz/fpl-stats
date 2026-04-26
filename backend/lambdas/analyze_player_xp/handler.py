@@ -33,7 +33,7 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from compute import (
+from xp_compute import (
     XpComponents,
     expected_points,
     fixtures_in_gw_for_team,

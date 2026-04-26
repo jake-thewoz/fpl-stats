@@ -97,7 +97,7 @@ def s3_bucket():
 @pytest.fixture
 def no_retry_session(monkeypatch):
     """Strip retries so error tests don't wait on exponential backoff."""
-    monkeypatch.setattr(handler, "_make_session", requests.Session)
+    monkeypatch.setattr(handler, "make_fpl_session", requests.Session)
 
 
 def _s3_keys(client) -> list[str]:
