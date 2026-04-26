@@ -385,12 +385,12 @@ function PlayerRow({
             {row.name}
           </Text>
           {row.isCaptain ? (
-            <Text style={styles.badgeCaptain} accessibilityLabel="captain">
-              ⭐
+            <Text style={styles.playerBadge} accessibilityLabel="captain">
+              C
             </Text>
           ) : null}
           {row.isViceCaptain ? (
-            <Text style={styles.badgeVice} accessibilityLabel="vice-captain">
+            <Text style={styles.playerBadge} accessibilityLabel="vice-captain">
               V
             </Text>
           ) : null}
@@ -520,8 +520,9 @@ const styles = StyleSheet.create({
   },
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
   subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  badgeCaptain: { fontSize: 14 },
-  badgeVice: {
+  // Same accent-coloured pill for both captain (C) and vice (V) — only
+  // the letter differentiates. Matches FPL's own visual treatment.
+  playerBadge: {
     fontSize: 11,
     color: colors.onAccent,
     backgroundColor: colors.accent,

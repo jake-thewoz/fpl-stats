@@ -75,7 +75,15 @@ export function FilterDialog({
     }));
   };
 
-  const onClear = () => setDraft(EMPTY_FILTER);
+  const onClear = () => {
+    // Commit empty + dismiss in one tap — without this, hitting Clear
+    // only reset the internal draft and the user saw no list change
+    // until they also tapped Done. One-tap "give me everything back"
+    // is the right shape for this action.
+    setDraft(EMPTY_FILTER);
+    onApply(EMPTY_FILTER);
+    onClose();
+  };
   const onDone = () => {
     onApply(draft);
     onClose();
@@ -119,13 +127,6 @@ export function FilterDialog({
             onToggle={togglePosition}
             emptyHint="Positions appear once players load."
           />
-          <CategoricalSection
-            title="Team"
-            options={teams}
-            selected={draft.teams}
-            onToggle={toggleTeam}
-            emptyHint="Teams appear once players load."
-          />
 
           {FIELDS_IN_PICKER_ORDER.map((f) => (
             <RangeSection
@@ -135,6 +136,16 @@ export function FilterDialog({
               onChange={(r) => setRange(f.key, r)}
             />
           ))}
+
+          {/* Team last — least-used filter in practice, kept off the
+              top so it doesn't push the more common ranges down. */}
+          <CategoricalSection
+            title="Team"
+            options={teams}
+            selected={draft.teams}
+            onToggle={toggleTeam}
+            emptyHint="Teams appear once players load."
+          />
         </ScrollView>
       </View>
     </Modal>
