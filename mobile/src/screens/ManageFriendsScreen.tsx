@@ -7,13 +7,12 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { getFriends, removeFriend, type Friend } from '../storage/friends';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import type { ManageFriendsScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ManageFriends'>;
+type Props = ManageFriendsScreenProps;
 
 export default function ManageFriendsScreen({ navigation }: Props) {
   const [friends, setFriends] = useState<Friend[] | null>(null);

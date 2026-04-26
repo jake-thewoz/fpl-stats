@@ -7,8 +7,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import {
   fetchLeagueMembers,
   LeagueNotFoundError,
@@ -17,9 +15,10 @@ import {
 } from '../api/leagueMembers';
 import { addFriend, getFriends } from '../storage/friends';
 import { getFplTeamId } from '../storage/user';
+import type { ImportLeagueScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ImportLeague'>;
+type Props = ImportLeagueScreenProps;
 
 type Step =
   | { status: 'idle' }

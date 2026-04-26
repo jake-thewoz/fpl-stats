@@ -8,16 +8,15 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
 import { getFplTeamId } from '../storage/user';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
+import type { FriendsScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Friends'>;
+type Props = FriendsScreenProps;
 
 type Target = {
   id: string;
@@ -157,7 +156,9 @@ export default function FriendsScreen({ navigation }: Props) {
     return (
       <EmptyState
         onAddFriend={() => navigation.navigate('AddFriend')}
-        onOpenSettings={() => navigation.navigate('Settings')}
+        // Settings lives on a sibling tab — go via the parent tab
+        // navigator rather than trying to navigate within Friends stack.
+        onOpenSettings={() => navigation.getParent()?.navigate('SettingsTab')}
       />
     );
   }

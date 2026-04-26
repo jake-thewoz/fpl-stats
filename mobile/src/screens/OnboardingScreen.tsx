@@ -7,12 +7,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
+import type { OnboardingScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
+type Props = OnboardingScreenProps;
 
 const FPL_POINTS_URL = 'https://fantasy.premierleague.com/my-team';
 
@@ -32,7 +31,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     try {
       await setFplTeamId(trimmed);
       await setOnboardingSeen();
-      navigation.reset({ index: 0, routes: [{ name: 'Players' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (e) {
       setSaving(false);
       setError("Couldn't save. Try again.");
@@ -43,7 +42,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     try {
       await setOnboardingSeen();
     } finally {
-      navigation.reset({ index: 0, routes: [{ name: 'Players' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     }
   }
 

@@ -6,14 +6,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { addFriend } from '../storage/friends';
 import { isValidFplTeamId } from '../storage/user';
+import type { AddFriendScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'AddFriend'>;
+type Props = AddFriendScreenProps;
 
 type Step =
   | { status: 'idle' }
