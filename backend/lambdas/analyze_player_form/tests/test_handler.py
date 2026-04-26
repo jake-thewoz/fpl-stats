@@ -103,6 +103,16 @@ def _gw_live_payload(points_by_player: dict[int, int]) -> dict:
     }
 
 
+# ClubELO ingest writes ratings keyed by FPL team id (stringified). Decimals
+# because that's what DDB returns. Arsenal slightly stronger than Chelsea
+# so the home/away xPs come out non-trivial.
+ELO_RATINGS_CACHE = {
+    "ratings": {"1": Decimal("1900"), "2": Decimal("1850")},
+    "schema_version": 1,
+    "fetched_at": "2026-04-26T03:00:00+00:00",
+}
+
+
 def _ddb_table_get_item(key):
     pk = key["pk"]
     sk = key["sk"]
@@ -115,6 +125,8 @@ def _ddb_table_get_item(key):
                 "data": FINISHED_FIXTURES + FIXTURES_DATA,
             }
         }
+    if (pk, sk) == ("clubelo#ratings", "latest"):
+        return {"Item": {"pk": pk, "sk": sk, **ELO_RATINGS_CACHE}}
     return {}
 
 
@@ -192,14 +204,21 @@ def test_happy_path_writes_one_record_per_player(mock_table, no_retry_session):
     # weighted form: (8*3 + 4*2 + 6*1) / 6 = (24+8+6)/6 = 38/6 = 6.333...
     assert saka["form_score"] == Decimal("6.3333")
     # Team 1's two upcoming fixtures: GW33 home vs team 2 (diff 3), GW33 away vs team 2 (diff 3)
+    # ELO math, with Arsenal=1900, Chelsea=1850, home advantage +65:
+    #   Fx 301 (home): me_eff=1965 vs opp=1850 -> 1/(1+10^(-0.2875)) = 0.6597
+    #   Fx 302 (away): me=1900 vs opp_eff=1915 -> 1/(1+10^(0.0375))  = 0.4784
     assert len(saka["next_fixtures"]) == 2
     assert saka["next_fixtures"][0] == {
         "gw": 33, "opponent_team_id": 2, "home": True, "difficulty": 3,
+        "elo_expected_score": Decimal("0.6597"),
     }
     assert saka["next_fixtures"][1] == {
         "gw": 33, "opponent_team_id": 2, "home": False, "difficulty": 3,
+        "elo_expected_score": Decimal("0.4784"),
     }
     assert saka["avg_upcoming_difficulty"] == Decimal("3")
+    # avg = (0.659712 + 0.478427) / 2 = 0.569070 -> 0.5691 (4dp)
+    assert saka["avg_upcoming_elo_expected_score"] == Decimal("0.5691")
 
     # ---- Palmer (player 201, team 2): points [10, 12, 3] ----
     palmer = items_by_player[201]
@@ -210,6 +229,9 @@ def test_happy_path_writes_one_record_per_player(mock_table, no_retry_session):
     assert palmer["form_score"] == Decimal("9.5")
     # Team 2's upcoming: GW33 away vs team 1 (diff 4), GW33 home vs team 1 (diff 4)
     assert palmer["avg_upcoming_difficulty"] == Decimal("4")
+    # Mirror of Saka's xPs (away vs Arsenal first, home vs Arsenal second):
+    #   (0.340289 + 0.521573) / 2 = 0.430931 -> 0.4309 (4dp)
+    assert palmer["avg_upcoming_elo_expected_score"] == Decimal("0.4309")
 
 
 @responses.activate
@@ -305,3 +327,75 @@ def test_graceful_when_fixtures_lack_difficulty(mock_table, no_retry_session):
         for fx in item["next_fixtures"]:
             assert fx["difficulty"] is None
         assert item["avg_upcoming_difficulty"] is None
+
+
+@responses.activate
+def test_graceful_when_clubelo_cache_missing(mock_table, no_retry_session):
+    """First deploy before ingest_clubelo has run for the first time:
+    the analyzer must still write records, with elo_expected_score=None
+    on every fixture and avg_upcoming_elo_expected_score=None at the
+    top level. FPL difficulty is unaffected — both signals are
+    independent."""
+    table, writer = mock_table
+
+    def get_item(Key):
+        if (Key["pk"], Key["sk"]) == ("clubelo#ratings", "latest"):
+            return {}  # ELO cache missing
+        return _ddb_table_get_item(Key)
+
+    table.get_item.side_effect = get_item
+    _register_gw_live_mocks()
+
+    result = lambda_handler({}, None)
+    assert result["players_scored"] == 3
+
+    for call in writer.put_item.call_args_list:
+        item = call.kwargs["Item"]
+        # FPL difficulty still populated.
+        for fx in item["next_fixtures"]:
+            assert fx["difficulty"] is not None
+            assert fx["elo_expected_score"] is None
+        # FPL avg still populated, ELO avg null.
+        assert item["avg_upcoming_difficulty"] is not None
+        assert item["avg_upcoming_elo_expected_score"] is None
+
+
+@responses.activate
+def test_partial_clubelo_coverage(mock_table, no_retry_session):
+    """Mid-season newly promoted club without ELO yet: cache has Arsenal
+    but not Chelsea. Saka (Arsenal) gets opp_elo=None for every fixture
+    against Chelsea -> elo_expected_score=None. Avg is None too because
+    no fixture has both ratings."""
+    table, writer = mock_table
+
+    def get_item(Key):
+        if (Key["pk"], Key["sk"]) == ("clubelo#ratings", "latest"):
+            return {
+                "Item": {
+                    "pk": Key["pk"], "sk": Key["sk"],
+                    "ratings": {"1": Decimal("1900")},  # Chelsea (id 2) missing
+                    "schema_version": 1,
+                }
+            }
+        return _ddb_table_get_item(Key)
+
+    table.get_item.side_effect = get_item
+    _register_gw_live_mocks()
+
+    lambda_handler({}, None)
+
+    items_by_player = {
+        call.kwargs["Item"]["player_id"]: call.kwargs["Item"]
+        for call in writer.put_item.call_args_list
+    }
+    saka = items_by_player[101]
+    palmer = items_by_player[201]
+
+    # Both players' fixtures are vs the partner team — without that team's
+    # ELO, expected_score is None for every fixture.
+    for fx in saka["next_fixtures"]:
+        assert fx["elo_expected_score"] is None
+    for fx in palmer["next_fixtures"]:
+        assert fx["elo_expected_score"] is None
+    assert saka["avg_upcoming_elo_expected_score"] is None
+    assert palmer["avg_upcoming_elo_expected_score"] is None

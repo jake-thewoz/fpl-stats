@@ -118,6 +118,21 @@ export class FplStatsStack extends cdk.Stack {
     cacheTable.grantReadWriteData(ingestFn);
     snapshotsBucket.grantPut(ingestFn);
 
+    const ingestClubeloFn = new FplPythonFunction(this, 'IngestClubelo', {
+      name: 'ingest_clubelo',
+      description:
+        'Scheduled ingestion — fetch ClubELO daily date endpoint, archive raw CSV to S3, cache PL ratings keyed by FPL team id at clubelo#ratings/latest.',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+        SNAPSHOTS_BUCKET_NAME: snapshotsBucket.bucketName,
+      },
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(60),
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadWriteData(ingestClubeloFn);
+    snapshotsBucket.grantPut(ingestClubeloFn);
+
     const gameweekCurrentFn = new FplPythonFunction(this, 'GameweekCurrent', {
       name: 'gameweek_current',
       description: 'Read API — returns current gameweek + its fixtures.',
@@ -280,6 +295,15 @@ export class FplStatsStack extends cdk.Stack {
       targets: [new LambdaTarget(ingestFn)],
     });
 
+    // ClubELO publishes daily-recomputed ratings; ingest at 03:00 UTC so
+    // fresh data is in the cache before the form analyzer's 04:00 run.
+    new Rule(this, 'IngestClubeloSchedule', {
+      description:
+        'Trigger ClubELO ingestion daily at 03:00 UTC (1h before the form analyzer).',
+      schedule: Schedule.cron({ minute: '0', hour: '3' }),
+      targets: [new LambdaTarget(ingestClubeloFn)],
+    });
+
     new Rule(this, 'AnalyzePlayerFormSchedule', {
       description:
         'Trigger player-form analyzer daily at 04:00 UTC (post-match quiet window).',
@@ -316,6 +340,22 @@ export class FplStatsStack extends cdk.Stack {
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
     ingestErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
+    const ingestClubeloErrorsAlarm = ingestClubeloFn
+      .metricErrors({
+        // 24h window so the once-a-day trigger has a full cycle to be counted.
+        period: cdk.Duration.hours(24),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'IngestClubeloErrorsAlarm', {
+        alarmDescription:
+          'ClubELO ingestion Lambda returned an error — clubelo#ratings may be stale and elo_expected_score will fall back to null on next form-analyzer run.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    ingestClubeloErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const analyzePlayerFormErrorsAlarm = analyzePlayerFormFn
       .metricErrors({
