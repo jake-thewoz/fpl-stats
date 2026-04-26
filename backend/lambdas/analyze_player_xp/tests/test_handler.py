@@ -95,92 +95,117 @@ def _ddb_query(form_rows):
 
 @pytest.fixture
 def mock_table():
+    """Patch boto3.resource so the handler writes/reads a MagicMock DDB.
+
+    batch_writer() is a context manager returning a writer with put_item;
+    mirror that shape so we can count and inspect writes per player.
+    """
     table = MagicMock()
     table.get_item.side_effect = lambda Key: _ddb_get_item(Key)
     table.query.side_effect = _ddb_query(PLAYER_FORM_ROWS)
 
+    writer = MagicMock()
+    table.batch_writer.return_value.__enter__.return_value = writer
+    table.batch_writer.return_value.__exit__.return_value = False
+
     resource = MagicMock()
     resource.Table.return_value = table
     with patch.object(handler.boto3, "resource", return_value=resource):
-        yield table
+        yield table, writer
 
 
-def test_happy_path_ranking_and_math(mock_table):
-    """Three candidates -> one ranked DDB put_item.
+def _items_by_player(writer):
+    return {
+        call.kwargs["Item"]["player_id"]: call.kwargs["Item"]
+        for call in writer.put_item.call_args_list
+    }
+
+
+def test_happy_path_writes_one_record_per_player(mock_table):
+    """Three players × one upcoming GW -> three per-player rows.
 
     Math, spelled out so a weighting tweak surfaces here:
-      Saka:     6.0 * 0.6 * 1.0 * 1 = 3.6  -> captain_ev 7.2
-      Palmer:   8.0 * 0.4 * 1.0 * 1 = 3.2  -> captain_ev 6.4
-      Odegaard: 4.0 * 0.6 * 0.5 * 1 = 1.2  -> captain_ev 2.4
+      Saka:     6.0 * 0.6 * 1.0 * 1 = 3.6
+      Palmer:   8.0 * 0.4 * 1.0 * 1 = 3.2
+      Odegaard: 4.0 * 0.6 * 0.5 * 1 = 1.2
     """
+    table, writer = mock_table
     result = lambda_handler({}, None)
 
     assert result["ok"] is True
     assert result["gameweek"] == 33
-    assert result["candidates_scored"] == 3
-    assert result["ranked_size"] == 3
+    assert result["players_scored"] == 3
 
-    mock_table.put_item.assert_called_once()
-    item = mock_table.put_item.call_args.kwargs["Item"]
-    assert item["pk"] == "analytics#captain_ev"
-    assert item["sk"] == "33"
-    assert item["gameweek"] == 33
+    assert writer.put_item.call_count == 3
+    items = _items_by_player(writer)
+    assert set(items) == {101, 102, 201}
 
-    ranked = item["ranked"]
-    assert [r["player_id"] for r in ranked] == [101, 201, 102]
+    # ---- Saka (101): form=6.0, easiness=(6-3)/5=0.6, mins=1.0, nfx=1
+    saka = items[101]
+    assert saka["pk"] == "analytics#player_xp"
+    assert saka["sk"] == "101"
+    assert saka["web_name"] == "Saka"
+    assert saka["team_id"] == 1
+    assert saka["position_id"] == 3
+    assert saka["gameweek"] == 33
+    assert saka["xp"] == Decimal("3.6")
+    assert saka["components"]["form_score"] == Decimal("6")
+    assert saka["components"]["fixture_easiness"] == Decimal("0.6")
+    assert saka["components"]["minutes_prob"] == Decimal("1")
+    assert saka["components"]["num_fixtures"] == 1
 
-    by_id = {r["player_id"]: r for r in ranked}
-    assert by_id[101]["captain_ev"] == Decimal("7.2")
-    assert by_id[101]["expected_points"] == Decimal("3.6")
-    assert by_id[101]["components"]["form_score"] == Decimal("6")
-    assert by_id[101]["components"]["fixture_easiness"] == Decimal("0.6")
-    assert by_id[101]["components"]["minutes_prob"] == Decimal("1")
-    assert by_id[101]["components"]["num_fixtures"] == 1
+    # ---- Palmer (201): form=8.0, easiness=(6-4)/5=0.4, mins=1.0, nfx=1
+    palmer = items[201]
+    assert palmer["xp"] == Decimal("3.2")
+    assert palmer["components"]["fixture_easiness"] == Decimal("0.4")
 
-    assert by_id[201]["captain_ev"] == Decimal("6.4")
-    assert by_id[201]["expected_points"] == Decimal("3.2")
-    assert by_id[201]["components"]["fixture_easiness"] == Decimal("0.4")
-
-    assert by_id[102]["captain_ev"] == Decimal("2.4")
-    assert by_id[102]["components"]["minutes_prob"] == Decimal("0.5")
+    # ---- Odegaard (102): form=4.0, easiness=0.6, mins=0.5, nfx=1
+    odegaard = items[102]
+    assert odegaard["xp"] == Decimal("1.2")
+    assert odegaard["components"]["minutes_prob"] == Decimal("0.5")
 
 
 def test_skips_when_match_live(mock_table):
+    table, writer = mock_table
     with patch("handler.get_match_window") as gmw:
         gmw.return_value.is_live = True
         gmw.return_value.next_kickoff = None
         result = lambda_handler({}, None)
 
     assert result == {"ok": True, "skipped": "match_live"}
-    mock_table.put_item.assert_not_called()
+    writer.put_item.assert_not_called()
 
 
 def test_missing_bootstrap_raises(mock_table):
     """Bootstrap missing — handler raises before any compute or write."""
+    table, writer = mock_table
+
     def get_item(Key):
         if (Key["pk"], Key["sk"]) == ("fpl#fixtures", "latest"):
             return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": []}}
         return {}
 
-    mock_table.get_item.side_effect = get_item
+    table.get_item.side_effect = get_item
 
     with pytest.raises(RuntimeError, match="fpl#bootstrap"):
         lambda_handler({}, None)
-    mock_table.put_item.assert_not_called()
+    writer.put_item.assert_not_called()
 
 
 def test_missing_player_form_rows_raises(mock_table):
-    """Captain EV is downstream of the form analyzer — if there's no form
-    data, fail loudly rather than write a zero-filled list."""
-    mock_table.query.side_effect = _ddb_query([])
+    """Player xP is downstream of the form analyzer — if there's no form
+    data, fail loudly rather than write zero-filled records."""
+    table, writer = mock_table
+    table.query.side_effect = _ddb_query([])
 
     with pytest.raises(RuntimeError, match="analytics#player_form"):
         lambda_handler({}, None)
-    mock_table.put_item.assert_not_called()
+    writer.put_item.assert_not_called()
 
 
 def test_no_upcoming_gameweek_is_noop(mock_table):
     """Season's over: every gameweek finished, nothing to score."""
+    table, writer = mock_table
     finished_bootstrap = {**BOOTSTRAP_DATA}
     finished_bootstrap["gameweeks"] = [
         {**gw, "is_next": False, "finished": True}
@@ -192,16 +217,18 @@ def test_no_upcoming_gameweek_is_noop(mock_table):
             return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": finished_bootstrap}}
         return _ddb_get_item(Key)
 
-    mock_table.get_item.side_effect = get_item
+    table.get_item.side_effect = get_item
 
     result = lambda_handler({}, None)
     assert result == {"ok": True, "skipped": "no_upcoming_gameweek"}
-    mock_table.put_item.assert_not_called()
+    writer.put_item.assert_not_called()
 
 
-def test_blank_gameweek_excludes_team(mock_table):
+def test_blank_gameweek_skips_team(mock_table):
     """Team 1 has a fixture in GW33; team 2 doesn't (blank). Only team 1's
-    players should appear in the ranked list."""
+    players should get xP rows — team 2's player is skipped, not written
+    with xP=0 (those are different signals to a downstream reader)."""
+    table, writer = mock_table
     arsenal_only_fixtures = [
         {
             "id": 301, "event": 33, "kickoff_time": "2026-04-24T17:30:00Z",
@@ -215,18 +242,19 @@ def test_blank_gameweek_excludes_team(mock_table):
             return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": arsenal_only_fixtures}}
         return _ddb_get_item(Key)
 
-    mock_table.get_item.side_effect = get_item
+    table.get_item.side_effect = get_item
 
     result = lambda_handler({}, None)
-    assert result["candidates_scored"] == 2  # Saka + Odegaard, no Palmer
+    assert result["players_scored"] == 2  # Saka + Odegaard, no Palmer
 
-    ranked = mock_table.put_item.call_args.kwargs["Item"]["ranked"]
-    assert {r["player_id"] for r in ranked} == {101, 102}
+    items = _items_by_player(writer)
+    assert set(items) == {101, 102}
 
 
 def test_double_gameweek_doubles_expected_points(mock_table):
-    """Team 2 has two fixtures in GW33 (DGW). Palmer's EV should reflect
+    """Team 2 has two fixtures in GW33 (DGW). Palmer's xP should reflect
     num_fixtures=2 — same form/easiness/mins, but doubled."""
+    table, writer = mock_table
     dgw_fixtures = [
         {
             "id": 301, "event": 33, "kickoff_time": "2026-04-24T17:30:00Z",
@@ -245,13 +273,12 @@ def test_double_gameweek_doubles_expected_points(mock_table):
             return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": dgw_fixtures}}
         return _ddb_get_item(Key)
 
-    mock_table.get_item.side_effect = get_item
+    table.get_item.side_effect = get_item
 
     lambda_handler({}, None)
-    ranked = mock_table.put_item.call_args.kwargs["Item"]["ranked"]
-    palmer = next(r for r in ranked if r["player_id"] == 201)
-    # Two fixtures averaged: away diff 4 (easiness 0.4), home diff 4 (easiness 0.4) -> avg 0.4
-    # ep = 8.0 * 0.4 * 1.0 * 2 = 6.4 ; captain_ev = 12.8
+    items = _items_by_player(writer)
+    palmer = items[201]
+    # Two fixtures: away diff 4 (easiness 0.4), home diff 4 (easiness 0.4) -> avg 0.4
+    # xp = 8.0 * 0.4 * 1.0 * 2 = 6.4
     assert palmer["components"]["num_fixtures"] == 2
-    assert palmer["expected_points"] == Decimal("6.4")
-    assert palmer["captain_ev"] == Decimal("12.8")
+    assert palmer["xp"] == Decimal("6.4")

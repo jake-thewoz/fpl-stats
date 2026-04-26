@@ -1,4 +1,4 @@
-"""Pure computation for the captain-EV analyzer.
+"""Pure computation for the player-xp analyzer.
 
 Side-effect-free so the math is unit-testable on hand-built data per the
 issue's AC. The handler wires these against DDB I/O.
@@ -12,26 +12,15 @@ from schemas import Fixture, Gameweek, Player
 
 
 @dataclass(frozen=True)
-class CaptainEvComponents:
-    """Inputs that fed into a player's EV — kept on the output record so
-    the API/UI can show 'why' alongside the ranking, and so a stale-looking
-    EV can be debugged from the stored row alone."""
+class XpComponents:
+    """Inputs that fed into a player's xP — kept on the output record so
+    the API/UI can show 'why' alongside the value, and so a stale-looking
+    xP can be debugged from the stored row alone."""
 
     form_score: float
     fixture_easiness: float
     minutes_prob: float
     num_fixtures: int
-
-
-@dataclass(frozen=True)
-class CaptainEvCandidate:
-    player_id: int
-    web_name: str
-    team_id: int
-    position_id: int
-    expected_points: float
-    captain_ev: float
-    components: CaptainEvComponents
 
 
 def upcoming_gameweek(gameweeks: Iterable[Gameweek]) -> Optional[int]:
@@ -79,7 +68,7 @@ def fixture_easiness(difficulty: Optional[int]) -> float:
 
 def gw_easiness(team_fixtures: Iterable[Fixture], team_id: int) -> float:
     """Average easiness across all the team's fixtures this GW. Empty
-    iterable -> 0.0 so a blank-GW player ends up with EV=0 without a
+    iterable -> 0.0 so a blank-GW player ends up with xP=0 without a
     divide-by-zero."""
     fxs = list(team_fixtures)
     if not fxs:
@@ -100,7 +89,7 @@ def minutes_probability(player: Player) -> float:
     (0/25/50/75/100). It's left null when there's no doubt — fall back to
     1.0 for available players, 0.0 for everyone else (injured, suspended,
     etc.). Conservative on availability: a flagged player should never
-    rank as a captain pick on the back of historical form alone.
+    rank highly on the back of historical form alone.
     """
     cop = player.chance_of_playing_next_round
     if cop is not None:
@@ -116,22 +105,11 @@ def expected_points(
     minutes_prob: float,
     num_fixtures: int,
 ) -> float:
-    """Per-GW expected points for one player. Captain EV is just this
-    doubled (FPL captain multiplier). Kept separate so a future
-    'expected points for every player' analyzer can reuse the same
-    function without re-deriving captaincy from a doubled value."""
+    """Per-GW expected points for one player.
+
+    Captain EV is just this doubled (FPL's captain multiplier); a triple-
+    captain chip would triple it. Kept multiplier-free so consumers can
+    rank for captaincy, vice-captaincy, transfers, or display xP directly
+    without the analyzer baking a captaincy assumption into the data.
+    """
     return form_score * easiness * minutes_prob * num_fixtures
-
-
-def rank_top_n(
-    candidates: Iterable[CaptainEvCandidate],
-    n: int,
-) -> list[CaptainEvCandidate]:
-    """Sort candidates by captain EV desc, take the first n. Stable sort
-    on player_id breaks ties deterministically — useful for snapshot
-    tests and for stable diffing of the stored ranked list across runs."""
-    sorted_candidates = sorted(
-        candidates,
-        key=lambda c: (-c.captain_ev, c.player_id),
-    )
-    return sorted_candidates[:n]

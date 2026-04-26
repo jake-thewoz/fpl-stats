@@ -3,14 +3,11 @@ from __future__ import annotations
 import pytest
 
 from compute import (
-    CaptainEvCandidate,
-    CaptainEvComponents,
     expected_points,
     fixture_easiness,
     fixtures_in_gw_for_team,
     gw_easiness,
     minutes_probability,
-    rank_top_n,
     upcoming_gameweek,
 )
 from schemas import Fixture, Gameweek, Player
@@ -185,7 +182,7 @@ def test_gw_easiness_dgw_averages_per_fixture():
 
 
 def test_gw_easiness_empty_returns_zero():
-    """Blank GW signal — caller skips writing an item, but compute layer
+    """Blank GW signal — caller skips writing a row, but compute layer
     should still return a defined float."""
     assert gw_easiness([], team_id=3) == 0.0
 
@@ -234,49 +231,3 @@ def test_expected_points_dgw_doubles_via_num_fixtures():
 
 def test_expected_points_zero_minutes_prob_zeros_out():
     assert expected_points(10.0, 1.0, 0.0, 1) == 0.0
-
-
-# ---------------------------------------------------------------------------
-# rank_top_n
-# ---------------------------------------------------------------------------
-
-
-def _candidate(player_id: int, ev: float) -> CaptainEvCandidate:
-    return CaptainEvCandidate(
-        player_id=player_id,
-        web_name=f"P{player_id}",
-        team_id=1,
-        position_id=3,
-        expected_points=ev / 2,
-        captain_ev=ev,
-        components=CaptainEvComponents(
-            form_score=ev / 2,
-            fixture_easiness=1.0,
-            minutes_prob=1.0,
-            num_fixtures=1,
-        ),
-    )
-
-
-def test_rank_top_n_sorts_desc_by_ev():
-    cands = [_candidate(1, 5.0), _candidate(2, 12.0), _candidate(3, 8.0)]
-    ranked = rank_top_n(cands, n=3)
-    assert [c.player_id for c in ranked] == [2, 3, 1]
-
-
-def test_rank_top_n_truncates():
-    cands = [_candidate(i, float(100 - i)) for i in range(10)]
-    ranked = rank_top_n(cands, n=3)
-    assert [c.player_id for c in ranked] == [0, 1, 2]
-
-
-def test_rank_top_n_tiebreaks_by_player_id_ascending():
-    """Two players with identical EV — break ties deterministically so
-    the stored ranked list is stable across re-runs and snapshot diffs."""
-    cands = [_candidate(7, 10.0), _candidate(3, 10.0), _candidate(5, 10.0)]
-    ranked = rank_top_n(cands, n=3)
-    assert [c.player_id for c in ranked] == [3, 5, 7]
-
-
-def test_rank_top_n_empty_returns_empty():
-    assert rank_top_n([], n=10) == []
