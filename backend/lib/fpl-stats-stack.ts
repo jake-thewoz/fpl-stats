@@ -208,6 +208,23 @@ export class FplStatsStack extends cdk.Stack {
     );
     cacheTable.grantReadWriteData(analyzePlayerFormFn);
 
+    const analyzePlayerXpFn = new FplPythonFunction(
+      this,
+      'AnalyzePlayerXp',
+      {
+        name: 'analyze_player_xp',
+        description:
+          'Scheduled analyzer — writes per-player expected points for the upcoming gameweek to analytics#player_xp.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+        },
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(60),
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadWriteData(analyzePlayerXpFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
@@ -219,6 +236,16 @@ export class FplStatsStack extends cdk.Stack {
         'Trigger player-form analyzer daily at 04:00 UTC (post-match quiet window).',
       schedule: Schedule.cron({ minute: '0', hour: '4' }),
       targets: [new LambdaTarget(analyzePlayerFormFn)],
+    });
+
+    // Player-xP reads the form analyzer's output, so schedule it 30 min
+    // later in the same quiet window. Both share the match-window guard,
+    // so a live match defers both runs to the next tick.
+    new Rule(this, 'AnalyzePlayerXpSchedule', {
+      description:
+        'Trigger player-xP analyzer daily at 04:30 UTC (after the player-form analyzer).',
+      schedule: Schedule.cron({ minute: '30', hour: '4' }),
+      targets: [new LambdaTarget(analyzePlayerXpFn)],
     });
 
     const alertsTopic = new Topic(this, 'IngestionAlertsTopic', {
@@ -256,6 +283,21 @@ export class FplStatsStack extends cdk.Stack {
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
     analyzePlayerFormErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
+    const analyzePlayerXpErrorsAlarm = analyzePlayerXpFn
+      .metricErrors({
+        period: cdk.Duration.hours(24),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'AnalyzePlayerXpErrorsAlarm', {
+        alarmDescription:
+          'Player-xP analyzer returned an error — analytics#player_xp rows may be stale.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    analyzePlayerXpErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const httpApi = new HttpApi(this, 'HttpApi', {
       description: 'FPL Stats public HTTP API.',

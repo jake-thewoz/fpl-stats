@@ -66,6 +66,14 @@ class Player(BaseModel):
     total_points: int
     form: str
     now_cost: int
+    # Availability signals used by the captain-EV analyzer. FPL ships these
+    # on every element; optional + None default keeps older cached rows
+    # parsing while ingest hasn't refreshed yet. ``status`` is one of
+    # 'a' (available), 'd' (doubtful), 'i' (injured), 's' (suspended),
+    # 'u' (unavailable), 'n' (not in squad). ``chance_of_playing_next_round``
+    # is 0/25/50/75/100 or null (FPL leaves it null when there's no doubt).
+    status: str | None = None
+    chance_of_playing_next_round: int | None = None
 
 
 class Gameweek(BaseModel):
