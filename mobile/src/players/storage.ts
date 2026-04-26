@@ -1,28 +1,32 @@
 /**
- * Per-screen AsyncStorage persistence for the unified columns + filters.
+ * AsyncStorage persistence for the unified columns + filters + sort.
  *
- * Each screen has its own keys so a Players layout doesn't clobber a
- * My Team layout. Garbage stored values fall back to defaults silently
- * — a corrupt entry shouldn't brick the screen.
+ * Single global keys — both Players and My Team read/write the same
+ * settings so a column the user pinned on one screen shows on the
+ * other automatically. Per-screen storage keys were the original
+ * design but were over-engineering: the whole point of the rebuild
+ * is "see the same view on both", and forcing the user to configure
+ * twice fights that.
+ *
+ * Garbage stored values fall back to defaults silently — a corrupt
+ * entry shouldn't brick either screen.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FieldKey, FilterState, SortState } from './types';
 import { EMPTY_FILTER } from './types';
 import { DEFAULT_COLUMNS, DEFAULT_SORT, FIELD_DEFS } from './fields';
 
-export type ScreenKey = 'players' | 'myTeam';
-
-const KEY_COLUMNS = (screen: ScreenKey) => `mobile.${screen}.columns.v1`;
-const KEY_FILTERS = (screen: ScreenKey) => `mobile.${screen}.filters.v1`;
-const KEY_SORT = (screen: ScreenKey) => `mobile.${screen}.sort.v1`;
+const KEY_COLUMNS = 'mobile.columns.v1';
+const KEY_FILTERS = 'mobile.filters.v1';
+const KEY_SORT = 'mobile.sort.v1';
 
 function isFieldKey(value: unknown): value is FieldKey {
   return typeof value === 'string' && value in FIELD_DEFS;
 }
 
-export async function loadColumns(screen: ScreenKey): Promise<FieldKey[]> {
+export async function loadColumns(): Promise<FieldKey[]> {
   try {
-    const raw = await AsyncStorage.getItem(KEY_COLUMNS(screen));
+    const raw = await AsyncStorage.getItem(KEY_COLUMNS);
     if (!raw) return DEFAULT_COLUMNS;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_COLUMNS;
@@ -33,16 +37,13 @@ export async function loadColumns(screen: ScreenKey): Promise<FieldKey[]> {
   }
 }
 
-export async function saveColumns(
-  screen: ScreenKey,
-  columns: FieldKey[],
-): Promise<void> {
-  await AsyncStorage.setItem(KEY_COLUMNS(screen), JSON.stringify(columns));
+export async function saveColumns(columns: FieldKey[]): Promise<void> {
+  await AsyncStorage.setItem(KEY_COLUMNS, JSON.stringify(columns));
 }
 
-export async function loadFilters(screen: ScreenKey): Promise<FilterState> {
+export async function loadFilters(): Promise<FilterState> {
   try {
-    const raw = await AsyncStorage.getItem(KEY_FILTERS(screen));
+    const raw = await AsyncStorage.getItem(KEY_FILTERS);
     if (!raw) return EMPTY_FILTER;
     const parsed = JSON.parse(raw) as Partial<FilterState>;
     return {
@@ -58,16 +59,13 @@ export async function loadFilters(screen: ScreenKey): Promise<FilterState> {
   }
 }
 
-export async function saveFilters(
-  screen: ScreenKey,
-  filters: FilterState,
-): Promise<void> {
-  await AsyncStorage.setItem(KEY_FILTERS(screen), JSON.stringify(filters));
+export async function saveFilters(filters: FilterState): Promise<void> {
+  await AsyncStorage.setItem(KEY_FILTERS, JSON.stringify(filters));
 }
 
-export async function loadSort(screen: ScreenKey): Promise<SortState> {
+export async function loadSort(): Promise<SortState> {
   try {
-    const raw = await AsyncStorage.getItem(KEY_SORT(screen));
+    const raw = await AsyncStorage.getItem(KEY_SORT);
     if (!raw) return DEFAULT_SORT;
     const parsed = JSON.parse(raw) as Partial<SortState>;
     if (!isFieldKey(parsed.field)) return DEFAULT_SORT;
@@ -78,9 +76,6 @@ export async function loadSort(screen: ScreenKey): Promise<SortState> {
   }
 }
 
-export async function saveSort(
-  screen: ScreenKey,
-  sort: SortState,
-): Promise<void> {
-  await AsyncStorage.setItem(KEY_SORT(screen), JSON.stringify(sort));
+export async function saveSort(sort: SortState): Promise<void> {
+  await AsyncStorage.setItem(KEY_SORT, JSON.stringify(sort));
 }

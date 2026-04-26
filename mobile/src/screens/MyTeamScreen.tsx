@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeam, type SquadEntry } from '../api/myTeam';
 import { fetchPlayersXp } from '../api/playersXp';
 import type { Entry } from '../api/entry';
@@ -96,27 +97,27 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   );
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
-  // Columns / filters / sort persisted under the My Team key — separate
-  // from Players' choices.
+  // Columns / filters / sort are shared with the Players tab via single
+  // global keys. Re-read on focus so changes made over there appear here.
   const [columns, setColumns] = useState<FieldKey[]>(DEFAULT_COLUMNS);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  useEffect(() => {
-    let alive = true;
-    Promise.all([
-      loadColumns('myTeam'),
-      loadFilters('myTeam'),
-      loadSort('myTeam'),
-    ]).then(([c, f, s]) => {
-      if (!alive) return;
-      setColumns(c);
-      setFilters(f);
-      setSort(s);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
+        ([c, f, s]) => {
+          if (!alive) return;
+          setColumns(c);
+          setFilters(f);
+          setSort(s);
+        },
+      );
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -137,15 +138,15 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 
   const onChangeColumns = useCallback((next: FieldKey[]) => {
     setColumns(next);
-    saveColumns('myTeam', next);
+    saveColumns(next);
   }, []);
   const onChangeFilters = useCallback((next: FilterState) => {
     setFilters(next);
-    saveFilters('myTeam', next);
+    saveFilters(next);
   }, []);
   const onChangeSort = useCallback((next: SortState) => {
     setSort(next);
-    saveSort('myTeam', next);
+    saveSort(next);
   }, []);
 
   const onTapColumnHeader = useCallback(
@@ -459,9 +460,9 @@ const styles = StyleSheet.create({
 
   controlBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 8,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,

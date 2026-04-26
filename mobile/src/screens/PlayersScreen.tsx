@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
 import { useFetch } from '../hooks/useFetch';
@@ -67,28 +68,30 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   );
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
-  // Columns / filters / sort — loaded async from AsyncStorage. Default
-  // values render immediately so the user sees something before storage
-  // resolves.
+  // Columns / filters / sort are shared across screens via a single set
+  // of AsyncStorage keys. We re-read on every focus so changes made on
+  // the My Team tab are picked up when the user returns here. The
+  // re-read is cheap (microseconds) and avoids needing a global state
+  // context for what's effectively rarely-changing config.
   const [columns, setColumns] = useState<FieldKey[]>(DEFAULT_COLUMNS);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  useEffect(() => {
-    let alive = true;
-    Promise.all([
-      loadColumns('players'),
-      loadFilters('players'),
-      loadSort('players'),
-    ]).then(([c, f, s]) => {
-      if (!alive) return;
-      setColumns(c);
-      setFilters(f);
-      setSort(s);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
+        ([c, f, s]) => {
+          if (!alive) return;
+          setColumns(c);
+          setFilters(f);
+          setSort(s);
+        },
+      );
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,15 +124,15 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   // My Team's.
   const onChangeColumns = useCallback((next: FieldKey[]) => {
     setColumns(next);
-    saveColumns('players', next);
+    saveColumns(next);
   }, []);
   const onChangeFilters = useCallback((next: FilterState) => {
     setFilters(next);
-    saveFilters('players', next);
+    saveFilters(next);
   }, []);
   const onChangeSort = useCallback((next: SortState) => {
     setSort(next);
-    saveSort('players', next);
+    saveSort(next);
   }, []);
 
   const onTapColumnHeader = useCallback(
@@ -380,9 +383,9 @@ const styles = StyleSheet.create({
 
   controlBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 8,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
