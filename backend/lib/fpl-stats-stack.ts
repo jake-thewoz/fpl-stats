@@ -208,6 +208,24 @@ export class FplStatsStack extends cdk.Stack {
     );
     cacheTable.grantReadWriteData(analyzePlayerFormFn);
 
+    const analyzeCaptainEvFn = new FplPythonFunction(
+      this,
+      'AnalyzeCaptainEv',
+      {
+        name: 'analyze_captain_ev',
+        description:
+          'Scheduled analyzer — ranks players by expected captaincy value for the next gameweek and writes analytics#captain_ev/<gw>.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+          CAPTAIN_EV_TOP_N: '50',
+        },
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(60),
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadWriteData(analyzeCaptainEvFn);
+
     new Rule(this, 'IngestSchedule', {
       description: 'Trigger FPL ingestion every 30 minutes.',
       schedule: Schedule.rate(cdk.Duration.minutes(30)),
@@ -219,6 +237,16 @@ export class FplStatsStack extends cdk.Stack {
         'Trigger player-form analyzer daily at 04:00 UTC (post-match quiet window).',
       schedule: Schedule.cron({ minute: '0', hour: '4' }),
       targets: [new LambdaTarget(analyzePlayerFormFn)],
+    });
+
+    // Captain-EV reads the form analyzer's output, so schedule it 30 min
+    // later in the same quiet window. Both share the match-window guard,
+    // so a live match defers both runs to the next tick.
+    new Rule(this, 'AnalyzeCaptainEvSchedule', {
+      description:
+        'Trigger captain-EV analyzer daily at 04:30 UTC (after the player-form analyzer).',
+      schedule: Schedule.cron({ minute: '30', hour: '4' }),
+      targets: [new LambdaTarget(analyzeCaptainEvFn)],
     });
 
     const alertsTopic = new Topic(this, 'IngestionAlertsTopic', {
@@ -256,6 +284,21 @@ export class FplStatsStack extends cdk.Stack {
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
     analyzePlayerFormErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
+    const analyzeCaptainEvErrorsAlarm = analyzeCaptainEvFn
+      .metricErrors({
+        period: cdk.Duration.hours(24),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'AnalyzeCaptainEvErrorsAlarm', {
+        alarmDescription:
+          'Captain-EV analyzer returned an error — analytics#captain_ev rows may be stale.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    analyzeCaptainEvErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const httpApi = new HttpApi(this, 'HttpApi', {
       description: 'FPL Stats public HTTP API.',
