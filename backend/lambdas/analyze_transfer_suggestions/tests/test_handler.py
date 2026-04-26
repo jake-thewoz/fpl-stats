@@ -186,8 +186,14 @@ def mock_table():
         yield table
 
 
-def _event(team_id="12345", horizon=None):
-    qs = {"horizon": str(horizon)} if horizon is not None else None
+def _event(team_id="12345", horizon=None, positions=None):
+    qs: dict[str, str] | None = None
+    if horizon is not None or positions is not None:
+        qs = {}
+        if horizon is not None:
+            qs["horizon"] = str(horizon)
+        if positions is not None:
+            qs["positions"] = positions
     return {
         "pathParameters": {"teamId": team_id},
         "queryStringParameters": qs,
@@ -442,3 +448,101 @@ def test_preseason_returns_empty(mock_table):
     body = _body(lambda_handler(_event(), None))
     assert body["preseason"] is True
     assert body["suggestions"] == []
+
+
+# ---------------------------------------------------------------------------
+# Position filter (`?positions=2,3`)
+# ---------------------------------------------------------------------------
+
+
+def test_position_filter_def_only_returns_def_swap(mock_table):
+    """positions=2 (DEF) -> only the CheapDef -> CheapDef2 swap survives.
+    (In our hand-built dataset with bank=5 the DEF swap was already the
+    only one that fit; this asserts the same result lands when a filter
+    is explicit.)"""
+    body = _body(lambda_handler(_event(positions="2"), None))
+    swaps = {(s["out"]["player_id"], s["in"]["player_id"])
+             for s in body["suggestions"]}
+    assert swaps == {(401, 503)}
+
+
+def test_position_filter_fwd_returns_no_suggestions(mock_table):
+    """positions=4 (FWD) -> squad has no FWD members, so no candidate
+    swaps exist. Empty list, no crash."""
+    body = _body(lambda_handler(_event(positions="4"), None))
+    assert body["suggestions"] == []
+
+
+def test_position_filter_def_and_mid_with_bigger_bank(mock_table):
+    """positions=2,3 + bigger bank -> DEF and MID swaps both land.
+    Confirms the union semantics: 'top 10 from the union of these
+    positions', not 'top 10 in each'."""
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+    mock_table.get_item.side_effect = get_item
+
+    body = _body(lambda_handler(_event(positions="2,3"), None))
+    swaps = {(s["out"]["player_id"], s["in"]["player_id"])
+             for s in body["suggestions"]}
+    # DEF: 401 -> 503; MID: 101 -> 502, 201 -> 502.
+    assert (401, 503) in swaps
+    assert (101, 502) in swaps
+    assert (201, 502) in swaps
+    # No GKP or FWD swaps even though they'd be valid otherwise — the
+    # filter excludes positions 1 and 4 entirely.
+    assert all(s["out"]["position_id"] in (2, 3) for s in body["suggestions"])
+
+
+def test_position_filter_mid_only_with_bigger_bank(mock_table):
+    """positions=3 (MID) with bank big enough — DEF swap excluded even
+    though it would otherwise rank highly."""
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+    mock_table.get_item.side_effect = get_item
+
+    body = _body(lambda_handler(_event(positions="3"), None))
+    assert all(s["out"]["position_id"] == 3 for s in body["suggestions"])
+    swaps = {(s["out"]["player_id"], s["in"]["player_id"])
+             for s in body["suggestions"]}
+    assert (401, 503) not in swaps  # DEF swap excluded
+
+
+def test_position_filter_invalid_falls_back_to_no_filter(mock_table):
+    """positions=garbage -> parsed as None -> behaviour identical to
+    omitting the param entirely. Same number of suggestions as the
+    happy path."""
+    body_filtered = _body(lambda_handler(_event(positions="not-numbers"), None))
+    body_default = _body(lambda_handler(_event(), None))
+    assert len(body_filtered["suggestions"]) == len(body_default["suggestions"])
+
+
+def test_position_filter_unknown_positions_yields_empty(mock_table):
+    """positions=99 -> parses to {99}, but no FPL element_type is 99,
+    so squad and pool both filter to empty. Empty suggestions, no
+    crash. (Distinct from invalid strings which fall back to None.)"""
+    body = _body(lambda_handler(_event(positions="99"), None))
+    assert body["suggestions"] == []
+
+
+def test_position_filter_mixed_valid_and_garbage_keeps_valid(mock_table):
+    """positions=2,not-a-number,3 -> valid tokens kept ({2, 3}), garbage
+    skipped silently. Same effect as positions=2,3."""
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+    mock_table.get_item.side_effect = get_item
+
+    body = _body(lambda_handler(_event(positions="2,not-a-number,3"), None))
+    assert all(s["out"]["position_id"] in (2, 3) for s in body["suggestions"])
+    assert len(body["suggestions"]) > 0

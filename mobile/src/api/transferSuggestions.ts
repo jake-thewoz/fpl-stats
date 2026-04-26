@@ -57,9 +57,16 @@ export class EntryNotFoundError extends Error {
 export async function fetchTransferSuggestions(
   teamId: string,
   horizon: number,
+  /** FPL element_type ids to filter to (1=GKP, 2=DEF, 3=MID, 4=FWD).
+   * Empty = no filter (all positions). */
+  positions: readonly number[],
   signal?: AbortSignal,
 ): Promise<TransferSuggestionsResponse> {
-  const url = `${API_BASE_URL}/analytics/squad/${teamId}/transfers?horizon=${horizon}`;
+  const params = new URLSearchParams({ horizon: String(horizon) });
+  if (positions.length > 0) {
+    params.set('positions', positions.join(','));
+  }
+  const url = `${API_BASE_URL}/analytics/squad/${teamId}/transfers?${params.toString()}`;
   const res = await fetch(url, { signal });
   if (res.status === 404) {
     // Both entry-not-found and picks-not-found come back as 404 with

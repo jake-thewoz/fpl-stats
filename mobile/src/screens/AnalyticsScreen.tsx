@@ -19,12 +19,24 @@ import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import {
+  PositionFilterDialog,
+  type Position,
+} from '../components/PositionFilterDialog';
 import type { AnalyticsScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
 const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
 const DEFAULT_HORIZON: Horizon = 3;
+
+// FPL element_type ids in display order. Stable across seasons.
+const POSITIONS: readonly Position[] = [
+  { id: 1, label: 'Goalkeepers' },
+  { id: 2, label: 'Defenders' },
+  { id: 3, label: 'Midfielders' },
+  { id: 4, label: 'Forwards' },
+] as const;
 
 type CombinedData = {
   suggestions: TransferSuggestionsResponse;
@@ -38,6 +50,8 @@ type CombinedData = {
 export default function AnalyticsScreen({ navigation }: AnalyticsScreenProps) {
   const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
   const [horizon, setHorizon] = useState<Horizon>(DEFAULT_HORIZON);
+  const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   useEffect(() => {
     getFplTeamId().then(setTeamId);
@@ -52,52 +66,86 @@ export default function AnalyticsScreen({ navigation }: AnalyticsScreenProps) {
     );
   }
   return (
-    <SuggestionsView
-      teamId={teamId}
-      horizon={horizon}
-      onChangeHorizon={setHorizon}
-      onOpenMyTeam={() => navigation.getParent()?.navigate('MyTeamTab')}
-    />
+    <>
+      <SuggestionsView
+        teamId={teamId}
+        horizon={horizon}
+        positionFilter={positionFilter}
+        onChangeHorizon={setHorizon}
+        onOpenFilter={() => setFilterOpen(true)}
+        onOpenMyTeam={() => navigation.getParent()?.navigate('MyTeamTab')}
+      />
+      <PositionFilterDialog
+        visible={filterOpen}
+        positions={POSITIONS}
+        selected={positionFilter}
+        onToggle={(id) =>
+          setPositionFilter((prev) =>
+            prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+          )
+        }
+        onClearAll={() => setPositionFilter([])}
+        onClose={() => setFilterOpen(false)}
+      />
+    </>
   );
 }
 
 function SuggestionsView({
   teamId,
   horizon,
+  positionFilter,
   onChangeHorizon,
+  onOpenFilter,
   onOpenMyTeam,
 }: {
   teamId: string;
   horizon: Horizon;
+  positionFilter: readonly number[];
   onChangeHorizon: (h: Horizon) => void;
+  onOpenFilter: () => void;
   onOpenMyTeam: () => void;
 }) {
-  // teamId + horizon are stable refs across renders here, but the closure
-  // changes on horizon flips so the hook re-runs and we re-fetch. That's
-  // exactly what we want — useCallback gives us a single new ref per
-  // (teamId, horizon) pair, not one per render.
+  // teamId + horizon + positionFilter are stable refs across renders here,
+  // but the closure changes on any of them so the hook re-runs and refetches.
+  // useCallback gives us one new ref per (teamId, horizon, filter) tuple,
+  // not one per render. Sorting positionFilter inside the dep makes ordering
+  // irrelevant — [2, 3] and [3, 2] should be the same fetch.
+  const filterKey = useMemo(
+    () => [...positionFilter].sort().join(','),
+    [positionFilter],
+  );
   const fetcher = useCallback(
     async (signal: AbortSignal): Promise<CombinedData> => {
       const [suggestions, playersResp] = await Promise.all([
-        fetchTransferSuggestions(teamId, horizon, signal),
+        fetchTransferSuggestions(teamId, horizon, positionFilter, signal),
         fetchPlayers(signal),
       ]);
       const playersById = new Map(playersResp.players.map((p) => [p.id, p]));
       return { suggestions, playersById };
     },
-    [teamId, horizon],
+    // filterKey is the canonical dep; positionFilter array reference itself
+    // would re-run on every state setter call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teamId, horizon, filterKey],
   );
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
   return (
     <View style={styles.container}>
-      <HorizonSelector value={horizon} onChange={onChangeHorizon} />
+      <ControlsRow
+        horizon={horizon}
+        onChangeHorizon={onChangeHorizon}
+        onOpenFilter={onOpenFilter}
+        filterCount={positionFilter.length}
+      />
       <Body
         state={state}
         refreshing={refreshing}
         onRefresh={onRefresh}
         onRetry={onRetry}
         onOpenMyTeam={onOpenMyTeam}
+        filterActive={positionFilter.length > 0}
       />
     </View>
   );
@@ -109,12 +157,14 @@ function Body({
   onRefresh,
   onRetry,
   onOpenMyTeam,
+  filterActive,
 }: {
   state: ReturnType<typeof useFetch<CombinedData>>['state'];
   refreshing: boolean;
   onRefresh: () => Promise<void>;
   onRetry: () => void;
   onOpenMyTeam: () => void;
+  filterActive: boolean;
 }) {
   if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
@@ -153,6 +203,14 @@ function Body({
     );
   }
   if (suggestions.suggestions.length === 0) {
+    if (filterActive) {
+      return (
+        <MessageState
+          title="No suggestions for this filter"
+          body="No valid swaps in the selected positions. Try widening the filter."
+        />
+      );
+    }
     return (
       <MessageState
         title="No suggestions"
@@ -309,41 +367,69 @@ function Header({
   );
 }
 
-function HorizonSelector({
-  value,
-  onChange,
+function ControlsRow({
+  horizon,
+  onChangeHorizon,
+  onOpenFilter,
+  filterCount,
 }: {
-  value: Horizon;
-  onChange: (h: Horizon) => void;
+  horizon: Horizon;
+  onChangeHorizon: (h: Horizon) => void;
+  onOpenFilter: () => void;
+  filterCount: number;
 }) {
   return (
-    <View style={styles.horizonRow}>
-      <Text style={styles.horizonLabel}>Horizon:</Text>
-      {HORIZONS.map((h) => {
-        const active = h === value;
-        return (
-          <Pressable
-            key={h}
-            onPress={() => onChange(h)}
-            style={({ pressed }) => [
-              styles.horizonChip,
-              active && styles.horizonChipActive,
-              pressed && !active && styles.horizonChipPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-          >
-            <Text
-              style={[
-                styles.horizonChipText,
-                active && styles.horizonChipTextActive,
+    <View style={styles.controlsRow}>
+      <View style={styles.horizonGroup}>
+        {HORIZONS.map((h) => {
+          const active = h === horizon;
+          return (
+            <Pressable
+              key={h}
+              onPress={() => onChangeHorizon(h)}
+              style={({ pressed }) => [
+                styles.horizonChip,
+                active && styles.horizonChipActive,
+                pressed && !active && styles.horizonChipPressed,
               ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
             >
-              {h} GW{h === 1 ? '' : 's'}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Text
+                style={[
+                  styles.horizonChipText,
+                  active && styles.horizonChipTextActive,
+                ]}
+              >
+                {h} GW{h === 1 ? '' : 's'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Pressable
+        onPress={onOpenFilter}
+        style={({ pressed }) => [
+          styles.filterButton,
+          filterCount > 0 && styles.filterButtonActive,
+          pressed && styles.filterButtonPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={
+          filterCount > 0
+            ? `Filter (${filterCount} positions selected)`
+            : 'Filter'
+        }
+      >
+        <Text
+          style={[
+            styles.filterButtonText,
+            filterCount > 0 && styles.filterButtonTextActive,
+          ]}
+        >
+          Filter{filterCount > 0 ? ` (${filterCount})` : ''}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -410,21 +496,44 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  // Horizon selector chip group at the top of the screen.
-  horizonRow: {
+  // Horizon chips on the left, filter button on the right.
+  controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 8,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  horizonLabel: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginRight: 4,
+  horizonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  filterButtonActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  filterButtonPressed: {
+    opacity: 0.6,
+  },
+  filterButtonText: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: colors.onAccent,
   },
   horizonChip: {
     paddingHorizontal: 12,
