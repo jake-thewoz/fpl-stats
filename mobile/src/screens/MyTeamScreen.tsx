@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -7,8 +7,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { fetchMyTeam, type SquadEntry } from '../api/myTeam';
 import type { Entry } from '../api/entry';
 import type { EntryGameweek } from '../api/entryGameweek';
@@ -16,9 +14,11 @@ import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { HeaderButton } from '../components/HeaderButton';
+import type { MyTeamScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'MyTeam'>;
+type Props = MyTeamScreenProps;
 
 type SortColumn = 'gwPoints' | 'form' | 'total';
 type SortDir = 'asc' | 'desc';
@@ -37,10 +37,24 @@ export default function MyTeamScreen({ navigation }: Props) {
     getFplTeamId().then(setTeamId);
   }, []);
 
+  // Gameweek lives in this tab as a drill-down — header button gives one
+  // tap access from the home of the My Team tab.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderButton label="GW" onPress={() => navigation.navigate('Gameweek')} />
+      ),
+    });
+  }, [navigation]);
+
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
+    // Settings is on a sibling tab — go via the parent tab navigator
+    // rather than trying to navigate within the MyTeam stack.
     return (
-      <NoTeamIdView onOpenSettings={() => navigation.navigate('Settings')} />
+      <NoTeamIdView
+        onOpenSettings={() => navigation.getParent()?.navigate('SettingsTab')}
+      />
     );
   }
   return <MyTeamContent teamId={teamId} />;

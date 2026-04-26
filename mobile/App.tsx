@@ -2,32 +2,19 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import PlayersScreen from './src/screens/PlayersScreen';
-import GameweekScreen from './src/screens/GameweekScreen';
-import MyTeamScreen from './src/screens/MyTeamScreen';
-import FriendsScreen from './src/screens/FriendsScreen';
-import ManageFriendsScreen from './src/screens/ManageFriendsScreen';
-import AddFriendScreen from './src/screens/AddFriendScreen';
-import ImportLeagueScreen from './src/screens/ImportLeagueScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
 import { LoadingView } from './src/components/LoadingView';
 import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
+import { MainTabs } from './src/navigation/MainTabs';
+import type { RootStackParamList } from './src/navigation/types';
 import { colors } from './src/theme';
 
-export type RootStackParamList = {
-  Onboarding: undefined;
-  Players: undefined;
-  Gameweek: undefined;
-  MyTeam: undefined;
-  Friends: undefined;
-  ManageFriends: undefined;
-  AddFriend: undefined;
-  ImportLeague: undefined;
-  Settings: undefined;
-};
+// Re-export so screens can keep importing param-list types from `'../../App'`
+// during the transition without churn. (`./src/navigation/types` is the
+// new canonical home.)
+export type { RootStackParamList } from './src/navigation/types';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 const navTheme: Theme = {
   ...DefaultTheme,
@@ -53,7 +40,7 @@ export default function App() {
     Promise.all([getFplTeamId(), getOnboardingSeen()]).then(([id, seen]) => {
       setBootstrap({
         status: 'ready',
-        initialRoute: id || seen ? 'Players' : 'Onboarding',
+        initialRoute: id || seen ? 'Main' : 'Onboarding',
       });
     });
   }, []);
@@ -64,44 +51,13 @@ export default function App() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator
+      <RootStack.Navigator
         initialRouteName={bootstrap.initialRoute}
-        screenOptions={{ headerTitleAlign: 'center' }}
+        screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen
-          name="Onboarding"
-          component={OnboardingScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Players"
-          component={PlayersScreen}
-          options={{ title: 'FPL Stats' }}
-        />
-        <Stack.Screen name="Gameweek" component={GameweekScreen} />
-        <Stack.Screen
-          name="MyTeam"
-          component={MyTeamScreen}
-          options={{ title: 'My Team' }}
-        />
-        <Stack.Screen name="Friends" component={FriendsScreen} />
-        <Stack.Screen
-          name="ManageFriends"
-          component={ManageFriendsScreen}
-          options={{ title: 'Manage Friends' }}
-        />
-        <Stack.Screen
-          name="AddFriend"
-          component={AddFriendScreen}
-          options={{ title: 'Add Friend' }}
-        />
-        <Stack.Screen
-          name="ImportLeague"
-          component={ImportLeagueScreen}
-          options={{ title: 'Import from League' }}
-        />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-      </Stack.Navigator>
+        <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
+        <RootStack.Screen name="Main" component={MainTabs} />
+      </RootStack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>
   );

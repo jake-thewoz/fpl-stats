@@ -6,8 +6,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import {
   clearFplTeamId,
   getFplTeamId,
@@ -15,9 +13,10 @@ import {
   setFplTeamId,
 } from '../storage/user';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import type { SettingsScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
+type Props = SettingsScreenProps;
 
 export default function SettingsScreen(_props: Props) {
   const [currentId, setCurrentId] = useState<string | null>(null);

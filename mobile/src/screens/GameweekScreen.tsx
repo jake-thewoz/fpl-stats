@@ -1,6 +1,4 @@
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import {
   fetchGameweekCurrent,
   type Fixture,
@@ -9,9 +7,10 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import type { GameweekScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Gameweek'>;
+type Props = GameweekScreenProps;
 
 export default function GameweekScreen(_props: Props) {
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetchGameweekCurrent);

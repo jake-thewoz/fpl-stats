@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -8,17 +8,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { fetchPlayers, type Player } from '../api/players';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { FilterDialog } from '../components/FilterDialog';
-import { HeaderButton } from '../components/HeaderButton';
+import type { PlayersScreenProps } from '../navigation/types';
 import { colors } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Players'>;
+type Props = PlayersScreenProps;
 
 const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -32,7 +30,7 @@ const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: 'total_points', label: 'Points' },
 ];
 
-export default function PlayersScreen({ navigation }: Props) {
+export default function PlayersScreen(_props: Props) {
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetchPlayers);
 
   const [searchInput, setSearchInput] = useState('');
@@ -43,20 +41,8 @@ export default function PlayersScreen({ navigation }: Props) {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => (
-        <HeaderButton label="Settings" onPress={() => navigation.navigate('Settings')} />
-      ),
-      headerRight: () => (
-        <View style={styles.headerRightGroup}>
-          <HeaderButton label="Team" onPress={() => navigation.navigate('MyTeam')} />
-          <HeaderButton label="Friends" onPress={() => navigation.navigate('Friends')} />
-          <HeaderButton label="GW" onPress={() => navigation.navigate('Gameweek')} />
-        </View>
-      ),
-    });
-  }, [navigation]);
+  // Settings / Team / Friends / GW navigation moved to the bottom tab
+  // bar. Players tab now has nothing in its header beyond the screen title.
 
   useEffect(() => {
     const handle = setTimeout(() => setSearchQuery(searchInput.trim()), SEARCH_DEBOUNCE_MS);
@@ -417,5 +403,4 @@ const styles = StyleSheet.create({
   rowPoints: { fontWeight: '700' },
   emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
   pressed: { opacity: 0.5 },
-  headerRightGroup: { flexDirection: 'row', gap: 8 },
 });
