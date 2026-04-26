@@ -225,6 +225,36 @@ export class FplStatsStack extends cdk.Stack {
     );
     cacheTable.grantReadWriteData(analyzePlayerXpFn);
 
+    const analyticsPlayerFormFn = new FplPythonFunction(
+      this,
+      'AnalyticsPlayerForm',
+      {
+        name: 'analytics_player_form',
+        description:
+          'Read API — GET /analytics/player/{id}/form. Returns the player-form analyzer output for a single player.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+        },
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadData(analyticsPlayerFormFn);
+
+    const analyticsPlayersXpFn = new FplPythonFunction(
+      this,
+      'AnalyticsPlayersXp',
+      {
+        name: 'analytics_players_xp',
+        description:
+          'Read API — GET /analytics/players/xp. Returns slim per-player xP rows for the upcoming gameweek.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+        },
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadData(analyticsPlayersXpFn);
+
     const analyzeTransferSuggestionsFn = new FplPythonFunction(
       this,
       'AnalyzeTransferSuggestions',
@@ -400,6 +430,24 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'LeagueMembersIntegration',
         leagueMembersFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/analytics/player/{id}/form',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'AnalyticsPlayerFormIntegration',
+        analyticsPlayerFormFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/analytics/players/xp',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'AnalyticsPlayersXpIntegration',
+        analyticsPlayersXpFn,
       ),
     });
 
