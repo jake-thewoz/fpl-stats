@@ -226,6 +226,20 @@ function toJoined(p: Player, xp: number | null): JoinedPlayer {
     total_points: p.total_points,
     form: Number.isNaN(formNum) ? 0 : formNum,
     xp,
+    defcon: p.defcon,
+    defcon_per_90: p.defcon_per_90,
+    selected_by_percent: p.selected_by_percent,
+    points_per_game: p.points_per_game,
+    minutes: p.minutes,
+    goals_scored: p.goals_scored,
+    assists: p.assists,
+    clean_sheets: p.clean_sheets,
+    bonus: p.bonus,
+    bps: p.bps,
+    ict_index: p.ict_index,
+    expected_goals: p.expected_goals,
+    expected_assists: p.expected_assists,
+    cost_change_event: p.cost_change_event,
   };
 }
 

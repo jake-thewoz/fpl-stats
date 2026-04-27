@@ -27,11 +27,26 @@ POSITIONS = [
 
 PLAYERS_RAW = [
     {"id": 10, "first_name": "Bukayo", "second_name": "Saka", "web_name": "Saka",
-     "team": 1, "element_type": 3, "total_points": 120, "form": "5.2", "now_cost": 90},
+     "team": 1, "element_type": 3, "total_points": 120, "form": "5.2", "now_cost": 90,
+     "defensive_contribution": 60, "defensive_contribution_per_90": 2.5,
+     "selected_by_percent": "34.0", "points_per_game": "4.1", "minutes": 3060,
+     "goals_scored": 8, "assists": 6, "clean_sheets": 9, "bonus": 9, "bps": 562,
+     "ict_index": "52.9", "expected_goals": "5.10", "expected_assists": "3.20",
+     "cost_change_event": 1},
     {"id": 11, "first_name": "David", "second_name": "Raya", "web_name": "Raya",
-     "team": 1, "element_type": 1, "total_points": 90, "form": "3.1", "now_cost": 55},
+     "team": 1, "element_type": 1, "total_points": 90, "form": "3.1", "now_cost": 55,
+     "defensive_contribution": 12, "defensive_contribution_per_90": 0.4,
+     "selected_by_percent": "12.5", "points_per_game": "3.6", "minutes": 2700,
+     "goals_scored": 0, "assists": 0, "clean_sheets": 16, "bonus": 8, "bps": 480,
+     "ict_index": "20.1", "expected_goals": "0.00", "expected_assists": "0.06",
+     "cost_change_event": 0},
     {"id": 20, "first_name": "Ollie", "second_name": "Watkins", "web_name": "Watkins",
-     "team": 2, "element_type": 4, "total_points": 110, "form": "4.0", "now_cost": 85},
+     "team": 2, "element_type": 4, "total_points": 110, "form": "4.0", "now_cost": 85,
+     "defensive_contribution": 30, "defensive_contribution_per_90": 1.1,
+     "selected_by_percent": "18.7", "points_per_game": "3.9", "minutes": 2900,
+     "goals_scored": 12, "assists": 5, "clean_sheets": 4, "bonus": 7, "bps": 430,
+     "ict_index": "44.2", "expected_goals": "10.50", "expected_assists": "4.30",
+     "cost_change_event": -2},
 ]
 
 
@@ -91,6 +106,8 @@ def test_row_shape_is_flat_with_price_converted(mock_table):
     body = json.loads(result["body"])
     row = next(p for p in body["players"] if p["id"] == 10)
 
+    # Strict shape lock — adding a new field requires updating this test,
+    # which forces the mobile + cross-stack changes to ride along.
     assert row == {
         "id": 10,
         "name": "Saka",
@@ -99,7 +116,68 @@ def test_row_shape_is_flat_with_price_converted(mock_table):
         "total_points": 120,
         "form": "5.2",
         "price": 9.0,
+        "defcon": 60,
+        "defcon_per_90": 2.5,
+        "selected_by_percent": 34.0,
+        "points_per_game": 4.1,
+        "minutes": 3060,
+        "goals_scored": 8,
+        "assists": 6,
+        "clean_sheets": 9,
+        "bonus": 9,
+        "bps": 562,
+        "ict_index": 52.9,
+        "expected_goals": 5.1,
+        "expected_assists": 3.2,
+        "cost_change_event": 0.1,
     }
+
+
+def test_official_fpl_fields_are_surfaced(mock_table):
+    """Spot-check defcon (priority signal), a string→float parsed field,
+    and the cost_change conversion to £m units. Adding fields beyond these
+    is covered by the strict shape test above."""
+    _wire_bootstrap(mock_table, _bootstrap_item())
+
+    result = lambda_handler(_event(), None)
+    body = json.loads(result["body"])
+
+    saka = next(p for p in body["players"] if p["id"] == 10)
+    watkins = next(p for p in body["players"] if p["id"] == 20)
+
+    # Defcon comes through as int unchanged.
+    assert saka["defcon"] == 60
+    # selected_by_percent is a string in FPL ("34.0") — parsed at boundary.
+    assert saka["selected_by_percent"] == 34.0
+    assert isinstance(saka["selected_by_percent"], float)
+    # cost_change_event is in 0.1m units in FPL; we convert to £m so it
+    # matches the price shape. -2 → -0.2.
+    assert watkins["cost_change_event"] == -0.2
+
+
+def test_missing_optional_fields_pass_through_as_null(mock_table):
+    """Older cached rows (written before ingest learned these fields)
+    should still parse and return — fields just come through as null."""
+    legacy_player = {
+        "id": 99, "first_name": "Legacy", "second_name": "Player",
+        "web_name": "Legacy", "team": 1, "element_type": 3,
+        "total_points": 50, "form": "2.0", "now_cost": 50,
+        # No new fields — simulates a row from before the schema add.
+    }
+    item = _bootstrap_item()
+    item["data"]["players"] = [legacy_player]
+    _wire_bootstrap(mock_table, item)
+
+    result = lambda_handler(_event(), None)
+    body = json.loads(result["body"])
+    row = body["players"][0]
+
+    assert row["defcon"] is None
+    assert row["selected_by_percent"] is None
+    assert row["cost_change_event"] is None
+    # Existing fields still populated.
+    assert row["form"] == "2.0"
+    assert row["price"] == 5.0
 
 
 def test_team_filter_narrows_list(mock_table):

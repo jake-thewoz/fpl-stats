@@ -26,10 +26,45 @@ export type JoinedPlayer = {
   /** Projected xP for the upcoming GW. null when the analyzer hasn't
    *  scored this player (e.g. fresh deploy, position not in xp output). */
   xp: number | null;
+  /** Defensive contributions — a 25/26 scoring lever (DEF 10+ / MID-FWD 12+
+   *  per match = +2 pts). null when ingest hasn't picked it up. */
+  defcon: number | null;
+  defcon_per_90: number | null;
+  selected_by_percent: number | null;
+  points_per_game: number | null;
+  minutes: number | null;
+  goals_scored: number | null;
+  assists: number | null;
+  clean_sheets: number | null;
+  bonus: number | null;
+  bps: number | null;
+  ict_index: number | null;
+  expected_goals: number | null;
+  expected_assists: number | null;
+  /** Cost change this GW in £m units (positive = price up). */
+  cost_change_event: number | null;
 };
 
 /** The set of column/filter keys the UI knows about. */
-export type FieldKey = 'form' | 'price' | 'total_points' | 'xp';
+export type FieldKey =
+  | 'xp'
+  | 'form'
+  | 'price'
+  | 'total_points'
+  | 'defcon'
+  | 'defcon_per_90'
+  | 'selected_by_percent'
+  | 'points_per_game'
+  | 'minutes'
+  | 'goals_scored'
+  | 'assists'
+  | 'clean_sheets'
+  | 'bonus'
+  | 'bps'
+  | 'ict_index'
+  | 'expected_goals'
+  | 'expected_assists'
+  | 'cost_change_event';
 
 /** Numeric-range filter (min and/or max nullable for "no bound"). */
 export type RangeFilter = {
