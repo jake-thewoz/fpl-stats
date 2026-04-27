@@ -38,6 +38,18 @@ def _get_query_param(event: dict[str, Any], name: str) -> str | None:
     return value.upper() if isinstance(value, str) and value else None
 
 
+def _parse_float(value: str | None) -> float | None:
+    """FPL ships several numeric fields as strings ("4.1", "0.06"). Parse to
+    float at the response boundary so mobile gets sortable numbers and
+    doesn't have to repeat the parse on every render."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
@@ -87,6 +99,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             continue
         if position_filter is not None and position_short != position_filter:
             continue
+        # cost_change_event is in 0.1m units on the FPL side; convert to £m
+        # so the wire shape matches `price` (and mobile can format both the
+        # same way). null when ingest hasn't populated the field yet.
+        cost_change = (
+            player.cost_change_event / 10
+            if player.cost_change_event is not None
+            else None
+        )
         players.append({
             "id": player.id,
             "name": player.web_name,
@@ -95,6 +115,20 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "total_points": player.total_points,
             "form": player.form,
             "price": player.now_cost / 10,
+            "defcon": player.defensive_contribution,
+            "defcon_per_90": player.defensive_contribution_per_90,
+            "selected_by_percent": _parse_float(player.selected_by_percent),
+            "points_per_game": _parse_float(player.points_per_game),
+            "minutes": player.minutes,
+            "goals_scored": player.goals_scored,
+            "assists": player.assists,
+            "clean_sheets": player.clean_sheets,
+            "bonus": player.bonus,
+            "bps": player.bps,
+            "ict_index": _parse_float(player.ict_index),
+            "expected_goals": _parse_float(player.expected_goals),
+            "expected_assists": _parse_float(player.expected_assists),
+            "cost_change_event": cost_change,
         })
 
     return _response(200, {

@@ -74,6 +74,27 @@ class Player(BaseModel):
     # is 0/25/50/75/100 or null (FPL leaves it null when there's no doubt).
     status: str | None = None
     chance_of_playing_next_round: int | None = None
+    # Official FPL stats surfaced as columns/filters on the mobile player
+    # list. All optional + None default so cached rows written before ingest
+    # picked these up still parse. FPL ships some as strings (form-style
+    # decimals); the read-path Lambdas parse those to float at the boundary.
+    # Defcon is the priority signal — defensive contributions became a real
+    # FPL scoring lever in 25/26 (DEF 10+ / MID-FWD 12+ per match = +2 pts).
+    defensive_contribution: int | None = None
+    defensive_contribution_per_90: float | None = None
+    selected_by_percent: str | None = None
+    points_per_game: str | None = None
+    minutes: int | None = None
+    goals_scored: int | None = None
+    assists: int | None = None
+    clean_sheets: int | None = None
+    bonus: int | None = None
+    bps: int | None = None
+    ict_index: str | None = None
+    expected_goals: str | None = None
+    expected_assists: str | None = None
+    # Cost change in the current gameweek, in 0.1m units (e.g. 1 = +£0.1m).
+    cost_change_event: int | None = None
 
 
 class Gameweek(BaseModel):

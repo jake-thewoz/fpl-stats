@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 import boto3
@@ -48,6 +49,21 @@ def _fetch_json(session: requests.Session, url: str) -> Any:
 
 def _snapshot_id(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H-%M-%SZ")
+
+
+def _floats_to_decimal(value: Any) -> Any:
+    """The DDB resource API rejects raw Python floats. FPL ships a few
+    fields as JSON numbers (e.g. `defensive_contribution_per_90`), which
+    pydantic dumps as floats — so we walk the dict before put_item and
+    convert every float to a Decimal. Going through `str(value)` avoids
+    the precision noise of `Decimal(float)` direct construction."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _floats_to_decimal(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_floats_to_decimal(v) for v in value]
+    return value
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -86,7 +102,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "sk": "latest",
             "schema_version": SCHEMA_VERSION,
             "fetched_at": fetched_at,
-            "data": bootstrap.model_dump(),
+            "data": _floats_to_decimal(bootstrap.model_dump()),
         }
     )
     table.put_item(
@@ -95,7 +111,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "sk": "latest",
             "schema_version": SCHEMA_VERSION,
             "fetched_at": fetched_at,
-            "data": [f.model_dump() for f in fixtures],
+            "data": _floats_to_decimal([f.model_dump() for f in fixtures]),
         }
     )
 
