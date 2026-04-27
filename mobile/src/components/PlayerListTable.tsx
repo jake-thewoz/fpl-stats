@@ -26,9 +26,10 @@
  *   doesn't carry one — the spinner would render twice otherwise. Users
  *   will most often pull from the name column anyway.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
+  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -122,7 +123,27 @@ export function PlayerListTable<T extends JoinedPlayer>({
     [],
   );
 
-  const dataWidth = columns.length * CELL_WIDTH;
+  // Measure the right column's available width so we can stretch the
+  // data cells to fill the viewport when there aren't enough active
+  // columns to overflow. Without this, a 2-column table on a 400px
+  // screen ends ~150px in and leaves the rest blank.
+  const [rightAreaWidth, setRightAreaWidth] = useState(0);
+  const onRightAreaLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    // Setting state from onLayout fires a re-render — only do it when
+    // the measurement actually changed to avoid a render loop.
+    setRightAreaWidth((prev) => (prev === w ? prev : w));
+  }, []);
+  const cellsTotalWidth = columns.length * CELL_WIDTH;
+  const cellsFitInViewport =
+    rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
+  /** When cells fit in the viewport with room to spare, stretch them
+   *  to fill (flex: 1, minWidth keeps short labels readable). When
+   *  they overflow, lock to fixed width so horizontal scroll works. */
+  const cellLayout = cellsFitInViewport
+    ? { flex: 1, minWidth: CELL_WIDTH }
+    : { width: CELL_WIDTH };
+  const dataWidth = cellsFitInViewport ? rightAreaWidth : cellsTotalWidth;
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => ({
@@ -144,7 +165,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
             return (
               <Text
                 key={c}
-                style={styles.dataCell}
+                style={[styles.dataCell, cellLayout]}
                 numberOfLines={1}
               >
                 {def.format(value)}
@@ -154,7 +175,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
         </View>
       );
     },
-    [columns, dataWidth, getRowStyle],
+    [columns, dataWidth, getRowStyle, cellLayout],
   );
 
   const renderLeftRow = useCallback(
@@ -201,57 +222,62 @@ export function PlayerListTable<T extends JoinedPlayer>({
           the right vertical FlatList — both live inside the same scroll
           viewport, so horizontal offset is shared automatically.
           `flexGrow: 1` on contentContainerStyle is what gives the inner
-          View a bounded height so the nested FlatList can virtualize. */}
-      <ScrollView
-        horizontal
-        style={styles.rightScroll}
-        contentContainerStyle={styles.rightScrollContent}
-        showsHorizontalScrollIndicator={true}
-      >
-        <View style={{ width: dataWidth, flex: 1 }}>
-          <View style={[styles.rightHeaderRow, { width: dataWidth }]}>
-            {columns.map((c) => {
-              const def = FIELD_DEFS[c];
-              const active = sort.field === c;
-              const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => onTapHeader(c)}
-                  style={({ pressed }) => [
-                    styles.headerCell,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <Text
-                    style={[
-                      styles.headerCellText,
-                      active && styles.headerCellTextActive,
+          View a bounded height so the nested FlatList can virtualize.
+          The outer wrapper View carries onLayout so we can measure the
+          available right-side width and stretch cells to fit when the
+          column count doesn't overflow. */}
+      <View style={styles.rightScroll} onLayout={onRightAreaLayout}>
+        <ScrollView
+          horizontal
+          contentContainerStyle={styles.rightScrollContent}
+          showsHorizontalScrollIndicator={true}
+        >
+          <View style={{ width: dataWidth, flex: 1 }}>
+            <View style={[styles.rightHeaderRow, { width: dataWidth }]}>
+              {columns.map((c) => {
+                const def = FIELD_DEFS[c];
+                const active = sort.field === c;
+                const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => onTapHeader(c)}
+                    style={({ pressed }) => [
+                      styles.headerCell,
+                      cellLayout,
+                      pressed && styles.pressed,
                     ]}
-                    numberOfLines={1}
+                    accessibilityRole="button"
                   >
-                    {def.shortLabel}
-                    {arrow}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.headerCellText,
+                        active && styles.headerCellTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {def.shortLabel}
+                      {arrow}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <FlatList
+              ref={rightRef}
+              data={data as T[]}
+              keyExtractor={(item) => String(getId(item))}
+              renderItem={renderRightRow}
+              getItemLayout={getItemLayout}
+              onScroll={onRightScroll}
+              scrollEventThrottle={16}
+              // No RefreshControl here — see file header comment.
+              showsVerticalScrollIndicator={true}
+              style={{ width: dataWidth, flex: 1 }}
+            />
           </View>
-          <FlatList
-            ref={rightRef}
-            data={data as T[]}
-            keyExtractor={(item) => String(getId(item))}
-            renderItem={renderRightRow}
-            getItemLayout={getItemLayout}
-            onScroll={onRightScroll}
-            scrollEventThrottle={16}
-            // No RefreshControl here — see file header comment.
-            showsVerticalScrollIndicator={true}
-            style={{ width: dataWidth, flex: 1 }}
-          />
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }

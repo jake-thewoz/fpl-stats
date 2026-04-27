@@ -9,6 +9,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
+import { fetchMyTeam } from '../api/myTeam';
+import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
@@ -86,6 +88,42 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
           setSort(s);
         },
       );
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  // Owned-player decoration (#99): players in the user's current squad
+  // are dimmed on the Players list, mirroring FPL's own "this isn't a
+  // swap target" treatment. Re-resolved on focus so a team-ID change
+  // in Settings, or a fresh squad after a transfer, propagates without
+  // a manual refresh. Failure modes (no team ID set, fetch error) leave
+  // ownedIds null and the list renders normally.
+  const [ownedIds, setOwnedIds] = useState<Set<number> | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        const teamId = await getFplTeamId();
+        if (!alive) return;
+        if (!teamId) {
+          setOwnedIds(null);
+          return;
+        }
+        try {
+          const myTeam = await fetchMyTeam(teamId);
+          if (!alive) return;
+          const ids = new Set<number>();
+          for (const s of myTeam.squad) {
+            if (s.player) ids.add(s.player.id);
+          }
+          setOwnedIds(ids);
+        } catch {
+          // Silent — Players screen is fully usable without the dim.
+          if (alive) setOwnedIds(null);
+        }
+      })();
       return () => {
         alive = false;
       };
@@ -180,6 +218,11 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
             </Text>
           </>
         )}
+        getRowStyle={
+          ownedIds == null
+            ? undefined
+            : (p) => (ownedIds.has(p.id) ? { opacity: 0.5 } : undefined)
+        }
         refreshing={refreshing}
         onRefresh={onRefresh}
         emptyMessage="No players match your filter. Try widening it."
