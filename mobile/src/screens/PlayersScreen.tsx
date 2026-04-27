@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +14,7 @@ import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
+import { PlayerListTable } from '../components/PlayerListTable';
 import {
   DEFAULT_COLUMNS,
   DEFAULT_SORT,
@@ -165,25 +164,25 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         onOpenFilter={() => setFiltersOpen(true)}
         onOpenColumns={() => setColumnsOpen(true)}
       />
-      <ColumnHeaderRow
+      <PlayerListTable
+        data={filteredSorted}
         columns={columns}
         sort={sort}
         onTapHeader={onTapColumnHeader}
-      />
-      <FlatList
-        data={filteredSorted}
-        keyExtractor={(p) => String(p.id)}
-        renderItem={({ item }) => (
-          <PlayerRow player={item} columns={columns} />
+        getId={(p) => p.id}
+        renderNameCell={(p) => (
+          <>
+            <Text style={styles.nameText} numberOfLines={1}>
+              {p.name}
+            </Text>
+            <Text style={styles.subText} numberOfLines={1}>
+              {p.team} · {p.position}
+            </Text>
+          </>
         )}
-        ListEmptyComponent={
-          <Text style={styles.emptyBody}>
-            No players match your filter. Try widening it.
-          </Text>
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        emptyMessage="No players match your filter. Try widening it."
       />
 
       <ColumnPickerDialog
@@ -302,72 +301,6 @@ function ControlButton({
   );
 }
 
-function ColumnHeaderRow({
-  columns, sort, onTapHeader,
-}: {
-  columns: FieldKey[];
-  sort: SortState;
-  onTapHeader: (key: FieldKey) => void;
-}) {
-  return (
-    <View style={styles.headerRow}>
-      <Text style={[styles.headerNameCell, styles.headerCellText]}>Player</Text>
-      {columns.map((c) => {
-        const def = FIELD_DEFS[c];
-        const active = sort.field === c;
-        const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
-        return (
-          <Pressable
-            key={c}
-            onPress={() => onTapHeader(c)}
-            style={({ pressed }) => [
-              styles.headerCell,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[
-                styles.headerCellText,
-                active && styles.headerCellTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {def.shortLabel}
-              {arrow}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function PlayerRow({
-  player, columns,
-}: { player: JoinedPlayer; columns: FieldKey[] }) {
-  return (
-    <View style={styles.row}>
-      <View style={styles.nameCell}>
-        <Text style={styles.nameText} numberOfLines={1}>
-          {player.name}
-        </Text>
-        <Text style={styles.subText} numberOfLines={1}>
-          {player.team} · {player.position}
-        </Text>
-      </View>
-      {columns.map((c) => {
-        const def = FIELD_DEFS[c];
-        const value = def.accessor(player);
-        return (
-          <Text key={c} style={styles.dataCell} numberOfLines={1}>
-            {def.format(value)}
-          </Text>
-        );
-      })}
-    </View>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -424,43 +357,7 @@ const styles = StyleSheet.create({
   controlBtnTextActive: { color: colors.onAccent },
   pressed: { opacity: 0.6 },
 
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerNameCell: { flex: 2 },
-  headerCell: { flex: 1, alignItems: 'flex-end' },
-  headerCellText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  headerCellTextActive: { color: colors.accent },
-
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  nameCell: { flex: 2, paddingRight: 8 },
+  // Used by renderNameCell passed to PlayerListTable.
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
   subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  dataCell: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textPrimary,
-    textAlign: 'right',
-  },
-
-  emptyBody: { padding: 32, color: colors.textMuted, textAlign: 'center' },
 });
