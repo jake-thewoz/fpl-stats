@@ -6,6 +6,7 @@ import {
   type Theme,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LoadingView } from './src/components/LoadingView';
 import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
@@ -25,10 +26,16 @@ type BootstrapState =
   | { status: 'ready'; initialRoute: keyof RootStackParamList };
 
 export default function App() {
+  // SafeAreaProvider must wrap anything that calls useSafeAreaInsets()
+  // (notably the bottom tab bar in MainTabs.tsx). Without it, insets fall
+  // back to 0 on real devices, which would clip content under the home
+  // indicator.
   return (
-    <ThemeProvider>
-      <ThemedAppRoot />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <ThemedAppRoot />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

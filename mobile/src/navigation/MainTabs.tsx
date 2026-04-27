@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MainTabParamList } from './types';
 import { MyTeamStack } from './stacks/MyTeamStack';
 import { PlayersStack } from './stacks/PlayersStack';
@@ -19,11 +20,15 @@ export function MainTabs() {
   // Re-derive on every theme change so the tab bar tints + background flip
   // immediately when the user toggles theme.
   //
-  // Padding/height: react-navigation adds bottom safe-area inset on devices
-  // with home indicators, but on emulators and the web build the inset is 0
-  // and the icons + labels sit too close to the screen edge. The explicit
-  // height + paddingBottom guarantees breathing room everywhere; on real
-  // devices with a home indicator, the safe-area inset stacks on top.
+  // Bottom inset / padding: on devices with a home indicator the OS reports
+  // a non-zero bottom safe-area inset; we honor that. On emulators and the
+  // web build the inset is 0 and the bar would sit flush against the
+  // viewport edge, so we floor it at a minimum so labels don't get clipped.
+  // Total bar height = content area (icon + label, ~52) + bottom padding.
+  const insets = useSafeAreaInsets();
+  const MIN_BOTTOM_PADDING = 16;
+  const CONTENT_AREA = 52;
+  const bottomPadding = Math.max(insets.bottom, MIN_BOTTOM_PADDING);
   const tabOptions = useMemo(
     () => ({
       headerShown: false,
@@ -32,15 +37,12 @@ export function MainTabs() {
       tabBarStyle: {
         backgroundColor: colors.surface,
         borderTopColor: colors.border,
-        height: 64,
+        height: CONTENT_AREA + bottomPadding,
         paddingTop: 6,
-        paddingBottom: 10,
-      },
-      tabBarLabelStyle: {
-        marginTop: 2,
+        paddingBottom: bottomPadding,
       },
     }),
-    [colors],
+    [colors, bottomPadding],
   );
 
   return (
