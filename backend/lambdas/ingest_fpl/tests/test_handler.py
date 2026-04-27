@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import boto3
@@ -46,6 +47,10 @@ BOOTSTRAP_PAYLOAD = {
             "total_points": 120,
             "form": "5.2",
             "now_cost": 90,
+            # defensive_contribution_per_90 ships as a JSON number → float
+            # in the parsed model. Including it here so the put_item path
+            # exercises float→Decimal conversion (DDB rejects raw floats).
+            "defensive_contribution_per_90": 2.5,
         },
     ],
     "events": [
@@ -157,6 +162,41 @@ def test_happy_path_writes_to_s3_and_ddb(mock_table, s3_bucket):
     bootstrap_data = items_by_pk["fpl#bootstrap"]["data"]
     assert set(bootstrap_data) == {"teams", "positions", "players", "gameweeks"}
     assert bootstrap_data["players"][0]["web_name"] == "Saka"
+
+
+@responses.activate
+def test_no_floats_reach_ddb_put_item(mock_table, s3_bucket):
+    """DDB resource API rejects raw floats. Pydantic dumps numeric JSON
+    values as Python floats, so the handler must convert them to Decimal
+    before put_item. Regression test for PR #107 — adding the first float
+    field to the Player schema (defensive_contribution_per_90) broke ingest
+    in production until this conversion was added."""
+    responses.get(BOOTSTRAP_URL, json=BOOTSTRAP_PAYLOAD)
+    responses.get(FIXTURES_URL, json=FIXTURES_PAYLOAD)
+
+    lambda_handler({}, None)
+
+    def assert_no_floats(value: object, path: str = "") -> None:
+        if isinstance(value, float):
+            raise AssertionError(f"raw float at {path}: {value!r}")
+        if isinstance(value, dict):
+            for k, v in value.items():
+                assert_no_floats(v, f"{path}.{k}")
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                assert_no_floats(v, f"{path}[{i}]")
+
+    for call in mock_table.put_item.call_args_list:
+        assert_no_floats(call.kwargs["Item"])
+
+    # And confirm the float that *was* in the source is now a Decimal.
+    bootstrap_item = next(
+        call.kwargs["Item"]
+        for call in mock_table.put_item.call_args_list
+        if call.kwargs["Item"]["pk"] == "fpl#bootstrap"
+    )
+    saka = bootstrap_item["data"]["players"][0]
+    assert saka["defensive_contribution_per_90"] == Decimal("2.5")
 
 
 @responses.activate
