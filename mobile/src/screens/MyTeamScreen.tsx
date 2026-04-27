@@ -41,7 +41,7 @@ import {
   type SortState,
 } from '../players/types';
 import type { MyTeamScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = MyTeamScreenProps;
 
@@ -60,6 +60,9 @@ type MyTeamRow = JoinedPlayer & {
 };
 
 export default function MyTeamScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -78,6 +81,9 @@ export default function MyTeamScreen({ navigation }: Props) {
 }
 
 function MyTeamContent({ teamId }: { teamId: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const fetcher = useCallback(
     async (signal: AbortSignal) => {
       const [myTeam, xpResp] = await Promise.all([
@@ -189,7 +195,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         sort={sort}
         onTapHeader={onTapColumnHeader}
         getId={(r) => r.id}
-        renderNameCell={renderMyTeamNameCell}
+        renderNameCell={(row) => <MyTeamNameCell row={row} />}
         getRowStyle={(r) => (r.isStarter ? undefined : { opacity: 0.6 })}
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -264,6 +270,9 @@ function toMyTeamRow(s: SquadEntry, xp: number | null): MyTeamRow {
 function Header({
   entry, gameweek,
 }: { entry: Entry; gameweek: number | null }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const eventPts = entry.summary_event_points;
   const totalPts = entry.summary_overall_points;
   const overallRank = entry.summary_overall_rank;
@@ -283,6 +292,9 @@ function Header({
 }
 
 function PicksUnavailableNote({ message }: { message: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.notice}>
       <Text style={styles.noticeText}>{message}</Text>
@@ -297,6 +309,9 @@ function ControlBar({
   onOpenFilter: () => void;
   onOpenColumns: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.controlBar}>
       <ControlButton
@@ -312,6 +327,9 @@ function ControlBar({
 function ControlButton({
   label, active, onPress,
 }: { label: string; active?: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -333,8 +351,9 @@ function ControlButton({
 
 /** Renders the pinned-name-column contents for a My Team row. Bench
  *  rows are de-emphasised by the table's getRowStyle (opacity 0.6);
- *  this function is responsible for the name + badges + sub-line. */
-function renderMyTeamNameCell(row: MyTeamRow): React.ReactNode {
+ *  this component is responsible for the name + badges + sub-line. */
+function MyTeamNameCell({ row }: { row: MyTeamRow }) {
+  const styles = useThemedStyles(makeStyles);
   const subParts = [row.team, row.position];
   if (!row.isStarter) subParts.push('Bench');
   const subline = subParts.join(' · ');
@@ -365,6 +384,9 @@ function renderMyTeamNameCell(row: MyTeamRow): React.ReactNode {
 }
 
 function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No team ID set</Text>
@@ -387,7 +409,8 @@ function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
   header: {

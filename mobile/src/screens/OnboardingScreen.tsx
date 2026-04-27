@@ -9,13 +9,15 @@ import {
 } from 'react-native';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
 import type { OnboardingScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = OnboardingScreenProps;
 
 const FPL_POINTS_URL = 'https://fantasy.premierleague.com/my-team';
 
 export default function OnboardingScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -114,59 +116,60 @@ export default function OnboardingScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    paddingTop: 48,
-    backgroundColor: colors.background,
-    gap: 16,
-  },
-  title: { fontSize: 28, fontWeight: '700', color: colors.textPrimary },
-  body: { fontSize: 15, color: colors.textMuted, lineHeight: 22 },
-  input: {
-    marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    color: colors.textPrimary,
-    fontSize: 17,
-  },
-  error: { color: colors.danger, fontSize: 13 },
-  primaryBtn: {
-    marginTop: 8,
-    backgroundColor: colors.accent,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: '600' },
-  secondaryBtn: {
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  secondaryBtnText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  helperGroup: { marginTop: 16, gap: 4 },
-  helperLink: {
-    color: colors.accent,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  helperHint: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  helperEmphasis: { color: colors.textPrimary, fontWeight: '700' },
-  mono: { fontVariant: ['tabular-nums'], fontWeight: '600' },
-  pressed: { opacity: 0.5 },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 24,
+      paddingTop: 48,
+      backgroundColor: c.background,
+      gap: 16,
+    },
+    title: { fontSize: 28, fontWeight: '700', color: c.textPrimary },
+    body: { fontSize: 15, color: c.textMuted, lineHeight: 22 },
+    input: {
+      marginTop: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 8,
+      backgroundColor: c.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      color: c.textPrimary,
+      fontSize: 17,
+    },
+    error: { color: c.danger, fontSize: 13 },
+    primaryBtn: {
+      marginTop: 8,
+      backgroundColor: c.accent,
+      paddingVertical: 14,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    primaryBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '600' },
+    secondaryBtn: {
+      paddingVertical: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    secondaryBtnText: { color: c.textPrimary, fontSize: 15, fontWeight: '600' },
+    helperGroup: { marginTop: 16, gap: 4 },
+    helperLink: {
+      color: c.accent,
+      fontSize: 15,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    helperHint: {
+      color: c.textMuted,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+    },
+    helperEmphasis: { color: c.textPrimary, fontWeight: '700' },
+    mono: { fontVariant: ['tabular-nums'], fontWeight: '600' },
+    pressed: { opacity: 0.5 },
+  });

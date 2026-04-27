@@ -1,5 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { useThemedStyles, type Colors } from '../theme';
 
 /**
  * Slim single-section filter dialog used by the Analytics tab to narrow
@@ -34,6 +34,7 @@ type Props = {
 export function PositionFilterDialog({
   visible, onClose, positions, selected, onToggle, onClearAll,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const hasAny = selected.length > 0;
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -86,6 +87,7 @@ export function PositionFilterDialog({
 function CheckRow({
   label, checked, onPress,
 }: { label: string; checked: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -101,70 +103,71 @@ function CheckRow({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  topAction: { fontSize: 16, color: colors.accent },
-  topActionStrong: { fontWeight: '600' },
-  topActionDisabled: { color: colors.textMuted, opacity: 0.5 },
-  pressed: { opacity: 0.5 },
-  section: { marginTop: 24 },
-  sectionTitle: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  sectionHint: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  sectionBody: {
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowPressed: { backgroundColor: colors.background },
-  rowLabel: { fontSize: 16, color: colors.textPrimary },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  checkboxMark: { color: colors.onAccent, fontSize: 14, fontWeight: '700' },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 48,
+      paddingBottom: 12,
+      backgroundColor: c.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
+    topAction: { fontSize: 16, color: c.accent },
+    topActionStrong: { fontWeight: '600' },
+    topActionDisabled: { color: c.textMuted, opacity: 0.5 },
+    pressed: { opacity: 0.5 },
+    section: { marginTop: 24 },
+    sectionTitle: {
+      paddingHorizontal: 16,
+      paddingBottom: 4,
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    sectionHint: {
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+      color: c.textMuted,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    sectionBody: {
+      backgroundColor: c.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    rowPressed: { backgroundColor: c.background },
+    rowLabel: { fontSize: 16, color: c.textPrimary },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: c.accent,
+      borderColor: c.accent,
+    },
+    checkboxMark: { color: c.onAccent, fontSize: 14, fontWeight: '700' },
+  });

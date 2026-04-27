@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from './types';
@@ -6,28 +7,34 @@ import { PlayersStack } from './stacks/PlayersStack';
 import { AnalyticsStack } from './stacks/AnalyticsStack';
 import { FriendsStack } from './stacks/FriendsStack';
 import { SettingsStack } from './stacks/SettingsStack';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-// Each tab's stack already provides headers (per-screen titles), so the
-// tab navigator itself shouldn't render a second header. headerShown:false
-// is set at the tab level and the stack-level headers stay.
-const TAB_OPTIONS = {
-  headerShown: false,
-  tabBarActiveTintColor: colors.accent,
-  tabBarInactiveTintColor: colors.textMuted,
-  tabBarStyle: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-  },
-} as const;
-
 export function MainTabs() {
+  const { colors } = useTheme();
+  // Each tab's stack already provides headers (per-screen titles), so the
+  // tab navigator itself shouldn't render a second header. headerShown:false
+  // is set at the tab level and the stack-level headers stay.
+  // Re-derive on every theme change so the tab bar tints + background flip
+  // immediately when the user toggles theme.
+  const tabOptions = useMemo(
+    () => ({
+      headerShown: false,
+      tabBarActiveTintColor: colors.accent,
+      tabBarInactiveTintColor: colors.textMuted,
+      tabBarStyle: {
+        backgroundColor: colors.surface,
+        borderTopColor: colors.border,
+      },
+    }),
+    [colors],
+  );
+
   return (
     <Tab.Navigator
       initialRouteName="MyTeamTab"
-      screenOptions={TAB_OPTIONS}
+      screenOptions={tabOptions}
     >
       <Tab.Screen
         name="MyTeamTab"

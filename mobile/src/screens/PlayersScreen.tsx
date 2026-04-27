@@ -42,7 +42,7 @@ import {
   type SortState,
 } from '../players/types';
 import type { PlayersScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
@@ -52,6 +52,9 @@ type CombinedData = {
 };
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   // Combined fetch: /players + /analytics/players/xp joined by id.
   const fetcher = useCallback(
     async (signal: AbortSignal): Promise<CombinedData> => {
@@ -288,6 +291,9 @@ function toJoined(p: Player, xp: number | null): JoinedPlayer {
 function SearchBar({
   value, onChange,
 }: { value: string; onChange: (v: string) => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.searchRow}>
       <TextInput
@@ -310,6 +316,9 @@ function ControlBar({
   onOpenFilter: () => void;
   onOpenColumns: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.controlBar}>
       <ControlButton
@@ -325,6 +334,9 @@ function ControlBar({
 function ControlButton({
   label, active, onPress,
 }: { label: string; active?: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -349,7 +361,8 @@ function ControlButton({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
   searchRow: {

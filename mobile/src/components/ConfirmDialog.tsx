@@ -1,5 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -18,6 +18,7 @@ export function ConfirmDialog({
   destructive = false,
   onConfirm, onCancel,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.backdrop} onPress={onCancel}>
@@ -56,40 +57,44 @@ export function ConfirmDialog({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(7, 7, 7, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    gap: 12,
-  },
-  title: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  message: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  btn: {
-    flex: 1,
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnSecondary: {
-    backgroundColor: colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  btnSecondaryText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  btnPrimary: { backgroundColor: colors.accent },
-  btnPrimaryText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  btnDanger: { backgroundColor: colors.danger },
-  btnDangerText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
-  pressed: { opacity: 0.6 },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      // Backdrop stays a fixed dark scrim across both themes — a theme-
+      // tinted overlay would feel uncertain. Lower opacity reads as "dim
+      // the world" rather than "I have no idea what's behind me".
+      backgroundColor: 'rgba(7, 7, 7, 0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    dialog: {
+      width: '100%',
+      maxWidth: 360,
+      backgroundColor: c.surface,
+      borderRadius: 12,
+      padding: 20,
+      gap: 12,
+    },
+    title: { fontSize: 17, fontWeight: '700', color: c.textPrimary },
+    message: { fontSize: 14, color: c.textMuted, lineHeight: 20 },
+    actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+    btn: {
+      flex: 1,
+      paddingVertical: 11,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    btnSecondary: {
+      backgroundColor: c.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    btnSecondaryText: { color: c.textPrimary, fontSize: 15, fontWeight: '600' },
+    btnPrimary: { backgroundColor: c.accent },
+    btnPrimaryText: { color: c.onAccent, fontSize: 15, fontWeight: '600' },
+    btnDanger: { backgroundColor: c.danger },
+    btnDangerText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
+    pressed: { opacity: 0.6 },
+  });

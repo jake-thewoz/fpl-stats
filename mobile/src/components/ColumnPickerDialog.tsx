@@ -1,7 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
 import type { FieldKey } from '../players/types';
-import { colors } from '../theme';
+import { useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -11,6 +11,7 @@ type Props = {
 };
 
 export function ColumnPickerDialog({ visible, onClose, selected, onToggle }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
@@ -67,6 +68,11 @@ function CheckRow({
   checked: boolean;
   onPress: () => void;
 }) {
+  // Each CheckRow re-derives the same StyleSheet from the same factory —
+  // useThemedStyles memoizes per palette so this is effectively free,
+  // and it lets the row stay a self-contained component without
+  // threading `styles` through props.
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -85,63 +91,64 @@ function CheckRow({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  topAction: { fontSize: 16, color: colors.accent },
-  topActionStrong: { fontWeight: '600' },
-  topActionPlaceholder: { minWidth: 50 },
-  pressed: { opacity: 0.5 },
-  scrollBody: { paddingBottom: 32 },
-  section: { marginTop: 24 },
-  sectionHint: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  sectionBody: {
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowPressed: { backgroundColor: colors.background },
-  rowLabel: { fontSize: 16, color: colors.textPrimary },
-  rowHint: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  checkboxMark: { color: colors.onAccent, fontSize: 14, fontWeight: '700' },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 48,
+      paddingBottom: 12,
+      backgroundColor: c.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
+    topAction: { fontSize: 16, color: c.accent },
+    topActionStrong: { fontWeight: '600' },
+    topActionPlaceholder: { minWidth: 50 },
+    pressed: { opacity: 0.5 },
+    scrollBody: { paddingBottom: 32 },
+    section: { marginTop: 24 },
+    sectionHint: {
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+      color: c.textMuted,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    sectionBody: {
+      backgroundColor: c.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    rowPressed: { backgroundColor: c.background },
+    rowLabel: { fontSize: 16, color: c.textPrimary },
+    rowHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: c.accent,
+      borderColor: c.accent,
+    },
+    checkboxMark: { color: c.onAccent, fontSize: 14, fontWeight: '700' },
+  });

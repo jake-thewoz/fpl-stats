@@ -1,5 +1,5 @@
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   title: string;
@@ -8,6 +8,8 @@ type Props = {
 };
 
 export function ErrorView({ title, message, onRetry }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.centered}>
       <Text style={styles.title}>{title}</Text>
@@ -17,15 +19,16 @@ export function ErrorView({ title, message, onRetry }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 12,
-    backgroundColor: colors.background,
-  },
-  title: { fontSize: 18, fontWeight: '600', color: colors.textPrimary },
-  body: { color: colors.danger, textAlign: 'center' },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 12,
+      backgroundColor: c.background,
+    },
+    title: { fontSize: 18, fontWeight: '600', color: c.textPrimary },
+    body: { color: c.danger, textAlign: 'center' },
+  });

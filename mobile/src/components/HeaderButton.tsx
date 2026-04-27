@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors } from '../theme';
+import { useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   label: string;
@@ -8,6 +8,7 @@ type Props = {
 };
 
 export function HeaderButton({ label, onPress, accessibilityLabel }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -21,13 +22,14 @@ export function HeaderButton({ label, onPress, accessibilityLabel }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  btn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: colors.accent,
-  },
-  label: { color: colors.onAccent, fontSize: 13, fontWeight: '600' },
-  pressed: { opacity: 0.6 },
-});
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    btn: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 6,
+      backgroundColor: c.accent,
+    },
+    label: { color: c.onAccent, fontSize: 13, fontWeight: '600' },
+    pressed: { opacity: 0.6 },
+  });

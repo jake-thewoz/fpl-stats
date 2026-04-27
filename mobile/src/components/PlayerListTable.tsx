@@ -41,7 +41,7 @@ import {
 } from 'react-native';
 import { FIELD_DEFS } from '../players/fields';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
-import { colors } from '../theme';
+import { useThemedStyles, type Colors } from '../theme';
 
 /** Per-data-cell width. Wide enough for the longest short label
  *  (`Defcon/90 ↓`) plus comfortable padding on both sides. */
@@ -87,6 +87,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
   onRefresh,
   emptyMessage,
 }: Props<T>) {
+  const styles = useThemedStyles(makeStyles);
   const leftRef = useRef<FlatList<T>>(null);
   const rightRef = useRef<FlatList<T>>(null);
   // Tracks which list is currently being driven by the other, so the
@@ -282,82 +283,83 @@ export function PlayerListTable<T extends JoinedPlayer>({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.background,
-  },
+const makeStyles = (c: Colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: c.background,
+    },
 
-  // LEFT side
-  leftColumn: {
-    width: NAME_WIDTH,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  leftHeaderCell: {
-    height: HEADER_HEIGHT,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  leftRow: {
-    height: ROW_HEIGHT,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
+    // LEFT side
+    leftColumn: {
+      width: NAME_WIDTH,
+      borderRightWidth: StyleSheet.hairlineWidth,
+      borderRightColor: c.border,
+      backgroundColor: c.background,
+    },
+    leftHeaderCell: {
+      height: HEADER_HEIGHT,
+      paddingHorizontal: 12,
+      justifyContent: 'center',
+      backgroundColor: c.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    leftRow: {
+      height: ROW_HEIGHT,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      justifyContent: 'center',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
 
-  // RIGHT side
-  rightScroll: { flex: 1 },
-  rightScrollContent: { flexGrow: 1 },
-  rightHeaderRow: {
-    flexDirection: 'row',
-    height: HEADER_HEIGHT,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  rightRow: {
-    flexDirection: 'row',
-    height: ROW_HEIGHT,
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  headerCell: {
-    width: CELL_WIDTH,
-    paddingHorizontal: 8,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-  },
-  headerCellText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  headerCellTextActive: { color: colors.accent },
-  dataCell: {
-    width: CELL_WIDTH,
-    paddingHorizontal: 8,
-    fontSize: 14,
-    color: colors.textPrimary,
-    textAlign: 'right',
-  },
-  pressed: { opacity: 0.6 },
+    // RIGHT side
+    rightScroll: { flex: 1 },
+    rightScrollContent: { flexGrow: 1 },
+    rightHeaderRow: {
+      flexDirection: 'row',
+      height: HEADER_HEIGHT,
+      alignItems: 'center',
+      backgroundColor: c.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    rightRow: {
+      flexDirection: 'row',
+      height: ROW_HEIGHT,
+      alignItems: 'center',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    headerCell: {
+      width: CELL_WIDTH,
+      paddingHorizontal: 8,
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+    },
+    headerCellText: {
+      fontSize: 11,
+      color: c.textMuted,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    headerCellTextActive: { color: c.accent },
+    dataCell: {
+      width: CELL_WIDTH,
+      paddingHorizontal: 8,
+      fontSize: 14,
+      color: c.textPrimary,
+      textAlign: 'right',
+    },
+    pressed: { opacity: 0.6 },
 
-  emptyText: {
-    padding: 24,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-});
+    emptyText: {
+      padding: 24,
+      color: c.textMuted,
+      textAlign: 'center',
+    },
+  });

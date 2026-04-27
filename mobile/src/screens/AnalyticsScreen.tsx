@@ -24,7 +24,7 @@ import {
   type Position,
 } from '../components/PositionFilterDialog';
 import type { AnalyticsScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
@@ -48,6 +48,9 @@ type CombinedData = {
 };
 
 export default function AnalyticsScreen({ navigation }: AnalyticsScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
   const [horizon, setHorizon] = useState<Horizon>(DEFAULT_HORIZON);
   const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
@@ -106,6 +109,9 @@ function SuggestionsView({
   onOpenFilter: () => void;
   onOpenMyTeam: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   // teamId + horizon + positionFilter are stable refs across renders here,
   // but the closure changes on any of them so the hook re-runs and refetches.
   // useCallback gives us one new ref per (teamId, horizon, filter) tuple,
@@ -166,6 +172,9 @@ function Body({
   onOpenMyTeam: () => void;
   filterActive: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
     if (state.message.includes('Picks not found')) {
@@ -251,6 +260,9 @@ function SuggestionCard({
   suggestion: TransferSuggestion;
   playersById: Map<number, Player>;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const out = playersById.get(suggestion.out.player_id);
   const inP = playersById.get(suggestion.in.player_id);
 
@@ -285,6 +297,9 @@ function PlayerBlock({
   fallback: string;
   player: Player | undefined;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const name = player?.name ?? fallback;
   const team = player?.team ?? '';
   const position = player?.position ?? '';
@@ -317,6 +332,9 @@ function CenterBadge({
   deltaXp: number;
   costChange: number;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const xpStr = `${deltaXp >= 0 ? '+' : ''}${deltaXp.toFixed(1)} xP`;
   // cost_change in 0.1m units; positive = costs you money. Show £x.x with
   // signs flipped so it reads as "your bank delta" — negative cost_change
@@ -348,6 +366,9 @@ function Header({
   horizonGwIds: number[];
   currentSquadXp: number | undefined;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   if (horizonGwIds.length === 0) return null;
   const range =
     horizonGwIds.length === 1
@@ -378,6 +399,9 @@ function ControlsRow({
   onOpenFilter: () => void;
   filterCount: number;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.controlsRow}>
       <View style={styles.horizonGroup}>
@@ -435,6 +459,9 @@ function ControlsRow({
 }
 
 function NoTeamIdState({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No team ID set</Text>
@@ -454,6 +481,9 @@ function NoTeamIdState({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 function PicksNotFoundState({ onOpenMyTeam }: { onOpenMyTeam: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>Squad not loaded</Text>
@@ -473,6 +503,9 @@ function PicksNotFoundState({ onOpenMyTeam }: { onOpenMyTeam: () => void }) {
 }
 
 function MessageState({ title, body }: { title: string; body: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -485,7 +518,8 @@ function MessageState({ title, body }: { title: string; body: string }) {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

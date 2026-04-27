@@ -8,11 +8,14 @@ import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import type { GameweekScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = GameweekScreenProps;
 
 export default function GameweekScreen(_props: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetchGameweekCurrent);
 
   if (state.status === 'loading') return <LoadingView />;
@@ -42,6 +45,9 @@ export default function GameweekScreen(_props: Props) {
 }
 
 function GameweekHeader({ gameweek }: { gameweek: GameweekCurrentResponse['gameweek'] }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   if (!gameweek) {
     return (
       <View style={styles.header}>
@@ -59,6 +65,9 @@ function GameweekHeader({ gameweek }: { gameweek: GameweekCurrentResponse['gamew
 }
 
 function FixtureRow({ fixture }: { fixture: Fixture }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const { home, away, kickoff_time, finished, started } = fixture;
   const scoreline =
     finished || started
@@ -98,7 +107,8 @@ function formatKickoff(iso: string | null): string {
   });
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   listContent: { paddingBottom: 32, backgroundColor: colors.background },
   header: {
     padding: 20,
