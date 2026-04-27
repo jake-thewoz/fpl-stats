@@ -10,11 +10,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getFriends, removeFriend, type Friend } from '../storage/friends';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { ManageFriendsScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = ManageFriendsScreenProps;
 
 export default function ManageFriendsScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const [friends, setFriends] = useState<Friend[] | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Friend | null>(null);
 
@@ -87,6 +90,9 @@ function EmptyState({
   onAdd: () => void;
   onImport: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>No friends yet</Text>
@@ -118,6 +124,9 @@ function FriendRow({
   friend: Friend;
   onRemove: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.row}>
       <View style={styles.rowLeft}>
@@ -146,6 +155,9 @@ function ListFooter({
   onAdd: () => void;
   onImport: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.footerWrap}>
       <Pressable
@@ -166,7 +178,8 @@ function ListFooter({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   listContent: { paddingVertical: 8 },
   emptyWrap: {

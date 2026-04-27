@@ -14,7 +14,7 @@ import { getFplTeamId } from '../storage/user';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
 import type { FriendsScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = FriendsScreenProps;
 
@@ -44,6 +44,9 @@ const COLUMNS: { key: SortColumn; label: string; defaultDir: SortDir }[] = [
 ];
 
 export default function FriendsScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   // `null` = haven't finished reading storage yet.
   const [targets, setTargets] = useState<Target[] | null>(null);
   const [rows, setRows] = useState<ComparisonRow[]>([]);
@@ -221,6 +224,9 @@ function EmptyState({
   onAddFriend: () => void;
   onOpenSettings: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>Nothing to compare yet</Text>
@@ -258,6 +264,9 @@ function TableHeader({
   sortDir: SortDir;
   onHeaderPress: (col: SortColumn) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.tableHeader}>
       <Text style={[styles.colHeader, styles.colAlias]}>Alias</Text>
@@ -285,6 +294,9 @@ function ColumnHeaderButton({
   direction: SortDir | null;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const arrow = direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '';
   return (
     <Pressable
@@ -308,6 +320,9 @@ function ColumnHeaderButton({
 }
 
 function Row({ row }: { row: ComparisonRow }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const { target, state } = row;
   const aliasBadge = target.isMe ? (
     <View style={styles.youBadge} accessibilityLabel="You">
@@ -345,6 +360,9 @@ function displayAlias(row: ComparisonRow): string {
 }
 
 function RowSubtext({ state, teamId }: { state: RowState; teamId: string }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   if (state.status === 'error') {
     return (
       <Text style={styles.rowError}>
@@ -362,6 +380,9 @@ function CellValue({
   state: RowState;
   field: SortColumn;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   if (state.status !== 'ok') {
     return <Text style={[styles.rowCell, styles.colNumeric]}>—</Text>;
   }
@@ -390,7 +411,8 @@ function formatInt(n: number | null): string {
 
 const COL_NUMERIC_WIDTH = 62;
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   listContent: { paddingBottom: 32, backgroundColor: colors.background },
   emptyWrap: {
     flex: 1,

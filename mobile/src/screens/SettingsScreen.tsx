@@ -14,11 +14,14 @@ import {
 } from '../storage/user';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { SettingsScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors, type ThemeMode } from '../theme';
 
 type Props = SettingsScreenProps;
 
 export default function SettingsScreen(_props: Props) {
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
@@ -117,6 +120,13 @@ export default function SettingsScreen(_props: Props) {
           </View>
         </View>
       )}
+
+      <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
+      <View style={styles.card}>
+        <ThemeRow label="Dark"          value="dark"   active={mode} onSelect={setMode} />
+        <ThemeRow label="Light"         value="light"  active={mode} onSelect={setMode} />
+        <ThemeRow label="Follow system" value="system" active={mode} onSelect={setMode} />
+      </View>
     </View>
     <ConfirmDialog
       visible={clearConfirmOpen}
@@ -132,7 +142,36 @@ export default function SettingsScreen(_props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function ThemeRow({
+  label, value, active, onSelect,
+}: {
+  label: string;
+  value: ThemeMode;
+  active: ThemeMode;
+  onSelect: (mode: ThemeMode) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const selected = active === value;
+  return (
+    <Pressable
+      onPress={() => onSelect(value)}
+      style={({ pressed }) => [
+        styles.themeRow,
+        pressed && styles.themeRowPressed,
+      ]}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+    >
+      <Text style={styles.themeRowLabel}>{label}</Text>
+      <View style={[styles.radio, selected && styles.radioSelected]}>
+        {selected ? <View style={styles.radioInner} /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: colors.background },
   sectionTitle: {
     paddingHorizontal: 4,
@@ -197,4 +236,36 @@ const styles = StyleSheet.create({
   },
   dangerBtnText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
   pressed: { opacity: 0.5 },
+
+  // Appearance section
+  sectionTitleSpaced: { marginTop: 24 },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    // Hairline divider between rows; the last row's bottom border is
+    // hidden by the card's own rounded edge, so leaving it on every row
+    // is fine and keeps the markup uniform.
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  themeRowPressed: { opacity: 0.6 },
+  themeRowLabel: { fontSize: 16, color: colors.textPrimary },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: { borderColor: colors.accent },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.accent,
+  },
 });

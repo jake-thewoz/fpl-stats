@@ -10,7 +10,7 @@ import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { addFriend } from '../storage/friends';
 import { isValidFplTeamId } from '../storage/user';
 import type { AddFriendScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = AddFriendScreenProps;
 
@@ -21,6 +21,8 @@ type Step =
   | { status: 'error'; message: string };
 
 export default function AddFriendScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [teamIdInput, setTeamIdInput] = useState('');
   const [step, setStep] = useState<Step>({ status: 'idle' });
   const [alias, setAlias] = useState('');
@@ -165,13 +167,14 @@ export default function AddFriendScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: colors.background,
-    gap: 12,
-  },
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: colors.background,
+      gap: 12,
+    },
   label: {
     paddingHorizontal: 4,
     color: colors.textMuted,

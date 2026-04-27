@@ -16,7 +16,7 @@ import {
 import { addFriend, getFriends } from '../storage/friends';
 import { getFplTeamId } from '../storage/user';
 import type { ImportLeagueScreenProps } from '../navigation/types';
-import { colors } from '../theme';
+import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = ImportLeagueScreenProps;
 
@@ -35,6 +35,9 @@ type Step =
   | { status: 'error'; message: string };
 
 export default function ImportLeagueScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const [leagueIdInput, setLeagueIdInput] = useState('');
   const [step, setStep] = useState<Step>({ status: 'idle' });
   const [saving, setSaving] = useState(false);
@@ -226,6 +229,9 @@ function LoadedBlock({
   onImport: () => void;
   saving: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const count = selected.size;
   return (
     <>
@@ -311,6 +317,9 @@ function MemberRow({
   disabledLabel: string | null;
   onToggle: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <Pressable
       onPress={disabled ? undefined : onToggle}
@@ -355,7 +364,8 @@ function MemberRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   label: {
     paddingHorizontal: 20,
