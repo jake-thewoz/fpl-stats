@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -17,6 +15,7 @@ import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
+import { PlayerListTable } from '../components/PlayerListTable';
 import {
   DEFAULT_COLUMNS,
   DEFAULT_SORT,
@@ -184,26 +183,20 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         onOpenFilter={() => setFiltersOpen(true)}
         onOpenColumns={() => setColumnsOpen(true)}
       />
-      <ColumnHeaderRow
+      <PlayerListTable
+        data={filteredSorted}
         columns={columns}
         sort={sort}
         onTapHeader={onTapColumnHeader}
-      />
-      <FlatList
-        data={filteredSorted}
-        keyExtractor={(r) => String(r.id)}
-        renderItem={({ item }) => (
-          <PlayerRow row={item} columns={columns} />
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyBody}>
-            {rows.length === 0
-              ? 'No squad data available yet for this gameweek.'
-              : 'No players match your filter. Try widening it.'}
-          </Text>
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        getId={(r) => r.id}
+        renderNameCell={renderMyTeamNameCell}
+        getRowStyle={(r) => (r.isStarter ? undefined : { opacity: 0.6 })}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        emptyMessage={
+          rows.length === 0
+            ? 'No squad data available yet for this gameweek.'
+            : 'No players match your filter. Try widening it.'
         }
       />
 
@@ -338,92 +331,36 @@ function ControlButton({
   );
 }
 
-function ColumnHeaderRow({
-  columns, sort, onTapHeader,
-}: {
-  columns: FieldKey[];
-  sort: SortState;
-  onTapHeader: (key: FieldKey) => void;
-}) {
-  return (
-    <View style={styles.headerRow}>
-      <Text style={[styles.headerNameCell, styles.headerCellText]}>Player</Text>
-      {columns.map((c) => {
-        const def = FIELD_DEFS[c];
-        const active = sort.field === c;
-        const arrow = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
-        return (
-          <Pressable
-            key={c}
-            onPress={() => onTapHeader(c)}
-            style={({ pressed }) => [
-              styles.headerCell,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[
-                styles.headerCellText,
-                active && styles.headerCellTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {def.shortLabel}
-              {arrow}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function PlayerRow({
-  row, columns,
-}: { row: MyTeamRow; columns: FieldKey[] }) {
-  // Bench rows are visually de-emphasised — same data, lower visual
-  // priority. Captain/vice get badges. The GW points contribution
-  // appears as a sub-line annotation (it's a useful glance value but
-  // not a sortable column in the unified field set; future field-set
-  // expansion can promote it).
+/** Renders the pinned-name-column contents for a My Team row. Bench
+ *  rows are de-emphasised by the table's getRowStyle (opacity 0.6);
+ *  this function is responsible for the name + badges + sub-line. */
+function renderMyTeamNameCell(row: MyTeamRow): React.ReactNode {
   const subParts = [row.team, row.position];
   if (!row.isStarter) subParts.push('Bench');
   const subline = subParts.join(' · ');
 
   return (
-    <View style={[styles.row, !row.isStarter && styles.rowBench]}>
-      <View style={styles.nameCell}>
-        <View style={styles.nameLine}>
-          <Text style={styles.nameText} numberOfLines={1}>
-            {row.name}
-          </Text>
-          {row.isCaptain ? (
-            <Text style={styles.playerBadge} accessibilityLabel="captain">
-              C
-            </Text>
-          ) : null}
-          {row.isViceCaptain ? (
-            <Text style={styles.playerBadge} accessibilityLabel="vice-captain">
-              V
-            </Text>
-          ) : null}
-        </View>
-        <Text style={styles.subText} numberOfLines={1}>
-          {subline}
-          {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
+    <>
+      <View style={styles.nameLine}>
+        <Text style={styles.nameText} numberOfLines={1}>
+          {row.name}
         </Text>
-      </View>
-      {columns.map((c) => {
-        const def = FIELD_DEFS[c];
-        const value = def.accessor(row);
-        return (
-          <Text key={c} style={styles.dataCell} numberOfLines={1}>
-            {def.format(value)}
+        {row.isCaptain ? (
+          <Text style={styles.playerBadge} accessibilityLabel="captain">
+            C
           </Text>
-        );
-      })}
-    </View>
+        ) : null}
+        {row.isViceCaptain ? (
+          <Text style={styles.playerBadge} accessibilityLabel="vice-captain">
+            V
+          </Text>
+        ) : null}
+      </View>
+      <Text style={styles.subText} numberOfLines={1}>
+        {subline}
+        {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
+      </Text>
+    </>
   );
 }
 
@@ -497,36 +434,8 @@ const styles = StyleSheet.create({
   controlBtnTextActive: { color: colors.onAccent },
   pressed: { opacity: 0.6 },
 
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerNameCell: { flex: 2 },
-  headerCell: { flex: 1, alignItems: 'flex-end' },
-  headerCellText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  headerCellTextActive: { color: colors.accent },
-
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowBench: { opacity: 0.6 },
-  nameCell: { flex: 2, paddingRight: 8 },
+  // Used by renderMyTeamNameCell — the pinned-name column rendered
+  // by PlayerListTable.
   nameLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -545,12 +454,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     fontWeight: '700',
-  },
-  dataCell: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textPrimary,
-    textAlign: 'right',
   },
 
   emptyContainer: {
