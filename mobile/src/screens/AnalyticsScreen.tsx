@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
+  LayoutAnimation,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
+
+// Android needs LayoutAnimation explicitly enabled. Once-per-app call,
+// safe to leave at module scope — the runtime guards against re-enable.
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import {
   EntryNotFoundError,
   PicksNotFoundError,
@@ -229,12 +241,51 @@ function Body({
   }
 
   return (
+    <SuggestionsList
+      suggestions={suggestions}
+      playersById={playersById}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+    />
+  );
+}
+
+function SuggestionsList({
+  suggestions,
+  playersById,
+  refreshing,
+  onRefresh,
+}: {
+  suggestions: TransferSuggestionsResponse;
+  playersById: Map<number, Player>;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  // One card expanded at a time. Stable per-suggestion key (`out-in`)
+  // survives data refreshes — if the same swap is still in the list
+  // after a refresh, it stays expanded.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const toggleExpand = useCallback((key: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedKey((prev) => (prev === key ? null : key));
+  }, []);
+
+  return (
     <FlatList
       data={suggestions.suggestions}
       keyExtractor={(s) => `${s.out.player_id}-${s.in.player_id}`}
-      renderItem={({ item }) => (
-        <SuggestionCard suggestion={item} playersById={playersById} />
-      )}
+      renderItem={({ item }) => {
+        const key = `${item.out.player_id}-${item.in.player_id}`;
+        return (
+          <SuggestionCard
+            suggestion={item}
+            playersById={playersById}
+            isExpanded={expandedKey === key}
+            onToggle={() => toggleExpand(key)}
+          />
+        );
+      }}
       ListHeaderComponent={
         <Header
           horizonGwIds={suggestions.horizon_gw_ids}
@@ -256,9 +307,13 @@ function Body({
 function SuggestionCard({
   suggestion,
   playersById,
+  isExpanded,
+  onToggle,
 }: {
   suggestion: TransferSuggestion;
   playersById: Map<number, Player>;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -267,7 +322,15 @@ function SuggestionCard({
   const inP = playersById.get(suggestion.in.player_id);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onToggle}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: isExpanded }}
+      accessibilityLabel={
+        isExpanded ? 'Collapse suggestion details' : 'Expand suggestion details'
+      }
+    >
       <View style={styles.cardRow}>
         <PlayerBlock
           align="left"
@@ -284,6 +347,128 @@ function SuggestionCard({
           player={inP}
         />
       </View>
+      <View style={styles.chevronRow}>
+        <Text style={styles.chevron}>{isExpanded ? '▴' : '▾'}</Text>
+      </View>
+      {isExpanded ? <CompareTable suggestion={suggestion} /> : null}
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Expanded comparison table
+// ---------------------------------------------------------------------------
+
+/**
+ * Color-codes a fixture-quality value on a three-stop scale:
+ * sage (good) / warning (mid) / danger (bad). Used for both
+ * `avg_upcoming_difficulty` (1–5, lower = easier) and
+ * `avg_upcoming_elo_expected_score` (0–1, higher = better).
+ *
+ * Returns `null` for null inputs so the caller can render a neutral
+ * cell — null doesn't mean "bad", it means "no data".
+ */
+type ColorTone = 'good' | 'mid' | 'bad' | null;
+
+function difficultyTone(value: number | null): ColorTone {
+  if (value == null) return null;
+  if (value <= 2.5) return 'good';
+  if (value < 3.5) return 'mid';
+  return 'bad';
+}
+
+function eloTone(value: number | null): ColorTone {
+  if (value == null) return null;
+  if (value >= 0.55) return 'good';
+  if (value >= 0.45) return 'mid';
+  return 'bad';
+}
+
+function fmt(value: number | null, digits: number): string {
+  return value == null ? '—' : value.toFixed(digits);
+}
+
+function CompareTable({ suggestion }: { suggestion: TransferSuggestion }) {
+  const styles = useThemedStyles(makeStyles);
+  const { out, in: inP } = suggestion;
+
+  return (
+    <View style={styles.compareTable}>
+      <View style={styles.compareDivider} />
+      <Row
+        label="Form"
+        outText={fmt(out.form_score, 1)}
+        inText={fmt(inP.form_score, 1)}
+      />
+      <Row
+        label="Avg fixture difficulty"
+        outText={fmt(out.avg_upcoming_difficulty, 1)}
+        inText={fmt(inP.avg_upcoming_difficulty, 1)}
+        outTone={difficultyTone(out.avg_upcoming_difficulty)}
+        inTone={difficultyTone(inP.avg_upcoming_difficulty)}
+      />
+      <Row
+        label="Avg ELO win prob"
+        outText={fmt(out.avg_upcoming_elo_expected_score, 2)}
+        inText={fmt(inP.avg_upcoming_elo_expected_score, 2)}
+        outTone={eloTone(out.avg_upcoming_elo_expected_score)}
+        inTone={eloTone(inP.avg_upcoming_elo_expected_score)}
+      />
+      <Row
+        label="Horizon xP"
+        outText={fmt(out.horizon_xp, 1)}
+        inText={fmt(inP.horizon_xp, 1)}
+      />
+    </View>
+  );
+}
+
+function Row({
+  label,
+  outText,
+  inText,
+  outTone = null,
+  inTone = null,
+}: {
+  label: string;
+  outText: string;
+  inText: string;
+  outTone?: ColorTone;
+  inTone?: ColorTone;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.compareRow}>
+      <Text style={styles.compareLabel}>{label}</Text>
+      <ToneCell text={outText} tone={outTone} />
+      <ToneCell text={inText} tone={inTone} />
+    </View>
+  );
+}
+
+function ToneCell({ text, tone }: { text: string; tone: ColorTone }) {
+  const styles = useThemedStyles(makeStyles);
+  // Tone styles tint background + text. Null tone = neutral cell with
+  // primary text color, so "—" and uncolored metrics share the look.
+  const cellStyle =
+    tone === 'good'
+      ? styles.toneCellGood
+      : tone === 'mid'
+        ? styles.toneCellMid
+        : tone === 'bad'
+          ? styles.toneCellBad
+          : null;
+  const textStyle =
+    tone === 'good'
+      ? styles.toneTextGood
+      : tone === 'mid'
+        ? styles.toneTextMid
+        : tone === 'bad'
+          ? styles.toneTextBad
+          : styles.toneTextNeutral;
+  return (
+    <View style={[styles.compareCell, cellStyle]}>
+      <Text style={[styles.compareCellText, textStyle]}>{text}</Text>
     </View>
   );
 }
@@ -624,10 +809,66 @@ const makeStyles = (colors: Colors) =>
     padding: 12,
     marginVertical: 6,
   },
+  cardPressed: { opacity: 0.85 },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  chevronRow: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  chevron: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+
+  // Expanded comparison table (#97). Sits below the main row when the
+  // user taps to expand. Three columns: metric label / out value / in
+  // value. Values are right-aligned; cells with a fixture-quality tone
+  // tint background + text on the sage/warning/danger scale.
+  compareTable: {
+    marginTop: 4,
+  },
+  compareDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginBottom: 8,
+  },
+  compareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  compareLabel: {
+    flex: 2,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  compareCell: {
+    flex: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  compareCellText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  // Three-stop tone scale for fixture-quality cells. Solid colour
+  // backgrounds with high-contrast text, on a heat-map model: easy
+  // fixtures = sage, mid = warning, hard = danger. Conventionally
+  // sage/yellow take dark text; the deeper red takes white.
+  toneCellGood: { backgroundColor: colors.accentSoft },
+  toneCellMid: { backgroundColor: colors.warning },
+  toneCellBad: { backgroundColor: colors.danger },
+  toneTextGood: { color: colors.onAccentSoft },
+  toneTextMid: { color: '#070707' },
+  toneTextBad: { color: '#ffffff' },
+  toneTextNeutral: { color: colors.textPrimary },
   playerBlock: {
     flex: 1,
     minWidth: 0, // lets numberOfLines + flex work together correctly

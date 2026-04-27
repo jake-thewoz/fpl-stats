@@ -206,32 +206,66 @@ def _fetch_picks_with_cache(
     return picks
 
 
-def _read_player_forms(table: Any) -> dict[int, float]:
-    """{player_id: form_score} from the player-form analyzer's output."""
-    forms: dict[int, float] = {}
+def _read_player_forms(table: Any) -> dict[int, dict[str, float | None]]:
+    """Per-player snapshot of the form analyzer's output, keyed by id.
+
+    Each snapshot carries the fields the suggestions screen surfaces:
+    `form_score` (always populated by the analyzer), plus the two
+    fixture-quality signals which can be ``None`` when the upcoming
+    fixtures are missing FPL difficulty values or ClubELO ratings.
+    """
+    snapshots: dict[int, dict[str, float | None]] = {}
     kwargs: dict[str, Any] = {
         "KeyConditionExpression": Key("pk").eq("analytics#player_form"),
-        "ProjectionExpression": "sk, form_score",
+        "ProjectionExpression": (
+            "sk, form_score, avg_upcoming_difficulty, "
+            "avg_upcoming_elo_expected_score"
+        ),
     }
     while True:
         resp = table.query(**kwargs)
         for item in resp.get("Items", []):
             try:
-                forms[int(item["sk"])] = float(item["form_score"])
+                pid = int(item["sk"])
+                snapshots[pid] = {
+                    "form_score": float(item["form_score"]),
+                    "avg_upcoming_difficulty": _opt_float(
+                        item.get("avg_upcoming_difficulty")
+                    ),
+                    "avg_upcoming_elo_expected_score": _opt_float(
+                        item.get("avg_upcoming_elo_expected_score")
+                    ),
+                }
             except (KeyError, ValueError, TypeError):
                 log.warning("Skipping malformed player_form row: %r", item)
         if "LastEvaluatedKey" not in resp:
             break
         kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
-    return forms
+    return snapshots
+
+
+def _opt_float(value: Any) -> float | None:
+    """DDB-side numeric values arrive as Decimal (or None). Normalise to
+    float for the JSON response, preserving null."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _enriched_player(
     player_id: int,
     by_id: dict[int, Any],
     horizon_xps: dict[int, float],
+    snapshots: dict[int, dict[str, float | None]],
 ) -> dict[str, Any]:
     p = by_id[player_id]
+    snap = snapshots.get(player_id, {})
+    avg_diff = snap.get("avg_upcoming_difficulty")
+    avg_elo = snap.get("avg_upcoming_elo_expected_score")
+    form = snap.get("form_score")
     return {
         "player_id": player_id,
         "web_name": p.web_name,
@@ -239,6 +273,18 @@ def _enriched_player(
         "position_id": p.element_type,
         "now_cost": p.now_cost,
         "horizon_xp": round(horizon_xps.get(player_id, 0.0), 4),
+        # Fixture-quality signals surfaced for the expand-on-tap card
+        # (#97). All three are nullable: a player whose form analyzer
+        # row is missing (new arrival, ingest race) gets ``None`` here
+        # rather than zeroing out the value, so the UI can render "—"
+        # instead of misleading numbers.
+        "form_score": None if form is None else round(form, 4),
+        "avg_upcoming_difficulty": (
+            None if avg_diff is None else round(avg_diff, 4)
+        ),
+        "avg_upcoming_elo_expected_score": (
+            None if avg_elo is None else round(avg_elo, 4)
+        ),
     }
 
 
@@ -246,10 +292,15 @@ def _suggestion_to_dict(
     candidate: TransferCandidate,
     by_id: dict[int, Any],
     horizon_xps: dict[int, float],
+    snapshots: dict[int, dict[str, float | None]],
 ) -> dict[str, Any]:
     return {
-        "out": _enriched_player(candidate.out_player_id, by_id, horizon_xps),
-        "in": _enriched_player(candidate.in_player_id, by_id, horizon_xps),
+        "out": _enriched_player(
+            candidate.out_player_id, by_id, horizon_xps, snapshots
+        ),
+        "in": _enriched_player(
+            candidate.in_player_id, by_id, horizon_xps, snapshots
+        ),
         "delta_xp": round(candidate.delta_xp, 4),
         "cost_change": candidate.cost_change,
     }
@@ -340,8 +391,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         )
 
-    forms = _read_player_forms(table)
-    if not forms:
+    snapshots = _read_player_forms(table)
+    if not snapshots:
         raise RuntimeError(
             "analytics#player_form rows missing — has the form analyzer run?"
         )
@@ -349,7 +400,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     by_id = {p.id: p for p in bootstrap.players}
     horizon_xps: dict[int, float] = {}
     for player in bootstrap.players:
-        form_score = forms.get(player.id, 0.0)
+        snap = snapshots.get(player.id, {})
+        form_score = snap.get("form_score") or 0.0
         horizon_xps[player.id] = horizon_xp(
             player, form_score, fixtures, horizon_gw_ids
         )
@@ -395,7 +447,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 sum(horizon_xps.get(pid, 0.0) for pid in squad_ids), 4
             ),
             "suggestions": [
-                _suggestion_to_dict(c, by_id, horizon_xps) for c in candidates
+                _suggestion_to_dict(c, by_id, horizon_xps, snapshots)
+                for c in candidates
             ],
         },
     )

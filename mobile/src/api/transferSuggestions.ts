@@ -10,6 +10,18 @@ export type SuggestionPlayer = {
   now_cost: number;
   /** Projected expected points across the requested horizon. */
   horizon_xp: number;
+  /** Weighted form score from the player-form analyzer. Null when no
+   *  analytics row exists for this player yet (new arrival, ingest
+   *  race). The mobile expand-on-tap card renders null as "—". */
+  form_score: number | null;
+  /** Mean of FPL's 1–5 fixture difficulty across the next ~5 fixtures.
+   *  Lower is easier. Null when none of the upcoming fixtures had a
+   *  difficulty value. */
+  avg_upcoming_difficulty: number | null;
+  /** Mean ClubELO-derived expected score (~win probability + half draw)
+   *  across the next ~5 fixtures, on 0–1. Higher is more favourable.
+   *  Null when no fixtures had ClubELO ratings on both sides. */
+  avg_upcoming_elo_expected_score: number | null;
 };
 
 /** A single ranked swap. */

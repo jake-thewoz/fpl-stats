@@ -104,14 +104,40 @@ for gw_id in (33, 34, 35):
         FIXTURES_DATA.append(_fx(gw_id * 100 + fx_id, gw_id, h, a))
 
 
+# Each row carries form_score plus the two fixture-quality signals the
+# transfer-suggestion expand UI surfaces (#97). Keeping the values
+# distinct per player so test assertions pin to the right row.
 PLAYER_FORM_ROWS = [
-    {"pk": "analytics#player_form", "sk": "101", "form_score": Decimal("6.0")},
-    {"pk": "analytics#player_form", "sk": "102", "form_score": Decimal("4.0")},
-    {"pk": "analytics#player_form", "sk": "201", "form_score": Decimal("8.0")},
-    {"pk": "analytics#player_form", "sk": "401", "form_score": Decimal("1.0")},
-    {"pk": "analytics#player_form", "sk": "501", "form_score": Decimal("9.0")},
-    {"pk": "analytics#player_form", "sk": "502", "form_score": Decimal("7.5")},
-    {"pk": "analytics#player_form", "sk": "503", "form_score": Decimal("4.0")},
+    {"pk": "analytics#player_form", "sk": "101",
+     "form_score": Decimal("6.0"),
+     "avg_upcoming_difficulty": Decimal("3.2"),
+     "avg_upcoming_elo_expected_score": Decimal("0.55")},
+    {"pk": "analytics#player_form", "sk": "102",
+     "form_score": Decimal("4.0"),
+     "avg_upcoming_difficulty": Decimal("3.4"),
+     "avg_upcoming_elo_expected_score": Decimal("0.50")},
+    {"pk": "analytics#player_form", "sk": "201",
+     "form_score": Decimal("8.0"),
+     "avg_upcoming_difficulty": Decimal("2.6"),
+     "avg_upcoming_elo_expected_score": Decimal("0.65")},
+    {"pk": "analytics#player_form", "sk": "401",
+     "form_score": Decimal("1.0"),
+     "avg_upcoming_difficulty": Decimal("4.2"),
+     "avg_upcoming_elo_expected_score": Decimal("0.30")},
+    {"pk": "analytics#player_form", "sk": "501",
+     "form_score": Decimal("9.0"),
+     "avg_upcoming_difficulty": Decimal("2.0"),
+     "avg_upcoming_elo_expected_score": Decimal("0.70")},
+    # 502 carries form but no fixture signals — covers the "new arrival
+    # / missing data" path where the response should serialise null.
+    {"pk": "analytics#player_form", "sk": "502",
+     "form_score": Decimal("7.5"),
+     "avg_upcoming_difficulty": None,
+     "avg_upcoming_elo_expected_score": None},
+    {"pk": "analytics#player_form", "sk": "503",
+     "form_score": Decimal("4.0"),
+     "avg_upcoming_difficulty": Decimal("3.0"),
+     "avg_upcoming_elo_expected_score": Decimal("0.50")},
 ]
 
 
@@ -258,6 +284,53 @@ def test_happy_path_returns_ranked_suggestions(mock_table):
     assert s["in"]["web_name"] == "CheapDef2"
     assert s["out"]["horizon_xp"] == 1.8
     assert s["in"]["horizon_xp"] == 7.2
+
+
+def test_enriched_player_carries_form_and_fixture_signals(mock_table):
+    """Each side of every suggestion exposes form_score, avg_upcoming_difficulty,
+    and avg_upcoming_elo_expected_score so the mobile expand-on-tap card
+    (#97) can render its comparison table without a second round-trip."""
+    response = lambda_handler(_event(), None)
+    body = _body(response)
+    s = body["suggestions"][0]
+
+    # 401 (CheapDef, going out) — values from the fixture row.
+    assert s["out"]["form_score"] == 1.0
+    assert s["out"]["avg_upcoming_difficulty"] == 4.2
+    assert s["out"]["avg_upcoming_elo_expected_score"] == 0.3
+
+    # 503 (CheapDef2, coming in).
+    assert s["in"]["form_score"] == 4.0
+    assert s["in"]["avg_upcoming_difficulty"] == 3.0
+    assert s["in"]["avg_upcoming_elo_expected_score"] == 0.5
+
+
+def test_enriched_player_handles_null_fixture_signals(mock_table):
+    """When a player's analytics#player_form row has null
+    avg_upcoming_difficulty / elo (no upcoming fixtures with known
+    ratings), the response forwards null rather than zeroing out."""
+    # Bigger bank so 502's swap-in becomes viable and we can read its block.
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+
+    mock_table.get_item.side_effect = get_item
+    response = lambda_handler(_event(), None)
+    body = _body(response)
+
+    # Find a suggestion where 502 appears (in or out) — it's the player
+    # whose fixture signals are null in the fixture data.
+    swap_with_502 = next(
+        s for s in body["suggestions"]
+        if s["in"]["player_id"] == 502 or s["out"]["player_id"] == 502
+    )
+    side = "in" if swap_with_502["in"]["player_id"] == 502 else "out"
+    assert swap_with_502[side]["form_score"] == 7.5
+    assert swap_with_502[side]["avg_upcoming_difficulty"] is None
+    assert swap_with_502[side]["avg_upcoming_elo_expected_score"] is None
 
 
 def test_happy_path_bigger_bank_unlocks_more_swaps(mock_table):
