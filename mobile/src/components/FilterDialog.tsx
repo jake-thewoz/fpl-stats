@@ -94,26 +94,30 @@ export function FilterDialog({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <Pressable onPress={onClear} hitSlop={8}>
-            {({ pressed }) => (
-              <Text style={[styles.topAction, pressed && styles.pressed]}>
-                Clear
-              </Text>
-            )}
+          <Pressable
+            onPress={onClear}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.topActionBtn,
+              styles.topActionBtnSecondary,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.topActionTextSecondary}>Clear</Text>
           </Pressable>
           <Text style={styles.title}>Filter</Text>
-          <Pressable onPress={onDone} hitSlop={8}>
-            {({ pressed }) => (
-              <Text
-                style={[
-                  styles.topAction,
-                  styles.topActionStrong,
-                  pressed && styles.pressed,
-                ]}
-              >
-                Done
-              </Text>
-            )}
+          <Pressable
+            onPress={onDone}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.topActionBtn,
+              styles.topActionBtnPrimary,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.topActionTextPrimary}>Done</Text>
           </Pressable>
         </View>
 
@@ -301,8 +305,33 @@ const makeStyles = (c: Colors) =>
       borderBottomColor: c.border,
     },
     title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
-    topAction: { fontSize: 16, color: c.accent },
-    topActionStrong: { fontWeight: '600' },
+    // Top-bar actions are filled buttons for clear visual weight — text-only
+    // labels were too easy to miss in dark mode (#96 PR review).
+    topActionBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+      minWidth: 64,
+      alignItems: 'center',
+    },
+    topActionBtnPrimary: {
+      backgroundColor: c.accent,
+    },
+    topActionBtnSecondary: {
+      backgroundColor: c.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    topActionTextPrimary: {
+      color: c.onAccent,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    topActionTextSecondary: {
+      color: c.textPrimary,
+      fontSize: 15,
+      fontWeight: '500',
+    },
     pressed: { opacity: 0.5 },
     scrollBody: { paddingBottom: 64 },
     section: { marginTop: 24 },

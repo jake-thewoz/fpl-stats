@@ -18,18 +18,17 @@ export function ColumnPickerDialog({ visible, onClose, selected, onToggle }: Pro
         <View style={styles.topBar}>
           <View style={styles.topActionPlaceholder} />
           <Text style={styles.title}>Columns</Text>
-          <Pressable onPress={onClose} hitSlop={8}>
-            {({ pressed }) => (
-              <Text
-                style={[
-                  styles.topAction,
-                  styles.topActionStrong,
-                  pressed && styles.pressed,
-                ]}
-              >
-                Done
-              </Text>
-            )}
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.topActionBtn,
+              styles.topActionBtnPrimary,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.topActionTextPrimary}>Done</Text>
           </Pressable>
         </View>
 
@@ -106,9 +105,24 @@ const makeStyles = (c: Colors) =>
       borderBottomColor: c.border,
     },
     title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
-    topAction: { fontSize: 16, color: c.accent },
-    topActionStrong: { fontWeight: '600' },
-    topActionPlaceholder: { minWidth: 50 },
+    // Filled-button actions in the top bar — text-only labels were
+    // too easy to miss in dark mode (#96 PR review).
+    topActionBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+      minWidth: 64,
+      alignItems: 'center',
+    },
+    topActionBtnPrimary: { backgroundColor: c.accent },
+    topActionTextPrimary: {
+      color: c.onAccent,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    // Reserves space symmetrically opposite the Done button so the
+    // "Columns" title stays centered in the top bar.
+    topActionPlaceholder: { minWidth: 64, paddingHorizontal: 14, paddingVertical: 8 },
     pressed: { opacity: 0.5 },
     scrollBody: { paddingBottom: 32 },
     section: { marginTop: 24 },

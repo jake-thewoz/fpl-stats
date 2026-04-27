@@ -18,6 +18,12 @@ export function MainTabs() {
   // is set at the tab level and the stack-level headers stay.
   // Re-derive on every theme change so the tab bar tints + background flip
   // immediately when the user toggles theme.
+  //
+  // Padding/height: react-navigation adds bottom safe-area inset on devices
+  // with home indicators, but on emulators and the web build the inset is 0
+  // and the icons + labels sit too close to the screen edge. The explicit
+  // height + paddingBottom guarantees breathing room everywhere; on real
+  // devices with a home indicator, the safe-area inset stacks on top.
   const tabOptions = useMemo(
     () => ({
       headerShown: false,
@@ -26,6 +32,12 @@ export function MainTabs() {
       tabBarStyle: {
         backgroundColor: colors.surface,
         borderTopColor: colors.border,
+        height: 64,
+        paddingTop: 6,
+        paddingBottom: 10,
+      },
+      tabBarLabelStyle: {
+        marginTop: 2,
       },
     }),
     [colors],

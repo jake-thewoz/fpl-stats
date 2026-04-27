@@ -40,26 +40,39 @@ export function PositionFilterDialog({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <Pressable onPress={onClearAll} hitSlop={8} disabled={!hasAny}>
-            {({ pressed }) => (
-              <Text
-                style={[
-                  styles.topAction,
-                  !hasAny && styles.topActionDisabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                Clear
-              </Text>
-            )}
+          <Pressable
+            onPress={onClearAll}
+            hitSlop={8}
+            disabled={!hasAny}
+            style={({ pressed }) => [
+              styles.topActionBtn,
+              styles.topActionBtnSecondary,
+              !hasAny && styles.topActionBtnDisabled,
+              pressed && hasAny && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text
+              style={[
+                styles.topActionTextSecondary,
+                !hasAny && styles.topActionTextDisabled,
+              ]}
+            >
+              Clear
+            </Text>
           </Pressable>
           <Text style={styles.title}>Filter</Text>
-          <Pressable onPress={onClose} hitSlop={8}>
-            {({ pressed }) => (
-              <Text style={[styles.topAction, styles.topActionStrong, pressed && styles.pressed]}>
-                Done
-              </Text>
-            )}
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.topActionBtn,
+              styles.topActionBtnPrimary,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.topActionTextPrimary}>Done</Text>
           </Pressable>
         </View>
 
@@ -118,9 +131,33 @@ const makeStyles = (c: Colors) =>
       borderBottomColor: c.border,
     },
     title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
-    topAction: { fontSize: 16, color: c.accent },
-    topActionStrong: { fontWeight: '600' },
-    topActionDisabled: { color: c.textMuted, opacity: 0.5 },
+    // Filled-button actions in the top bar — text-only labels were
+    // too easy to miss in dark mode (#96 PR review).
+    topActionBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+      minWidth: 64,
+      alignItems: 'center',
+    },
+    topActionBtnPrimary: { backgroundColor: c.accent },
+    topActionBtnSecondary: {
+      backgroundColor: c.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    topActionBtnDisabled: { opacity: 0.4 },
+    topActionTextPrimary: {
+      color: c.onAccent,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    topActionTextSecondary: {
+      color: c.textPrimary,
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    topActionTextDisabled: { color: c.textMuted },
     pressed: { opacity: 0.5 },
     section: { marginTop: 24 },
     sectionTitle: {

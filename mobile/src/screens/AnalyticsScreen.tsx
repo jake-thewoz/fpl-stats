@@ -349,7 +349,12 @@ function CenterBadge({
       <View style={styles.arrowRow}>
         <Text style={styles.arrowText}>→</Text>
       </View>
-      <Text style={styles.deltaXp}>{xpStr}</Text>
+      {/* xP delta gets a filled accent pill — the headline value of the
+          card. Plain accent-colored text was washing out in dark mode
+          (#96 PR review). */}
+      <View style={styles.deltaXpPill}>
+        <Text style={styles.deltaXpPillText}>{xpStr}</Text>
+      </View>
       <Text style={styles.deltaCost}>{costStr}</Text>
     </View>
   );
@@ -658,10 +663,16 @@ const makeStyles = (colors: Colors) =>
     fontSize: 16,
     color: colors.textMuted,
   },
-  deltaXp: {
-    fontSize: 14,
+  deltaXpPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: colors.accent,
+  },
+  deltaXpPillText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: colors.accent,
+    color: colors.onAccent,
   },
   deltaCost: {
     fontSize: 11,

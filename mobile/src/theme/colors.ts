@@ -34,18 +34,21 @@ export const lightPalette = {
  * - **`border`** — white-at-low-opacity. Mirrors the light palette
  *   trick of a low-opacity neutral border that harmonizes with every
  *   palette hue rather than picking one.
- * - **`accent`** — promoted from eggplant to **mauve** on dark. The
- *   eggplant disappears against a near-black surface; mauve is the
- *   same hue, brighter chroma, and reads as "interactive" without
- *   overpowering content text.
- * - **`textMuted`** — a desaturated mauve (`#a394a0`). Pure grey on a
- *   purple-cool surface looks dingy; keeping a hint of the brand hue
- *   makes muted text feel intentional.
+ * - **`accent` `#c69ab8`** — light mauve. The light-mode eggplant
+ *   (`#553555`) and the original dark-mode mauve (`#755b69`) both
+ *   disappear against a near-black surface; pushing further up the
+ *   lightness scale keeps the mauve hue but gives enough contrast for
+ *   tab-bar icons, sort arrows, and chip text to actually read.
+ * - **`textMuted` `#c2b3be`** — bright desaturated mauve. A
+ *   neutral grey on a purple-cool surface looks dingy; keeping a hint
+ *   of the brand hue makes muted text feel intentional. Tuned upward
+ *   from the original `#a394a0` for legibility on small UI like the
+ *   tab bar's inactive-tab labels.
  * - **`accentSoft`** — sage stays put (it already reads well on dark).
  * - **`highlight`** — mint stays put for the same reason.
- * - **`onAccent`** flips to white on the dark palette since the dark
- *   accent (mauve) is mid-tone — white reads more confidently than
- *   the light-mode eggplant-on-white pairing did.
+ * - **`onAccent`** stays black-on-light-mauve. The brighter dark-mode
+ *   accent is too light for white text to read confidently against;
+ *   black gives a clean, high-contrast pairing.
  * - **`danger`/`warning`** brighter variants. The light-mode
  *   `#c0495c` red drowns on a dark background; `#e0667a` lifts it.
  *   Same logic for `warning`.
@@ -53,7 +56,10 @@ export const lightPalette = {
 export const darkPalette = {
   black: '#070707',
   eggplant: '#553555',
-  mauve: '#755b69',
+  // Light mauve — the dark-mode-specific accent variant. Bright enough
+  // to read against `surface` and `background` while staying in the
+  // brand hue family.
+  mauveLight: '#c69ab8',
   sage: '#96c5b0',
   mint: '#adf1d2',
 } as const;
@@ -101,12 +107,15 @@ export const darkColors: Colors = {
   surface: '#171520',
   border: 'rgba(255, 255, 255, 0.10)',
   textPrimary: '#f4f1f7',
-  textMuted: '#a394a0',
-  // Promoted from eggplant to mauve so it actually reads on dark.
-  accent: darkPalette.mauve,
+  textMuted: '#c2b3be',
+  // Light mauve — bright enough to read against the near-black surface
+  // for tab-bar icons, sort arrows, and chip text.
+  accent: darkPalette.mauveLight,
   accentSoft: darkPalette.sage,
   highlight: darkPalette.mint,
-  onAccent: '#ffffff',
+  // Black on light-mauve gives crisp 8.4:1 contrast; white drops to ~3:1
+  // and makes filled buttons feel washed out.
+  onAccent: darkPalette.black,
   onAccentSoft: darkPalette.black,
   onHighlight: darkPalette.black,
   // Lifted versions of light-mode danger/warning for legibility on dark.
