@@ -197,6 +197,20 @@ def _ddb_get_item_default(key):
 
 
 def _ddb_query_default(**kwargs):
+    """Default query mock — routes by partition so the v2 default path
+    finds horizon rows and v1 still finds player_form rows. The
+    `_query_pk` helper is defined further down with the v2-section
+    helpers; importing that ordering wouldn't read well, so we use
+    the same `get_expression()` shape inline here."""
+    cond = kwargs.get("KeyConditionExpression")
+    pk = ""
+    if cond is not None:
+        try:
+            pk = cond.get_expression()["values"][1]
+        except (AttributeError, KeyError, IndexError, TypeError):
+            pk = ""
+    if pk == "analytics#player_xp_v2":
+        return {"Items": V2_XP_ROWS}
     return {"Items": PLAYER_FORM_ROWS}
 
 
@@ -238,8 +252,11 @@ def _body(response):
 
 
 def test_happy_path_returns_ranked_suggestions(mock_table):
-    """Hand-picked math: each fixture has difficulty 3 (easiness 0.6),
-    every team plays exactly once each GW, all players are 'a' status.
+    """Hand-picked math, explicitly via the v1 path (post-Phase 7 the
+    default is v2 and the form-based arithmetic below is v1-specific).
+
+    Each fixture has difficulty 3 (easiness 0.6), every team plays
+    exactly once each GW, all players are 'a' status.
     horizon_xp(player) = form * 0.6 * 1.0 * 1 * 3 GWs = 1.8 * form.
 
       Squad horizon xPs:
@@ -262,7 +279,7 @@ def test_happy_path_returns_ranked_suggestions(mock_table):
 
       So only one valid swap surfaces: (401 out, 503 in).
     """
-    response = lambda_handler(_event(), None)
+    response = lambda_handler(_event(model="v1"), None)
     assert response["statusCode"] == 200
     body = _body(response)
 
@@ -624,115 +641,167 @@ def test_position_filter_mixed_valid_and_garbage_keeps_valid(mock_table):
 
 
 # ---------------------------------------------------------------------------
-# v2 model path (?model=v2 — opt-in for Phase 6, default in Phase 7)
+# v2 model path
+#
+# Phase 7 (#118): default flipped to v2; v1 still served for ?model=v1
+# during the soak window. v2 reads pre-computed horizon predictions from
+# analytics#player_xp_v2 (one Query, ~100 ms) instead of scanning history
+# rows + computing on the fly.
 # ---------------------------------------------------------------------------
 
 
-def _history_row(*, player_id: int, opponent: int, was_home: bool,
-                 round_: int, fixture_id: int,
-                 minutes: int = 90, goals: int = 0, assists: int = 0,
-                 bonus: int = 0, xg: str = "0.20", xa: str = "0.15",
-                 xgc: str = "1.20", defcon: int = 8) -> dict:
-    """One per-fixture history row in the on-disk DDB shape (the row's
-    `data` map is what `PlayerHistoryRow.model_validate` consumes)."""
+def _v2_xp_row(player_id: int, *, horizon_xp_by_gw: dict[int, str]) -> dict:
+    """Mock row matching what analyze_player_xp_v2 writes — Phase 7 added
+    the horizon_xp_by_gw map to the existing per-player record."""
     return {
-        "element": player_id, "fixture": fixture_id,
-        "opponent_team": opponent, "was_home": was_home, "round": round_,
-        "minutes": minutes, "goals_scored": goals, "assists": assists,
-        "clean_sheets": 0, "goals_conceded": 1, "saves": 0, "bonus": bonus,
-        "bps": 25, "yellow_cards": 0, "red_cards": 0, "own_goals": 0,
-        "penalties_saved": 0, "penalties_missed": 0, "total_points": 4,
-        "expected_goals": xg, "expected_assists": xa,
-        "expected_goals_conceded": xgc, "defensive_contribution": defcon,
+        "pk": "analytics#player_xp_v2",
+        "sk": str(player_id),
+        "schema_version": 1,
+        "model_version": "v2.0",
+        "computed_at": "2026-04-28T04:30:00+00:00",
+        "player_id": player_id,
+        "gameweek": 33,
+        "horizon_gw_ids": [33, 34, 35, 36, 37],
+        "horizon_xp_by_gw": {
+            str(gw): Decimal(xp) for gw, xp in horizon_xp_by_gw.items()
+        },
     }
 
 
-def _scan_items_for_player(player_id: int, *, opponent: int) -> list[dict]:
-    """Five prior-GW history rows wrapped in the DDB pk/sk/data shape
-    expected by ``v2_horizon.scan_player_history``."""
-    items = []
-    for r in range(27, 32):
-        items.append({
-            "pk": f"fpl#player_history#{player_id}",
-            "sk": f"gw#{r:03d}#fixture#{r}",
-            "data": _history_row(
-                player_id=player_id, opponent=opponent,
-                was_home=True, round_=r, fixture_id=r,
-            ),
-        })
-    return items
+# Synthetic v2 horizon for every player in the squad + pool. Distinct
+# values per player so ranking math is deterministic.
+V2_XP_ROWS = [
+    _v2_xp_row(101, horizon_xp_by_gw={
+        33: "5.0", 34: "5.5", 35: "6.0", 36: "5.5", 37: "5.2",
+    }),
+    _v2_xp_row(102, horizon_xp_by_gw={
+        33: "3.0", 34: "3.0", 35: "3.0", 36: "3.0", 37: "3.0",
+    }),
+    _v2_xp_row(201, horizon_xp_by_gw={
+        33: "7.5", 34: "7.0", 35: "7.5", 36: "8.0", 37: "7.0",
+    }),
+    _v2_xp_row(401, horizon_xp_by_gw={
+        33: "1.5", 34: "1.5", 35: "1.5", 36: "1.5", 37: "1.5",
+    }),
+    _v2_xp_row(501, horizon_xp_by_gw={
+        33: "8.5", 34: "9.0", 35: "8.5", 36: "8.0", 37: "8.5",
+    }),
+    _v2_xp_row(502, horizon_xp_by_gw={
+        33: "6.5", 34: "6.0", 35: "7.0", 36: "6.5", 37: "6.5",
+    }),
+    _v2_xp_row(503, horizon_xp_by_gw={
+        33: "3.5", 34: "3.5", 35: "3.5", 36: "3.5", 37: "3.5",
+    }),
+]
 
 
-def _build_history_scan_items() -> list[dict]:
-    """Synthetic history covering every player in the squad + pool, so
-    ``compute_v2_horizon_xps`` finds rows for each. Opponent ids are
-    arbitrary (not used in the v2 horizon math at this fidelity)."""
-    items: list[dict] = []
-    for pid in (101, 102, 201, 401, 501, 502, 503):
-        items.extend(_scan_items_for_player(pid, opponent=99))
-    return items
+def _query_pk(kwargs: dict) -> str:
+    """Pull the pk value out of a `Key("pk").eq(...)` condition for
+    routing the mocked query response. Uses `get_expression()` rather
+    than the private `_values` attribute so this stays robust against
+    boto3 internals changing."""
+    cond = kwargs.get("KeyConditionExpression")
+    if cond is None:
+        return ""
+    try:
+        return cond.get_expression()["values"][1]
+    except (AttributeError, KeyError, IndexError, TypeError):
+        return ""
 
 
-def _scan_returns_history(items: list[dict]):
-    """A fixture-driven `table.scan` side-effect: single-page response
-    matching what `v2_horizon.scan_player_history` paginates over."""
-    def _scan(**kwargs):
-        return {"Items": items}
-    return _scan
+def _ddb_query_with_v2(**kwargs):
+    """Returns v2 xp rows on a `pk = analytics#player_xp_v2` query, falls
+    through to the v1 player_form rows otherwise."""
+    if _query_pk(kwargs) == "analytics#player_xp_v2":
+        return {"Items": V2_XP_ROWS}
+    return {"Items": PLAYER_FORM_ROWS}
 
 
 @pytest.fixture
-def mock_table_with_history(mock_table):
-    """Extend the base `mock_table` with a populated `table.scan` so the
-    v2 path can find history rows. Tests that only exercise v1 keep
-    using `mock_table` and ignore scan."""
-    mock_table.scan.side_effect = _scan_returns_history(
-        _build_history_scan_items()
-    )
+def mock_table_v2_ready(mock_table):
+    """Extend the base `mock_table` with v2 query routing — `query`
+    returns v2 rows for analytics#player_xp_v2 and player_form rows
+    otherwise. Default-model tests use this fixture; v1-only tests
+    keep using mock_table and ignore the v2 partition."""
+    mock_table.query.side_effect = _ddb_query_with_v2
     return mock_table
 
 
 # parse_model edge cases — small, fast, document the contract.
 
-def test_parse_model_default_is_v1(mock_table_with_history):
-    """No ?model query param → v1 served. Mobile sees no change after
-    deploy unless they explicitly opt in."""
+def test_parse_model_default_is_v2(mock_table_v2_ready):
+    """Phase 7 (#118): default flipped to v2. Clients without ?model=
+    now get v2 numbers."""
     body = _body(lambda_handler(_event(), None))
+    assert body["model"] == "v2"
+
+
+def test_parse_model_v1_opt_out_still_works(mock_table_v2_ready):
+    """?model=v1 keeps the legacy ranking. Reachable through the soak
+    window so we can flip back if v2 misbehaves on real users."""
+    body = _body(lambda_handler(_event(model="v1"), None))
     assert body["model"] == "v1"
 
 
-def test_parse_model_v2_routes_to_v2(mock_table_with_history):
-    """?model=v2 → v2 served end-to-end."""
+def test_parse_model_v2_explicit_routes_to_v2(mock_table_v2_ready):
+    """?model=v2 still works (now redundant with the default but
+    forward-compatible with Phase 7-aware clients)."""
     body = _body(lambda_handler(_event(model="v2"), None))
     assert body["model"] == "v2"
 
 
-def test_parse_model_unknown_value_falls_back_to_default(mock_table_with_history):
-    """A future v3 token from a stale client should degrade to default
-    (v1) rather than 400-erroring."""
+def test_parse_model_unknown_value_falls_back_to_default(mock_table_v2_ready):
+    """Stale clients sending ?model=v3 should degrade to the current
+    default (v2 post-Phase 7)."""
     body = _body(lambda_handler(_event(model="v99"), None))
-    assert body["model"] == "v1"
-
-
-def test_parse_model_case_insensitive(mock_table_with_history):
-    """Defensive: V2 / V2 / v2 all route to v2 — capitalization
-    inconsistency from a future SDK shouldn't fail open."""
-    body = _body(lambda_handler(_event(model="V2"), None))
     assert body["model"] == "v2"
 
 
-# v2 happy path
+def test_parse_model_case_insensitive(mock_table_v2_ready):
+    """Defensive: V1 / v1 / V2 / v2 all parse correctly."""
+    body = _body(lambda_handler(_event(model="V1"), None))
+    assert body["model"] == "v1"
 
-def test_v2_path_returns_response_in_same_shape(mock_table_with_history):
-    """The wire shape that mobile depends on must be identical between
-    v1 and v2 — only the horizon_xp numbers differ. The default flip
-    in Phase 7 then becomes a wire-no-op."""
-    body_v1 = _body(lambda_handler(_event(), None))
+
+# v2 happy path — reads pre-computed horizon and sums per request
+
+def test_v2_path_sums_horizon_xp_by_gw(mock_table_v2_ready):
+    """current_squad_xp = sum over (squad players × horizon GWs) of the
+    pre-computed per-GW values. With horizon=3 (default), squad
+    [101, 102, 201, 401] sums GWs 33+34+35:
+        101: 5.0+5.5+6.0  = 16.5
+        102: 3.0+3.0+3.0  =  9.0
+        201: 7.5+7.0+7.5  = 22.0
+        401: 1.5+1.5+1.5  =  4.5
+        total            = 52.0
+    """
+    body = _body(lambda_handler(_event(), None))
+    assert body["current_squad_xp"] == pytest.approx(52.0)
+
+
+def test_v2_path_horizon_param_changes_sum(mock_table_v2_ready):
+    """horizon=1 picks GW33 only; default horizon=3 picks GW33-35.
+    The summed current_squad_xp scales with horizon size.
+
+    Bootstrap has only 3 unfinished GWs, so horizon>3 clamps to 3 and
+    yields the same sum — covered by test_horizon_clamps_to_remaining_season.
+    """
+    body_h1 = _body(lambda_handler(_event(horizon=1), None))
+    body_default = _body(lambda_handler(_event(), None))
+    # h=1: per-player GW33 → 5.0 + 3.0 + 7.5 + 1.5 = 17.0
+    assert body_h1["current_squad_xp"] == pytest.approx(17.0)
+    # default h=3: same as test_v2_path_sums_horizon_xp_by_gw above
+    assert body_default["current_squad_xp"] == pytest.approx(52.0)
+    assert body_h1["current_squad_xp"] < body_default["current_squad_xp"]
+
+
+def test_v2_path_returns_response_in_same_shape(mock_table_v2_ready):
+    """Wire shape parity between v1 and v2 — the Phase 7 default flip
+    is a wire-no-op for mobile clients."""
+    body_v1 = _body(lambda_handler(_event(model="v1"), None))
     body_v2 = _body(lambda_handler(_event(model="v2"), None))
 
-    # Top-level keys match exactly.
     assert set(body_v1) == set(body_v2)
-    # Suggestions structure matches per-row.
     if body_v1["suggestions"] and body_v2["suggestions"]:
         assert set(body_v1["suggestions"][0]) == set(body_v2["suggestions"][0])
         assert set(body_v1["suggestions"][0]["out"]) == set(
@@ -740,25 +809,13 @@ def test_v2_path_returns_response_in_same_shape(mock_table_with_history):
         )
 
 
-def test_v2_path_horizon_xps_differ_from_v1(mock_table_with_history):
-    """Sanity check that v2 actually swapped in different numbers — if
-    they came out exactly equal the branch wiring would be wrong.
-    current_squad_xp is the easiest single value to compare."""
-    body_v1 = _body(lambda_handler(_event(), None))
-    body_v2 = _body(lambda_handler(_event(model="v2"), None))
-    assert body_v1["current_squad_xp"] != body_v2["current_squad_xp"]
-
-
-def test_v2_path_preserves_form_explainability_fields(mock_table_with_history):
-    """Mobile expects form_score / avg_upcoming_difficulty / etc on each
-    enriched player. v2 reuses the v1 player_form snapshots for these
-    UI fields, so their values are unchanged across models — only
-    horizon_xp differs."""
-    body_v1 = _body(lambda_handler(_event(), None))
+def test_v2_path_preserves_form_explainability_fields(mock_table_v2_ready):
+    """Form / fixture / ELO fields still come from analytics#player_form
+    under both models — UI is unchanged, only horizon_xp ranking switches."""
+    body_v1 = _body(lambda_handler(_event(model="v1"), None))
     body_v2 = _body(lambda_handler(_event(model="v2"), None))
     if not body_v1["suggestions"] or not body_v2["suggestions"]:
         return
-    # Per-suggestion: form/diff/elo equal across models, horizon_xp differs.
     for s_v1, s_v2 in zip(body_v1["suggestions"], body_v2["suggestions"]):
         for side in ("out", "in"):
             assert s_v1[side]["form_score"] == s_v2[side]["form_score"]
@@ -768,18 +825,24 @@ def test_v2_path_preserves_form_explainability_fields(mock_table_with_history):
             )
 
 
-def test_v2_path_missing_player_history_raises(mock_table):
-    """v2 is downstream of ingest_player_history. With no history rows,
-    fail loud rather than serve predictions made against pure priors."""
-    mock_table.scan.side_effect = _scan_returns_history([])
+def test_v2_path_missing_v2_xp_rows_raises(mock_table):
+    """v2 reader is downstream of analyze_player_xp_v2. No rows means
+    the writer hasn't run yet (fresh deploy). Fail loud — better than
+    serving zero-ranked suggestions."""
+    def query_side_effect(**kwargs):
+        if _query_pk(kwargs) == "analytics#player_xp_v2":
+            return {"Items": []}
+        return {"Items": PLAYER_FORM_ROWS}
+    mock_table.query.side_effect = query_side_effect
 
-    with pytest.raises(RuntimeError, match="fpl#player_history"):
+    with pytest.raises(RuntimeError, match="analytics#player_xp_v2"):
         lambda_handler(_event(model="v2"), None)
 
 
-def test_v2_path_doesnt_scan_when_v1_requested(mock_table_with_history):
-    """v1 must never trigger a player_history scan — only v2 needs
-    those rows. Keeps the v1 path's latency profile unchanged for the
-    default user."""
-    lambda_handler(_event(), None)
-    mock_table_with_history.scan.assert_not_called()
+def test_v1_path_does_not_query_v2_partition(mock_table_v2_ready):
+    """?model=v1 must not waste a Query on the v2 partition — the v1
+    path is fully self-contained on player_form rows."""
+    lambda_handler(_event(model="v1"), None)
+    # Inspect every Query call: none of them should target v2.
+    for call in mock_table_v2_ready.query.call_args_list:
+        assert _query_pk(call.kwargs) != "analytics#player_xp_v2"

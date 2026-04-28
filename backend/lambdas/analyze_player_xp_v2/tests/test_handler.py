@@ -64,17 +64,43 @@ BOOTSTRAP_DATA = {
             "deadline_time": "2026-04-22T10:00:00Z",
             "is_current": False, "is_next": True, "finished": False,
         },
+        {
+            "id": 34, "name": "Gameweek 34",
+            "deadline_time": "2026-04-29T10:00:00Z",
+            "is_current": False, "is_next": False, "finished": False,
+        },
+        {
+            "id": 35, "name": "Gameweek 35",
+            "deadline_time": "2026-05-06T10:00:00Z",
+            "is_current": False, "is_next": False, "finished": False,
+        },
+        {
+            "id": 36, "name": "Gameweek 36",
+            "deadline_time": "2026-05-13T10:00:00Z",
+            "is_current": False, "is_next": False, "finished": False,
+        },
+        {
+            "id": 37, "name": "Gameweek 37",
+            "deadline_time": "2026-05-20T10:00:00Z",
+            "is_current": False, "is_next": False, "finished": False,
+        },
     ],
 }
 
-# GW33: Arsenal hosts Chelsea. team 1 home, diff 3; team 2 away, diff 4.
+# GW33-37: Arsenal vs Chelsea each gameweek (5 GWs covering MAX_HORIZON).
+# All home/away alternates; difficulties stay 3/4 for predictability.
 # Kickoff far in the past so the match-window guard never trips.
 FIXTURES_DATA = [
     {
-        "id": 301, "event": 33, "kickoff_time": "2025-08-15T17:30:00Z",
-        "team_h": 1, "team_a": 2, "finished": False, "started": False,
-        "team_h_difficulty": 3, "team_a_difficulty": 4,
-    },
+        "id": 300 + i, "event": gw,
+        "kickoff_time": "2025-08-15T17:30:00Z",
+        "team_h": 1 if i % 2 == 0 else 2,
+        "team_a": 2 if i % 2 == 0 else 1,
+        "finished": False, "started": False,
+        "team_h_difficulty": 3,
+        "team_a_difficulty": 4,
+    }
+    for i, gw in enumerate(range(33, 38))
 ]
 
 
@@ -169,7 +195,13 @@ def _items_by_player(writer):
 
 
 def test_happy_path_writes_one_v2_row_per_player(mock_table) -> None:
-    """3 players × 1 upcoming GW → 3 v2 rows under analytics#player_xp_v2."""
+    """3 players × 5-GW horizon → 3 v2 rows under analytics#player_xp_v2.
+
+    Each row carries both the immediate-next-GW fields (xp, components,
+    gameweek — used by the players-list xP column) and the multi-GW
+    horizon (horizon_xp_by_gw, horizon_gw_ids — used by transfer
+    suggestions to sum any user-requested horizon up to MAX_HORIZON).
+    """
     _table, writer = mock_table
     result = lambda_handler({}, None)
 
@@ -218,6 +250,66 @@ def test_happy_path_writes_one_v2_row_per_player(mock_table) -> None:
     assert fixture_meta["opponent_team_id"] == 2
     assert fixture_meta["home"] is True
     assert fixture_meta["fpl_difficulty"] == 3
+
+
+def test_writes_horizon_xp_by_gw(mock_table) -> None:
+    """Each row carries horizon_xp_by_gw (one entry per upcoming GW
+    within MAX_HORIZON) and horizon_gw_ids (the ordered list)."""
+    _table, writer = mock_table
+    lambda_handler({}, None)
+    items = _items_by_player(writer)
+    saka = items[101]
+
+    # horizon_gw_ids is the explicit ordering — first entry is the
+    # immediate-next GW (matches the row's `gameweek` field).
+    assert saka["horizon_gw_ids"] == [33, 34, 35, 36, 37]
+    assert saka["gameweek"] == saka["horizon_gw_ids"][0]
+
+    # horizon_xp_by_gw is keyed by GW id as string (DDB Map keys must
+    # be strings). One entry per horizon GW.
+    horizon = saka["horizon_xp_by_gw"]
+    assert set(horizon.keys()) == {"33", "34", "35", "36", "37"}
+    for gw_str, xp in horizon.items():
+        assert isinstance(xp, Decimal)
+        assert xp >= 0  # blank GWs would yield 0; team plays every GW here
+
+    # Single-GW xp matches horizon[upcoming_gw] — the players-list xP
+    # column reads the top-level field, transfer suggestions reads the map.
+    assert saka["xp"] == horizon[str(saka["gameweek"])]
+
+
+def test_horizon_clamps_to_remaining_gameweeks(mock_table) -> None:
+    """When the season has fewer GWs left than MAX_HORIZON, horizon_gw_ids
+    naturally clamps. Same GW set drives the horizon_xp_by_gw map."""
+    table, writer = mock_table
+    # Bootstrap with only 2 unfinished GWs (33, 34) — fewer than MAX_HORIZON=5.
+    bootstrap_short = {
+        **BOOTSTRAP_DATA,
+        "gameweeks": [
+            {"id": 32, "name": "Gameweek 32",
+             "deadline_time": "2026-04-15T10:00:00Z",
+             "is_current": True, "is_next": False, "finished": True},
+            {"id": 33, "name": "Gameweek 33",
+             "deadline_time": "2026-04-22T10:00:00Z",
+             "is_current": False, "is_next": True, "finished": False},
+            {"id": 34, "name": "Gameweek 34",
+             "deadline_time": "2026-04-29T10:00:00Z",
+             "is_current": False, "is_next": False, "finished": False},
+        ],
+    }
+
+    def get_item(Key):
+        if (Key["pk"], Key["sk"]) == ("fpl#bootstrap", "latest"):
+            return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": bootstrap_short}}
+        return _ddb_get_item(Key)
+
+    table.get_item.side_effect = get_item
+
+    lambda_handler({}, None)
+    items = _items_by_player(writer)
+    saka = items[101]
+    assert saka["horizon_gw_ids"] == [33, 34]
+    assert set(saka["horizon_xp_by_gw"].keys()) == {"33", "34"}
 
 
 def test_happy_path_minutes_prob_reflects_availability(mock_table) -> None:

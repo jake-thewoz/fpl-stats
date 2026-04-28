@@ -61,8 +61,16 @@ from compute import (
 )
 from match_window import get_match_window
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture, PlayerHistoryRow
-from xp_compute import fixtures_in_gw_for_team, minutes_probability, upcoming_gameweek
-from xp_v2 import xp_for_gameweek, load_default_coefficients
+from xp_compute import (
+    fixtures_in_gw_for_team,
+    minutes_probability,
+    upcoming_gameweek_ids,
+)
+from xp_v2 import (
+    XpV2Components,
+    load_default_coefficients,
+    xp_for_horizon,
+)
 from xp_v2_features import (
     FeatureWindow,
     compute_rates_at_gw,
@@ -81,6 +89,11 @@ log.setLevel(logging.INFO)
 # them. After Phase 3 fits a new coefficient set, that PR should bump
 # this string (e.g. "v2.0-fit-2026-04-28").
 MODEL_VERSION = "v2.0"
+
+# Number of upcoming GWs to pre-compute horizon predictions for. Mirrors
+# analyze_transfer_suggestions.MAX_HORIZON — that endpoint clamps user
+# requests to this same ceiling and reads the per-GW values written here.
+MAX_HORIZON = 5
 
 
 def _to_ddb_number(value: float) -> Decimal:
@@ -184,10 +197,16 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     bootstrap = _read_bootstrap(table)
     fixtures = _read_fixtures(table)
 
-    gw = upcoming_gameweek(bootstrap.gameweeks)
-    if gw is None:
+    horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, MAX_HORIZON)
+    if not horizon_gw_ids:
         log.info("No upcoming gameweek — season over, nothing to analyze")
         return {"ok": True, "skipped": "no_upcoming_gameweek"}
+    # The "single GW" fields on the stored row (xp / components / gameweek)
+    # describe the immediate-next GW — what the players-list xP column
+    # surfaces. The horizon adds GW+1..GW+(MAX_HORIZON-1) so transfer
+    # suggestions can sum any user-requested horizon (1..MAX_HORIZON)
+    # without re-running the per-90 features pipeline.
+    gw = horizon_gw_ids[0]
 
     history_rows = _scan_player_history(table)
     if not history_rows:
@@ -226,8 +245,16 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     with table.batch_writer() as batch:
         for player in bootstrap.players:
-            team_fixtures = fixtures_in_gw_for_team(fixtures, player.team, gw)
-            if not team_fixtures:
+            # Skip players whose team blanks the immediate-next GW. Same
+            # rationale as Phase 5: a missing row means "no fixture this
+            # GW", whereas xp=0 would mean "predicted to score nothing".
+            # Players who blank GW+0 but play GW+1..GW+4 don't appear in
+            # transfer suggestions; that edge case is acceptable for the
+            # opt-out version of v2 and a Phase 7.x refinement if needed.
+            upcoming_team_fixtures = fixtures_in_gw_for_team(
+                fixtures, player.team, gw,
+            )
+            if not upcoming_team_fixtures:
                 skipped_blank += 1
                 continue
 
@@ -249,30 +276,43 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             )
             rates = merge_team_xgc(rates, team_xgc)
 
-            fixture_contexts = [
-                build_fixture_context(fx, player.team) for fx in team_fixtures
-            ]
+            # Build fixture contexts for every GW in the horizon. Blank
+            # GWs naturally fall out as empty lists; xp_for_horizon's
+            # internal xp_for_gameweek then returns zero components for
+            # those, which is the right per-GW signal to store.
+            fixtures_by_gw: dict[int, list] = {}
+            for h_gw in horizon_gw_ids:
+                team_fixtures = fixtures_in_gw_for_team(
+                    fixtures, player.team, h_gw,
+                )
+                fixtures_by_gw[h_gw] = [
+                    build_fixture_context(fx, player.team)
+                    for fx in team_fixtures
+                ]
 
             mins_prob = minutes_probability(player)
-            p60 = mins_prob * rates.historical_p60
 
-            components = xp_for_gameweek(
+            horizon_components: dict[int, XpV2Components] = xp_for_horizon(
                 position=player.element_type,
                 rates=rates,
-                gw_fixtures=fixture_contexts,
-                minutes_prob=mins_prob,
-                p60=p60,
+                fixtures_by_gw=fixtures_by_gw,
+                base_minutes_prob=mins_prob,
                 coefs=coefs,
             )
 
+            single_gw_components = horizon_components[gw]
             fixture_meta = [
                 {
                     "opponent_team_id": opponent_team_id(fx, player.team),
                     "home": fx.team_h == player.team,
                     "fpl_difficulty": player_difficulty(fx, player.team),
                 }
-                for fx in team_fixtures
+                for fx in upcoming_team_fixtures
             ]
+            horizon_xp_by_gw = {
+                str(h_gw): _to_ddb_number(comp.total)
+                for h_gw, comp in horizon_components.items()
+            }
 
             batch.put_item(Item={
                 "pk": "analytics#player_xp_v2",
@@ -285,8 +325,18 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "team_id": player.team,
                 "position_id": player.element_type,
                 "gameweek": gw,
-                "xp": _to_ddb_number(components.total),
-                "components": _components_to_ddb(components, rates, fixture_meta),
+                "xp": _to_ddb_number(single_gw_components.total),
+                "components": _components_to_ddb(
+                    single_gw_components, rates, fixture_meta,
+                ),
+                # Horizon view — keyed by GW id (string, DDB Map keys are
+                # strings). Consumers (analyze_transfer_suggestions) sum
+                # whatever subset of GWs the user's horizon parameter
+                # selects. ``horizon_gw_ids`` is repeated as a top-level
+                # list so the read path doesn't have to coerce sorted
+                # int keys back from the map.
+                "horizon_gw_ids": list(horizon_gw_ids),
+                "horizon_xp_by_gw": horizon_xp_by_gw,
             })
             written += 1
 

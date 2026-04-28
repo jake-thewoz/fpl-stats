@@ -43,7 +43,7 @@ from boto3.dynamodb.conditions import Key
 from compute import TransferCandidate, suggest_transfers
 from fpl_session import make_fpl_session
 from schemas import SCHEMA_VERSION, Bootstrap, Entry, EntryPicks, Fixture
-from v2_horizon import compute_v2_horizon_xps, scan_player_history
+from v2_horizon import read_v2_horizon_xps
 from xp_compute import horizon_xp, upcoming_gameweek_ids
 
 log = logging.getLogger()
@@ -58,10 +58,12 @@ DEFAULT_HORIZON = 3
 MAX_HORIZON = 5
 TOP_N = 10
 
-# Default model. Stays "v1" through Phase 6 — clients opt in via
-# ?model=v2. Phase 7 (#118) flips this to "v2" once we've soaked the
-# opt-in path on real users for one GW cycle.
-DEFAULT_MODEL = "v1"
+# Default model is v2 as of Phase 7 (#118). v1 still served for
+# clients that opt out via ?model=v1 — kept reachable through the
+# 2-week soak window during which v1 stays writable. The v1 analyzer
+# Lambda + DDB partition are slated for deletion once v2 has been
+# default for two clean weeks (tracked separately).
+DEFAULT_MODEL = "v2"
 SUPPORTED_MODELS = frozenset({"v1", "v2"})
 
 
@@ -429,17 +431,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     by_id = {p.id: p for p in bootstrap.players}
     horizon_xps: dict[int, float] = {}
     if model == "v2":
-        history_rows = scan_player_history(table)
-        if not history_rows:
-            raise RuntimeError(
-                "fpl#player_history#* rows missing — has ingest_player_history run?"
-            )
-        horizon_xps = compute_v2_horizon_xps(
-            bootstrap=bootstrap,
-            fixtures=fixtures,
-            history_rows=history_rows,
-            horizon_gw_ids=horizon_gw_ids,
+        horizon_xps = read_v2_horizon_xps(
+            table=table, horizon_gw_ids=horizon_gw_ids,
         )
+        if not horizon_xps:
+            # v2 reader is downstream of analyze_player_xp_v2. No rows
+            # means the writer hasn't run yet (fresh deploy, or its
+            # nightly schedule hasn't fired). Fail loud — better than
+            # serving zero-ranked suggestions to mobile.
+            raise RuntimeError(
+                "analytics#player_xp_v2 rows missing — has analyze_player_xp_v2 run?"
+            )
     else:
         for player in bootstrap.players:
             snap = snapshots.get(player.id, {})

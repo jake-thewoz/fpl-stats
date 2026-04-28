@@ -7,6 +7,16 @@ the debug ``components`` block is dropped here. Sorting and filtering
 happen client-side, which keeps the same response useful for both the
 captain-pick view (sort xp desc, take top N) and #73's custom-columns
 view (xP as one of many sortable columns).
+
+Source partition
+----------------
+As of Phase 7 (#118) reads from ``analytics#player_xp_v2`` — the
+per-component v2 model's output. The ``xp`` field name is unchanged
+on the wire (mobile sees the same shape), but the underlying signal
+is now from xp-v2. v1's ``analytics#player_xp`` partition is still
+written by the legacy analyzer during the soak window; it'll be
+deleted along with that Lambda once v2 has been default for two
+clean weeks.
 """
 from __future__ import annotations
 
@@ -49,10 +59,11 @@ def _slim_row(item: dict[str, Any]) -> dict[str, Any]:
 
 def _read_all_xp(table: Any) -> list[dict[str, Any]]:
     """Single-partition Query — paginated for safety even though ~700
-    rows fit comfortably in DDB's 1MB page limit."""
+    rows fit comfortably in DDB's 1MB page limit. Reads from the v2
+    partition as of Phase 7 (#118)."""
     rows: list[dict[str, Any]] = []
     kwargs: dict[str, Any] = {
-        "KeyConditionExpression": Key("pk").eq("analytics#player_xp"),
+        "KeyConditionExpression": Key("pk").eq("analytics#player_xp_v2"),
     }
     while True:
         resp = table.query(**kwargs)
