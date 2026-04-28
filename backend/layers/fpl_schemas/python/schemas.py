@@ -233,3 +233,108 @@ class LeagueStandings(BaseModel):
     league: LeagueInfo
     members: list[LeagueMember]
     has_more: bool = False
+
+
+class PlayerHistoryRow(BaseModel):
+    """One per-fixture row from FPL ``/element-summary/{id}/`` ``history[]``.
+
+    DGW: a player's two fixtures in the same gameweek surface as two rows
+    sharing ``round`` but differing in ``fixture`` / ``opponent_team``.
+
+    ``defensive_contribution`` is the FPL-pre-computed count comparable to
+    the position threshold: CBI+T for DEF, CBI+T+R for MID/FWD. The +2
+    defcon points trigger when this value reaches the position threshold
+    (10 for DEF, 12 for MID/FWD in 25/26). Per-component stats
+    (``clearances_blocks_interceptions``, ``tackles``, ``recoveries``)
+    populated for 25/26 onward; pre-25/26 rows have these as 0 even though
+    the season aggregate ``defensive_contribution`` may be non-zero
+    (FPL retrospectively reports the count).
+    """
+
+    element: int
+    fixture: int
+    opponent_team: int
+    was_home: bool
+    round: int
+    minutes: int
+    goals_scored: int
+    assists: int
+    clean_sheets: int
+    goals_conceded: int
+    saves: int
+    bonus: int
+    bps: int
+    yellow_cards: int
+    red_cards: int
+    own_goals: int
+    penalties_saved: int
+    penalties_missed: int
+    total_points: int
+    # FPL ships these as decimal strings ("0.42"), not numbers.
+    expected_goals: str | None = None
+    expected_assists: str | None = None
+    expected_goal_involvements: str | None = None
+    expected_goals_conceded: str | None = None
+    influence: str | None = None
+    creativity: str | None = None
+    threat: str | None = None
+    ict_index: str | None = None
+    starts: int | None = None
+    # 25/26+
+    defensive_contribution: int | None = None
+    clearances_blocks_interceptions: int | None = None
+    tackles: int | None = None
+    recoveries: int | None = None
+
+
+class PlayerHistoryPast(BaseModel):
+    """One per-season row from FPL ``/element-summary/{id}/`` ``history_past[]``.
+
+    Per-component defcon stats (``clearances_blocks_interceptions``,
+    ``tackles``, ``recoveries``) appear here as 0 even when defcon itself
+    is non-zero — FPL only preserves the season-aggregate count.
+    """
+
+    season_name: str
+    element_code: int
+    minutes: int
+    goals_scored: int
+    assists: int
+    clean_sheets: int
+    goals_conceded: int
+    saves: int
+    bonus: int
+    bps: int
+    yellow_cards: int
+    red_cards: int
+    own_goals: int
+    penalties_saved: int
+    penalties_missed: int
+    total_points: int
+    starts: int | None = None
+    expected_goals: str | None = None
+    expected_assists: str | None = None
+    expected_goal_involvements: str | None = None
+    expected_goals_conceded: str | None = None
+    influence: str | None = None
+    creativity: str | None = None
+    threat: str | None = None
+    ict_index: str | None = None
+    defensive_contribution: int | None = None
+    clearances_blocks_interceptions: int | None = None
+    tackles: int | None = None
+    recoveries: int | None = None
+
+
+class PlayerHistory(BaseModel):
+    """Subset of FPL ``/element-summary/{id}/`` we cache per player.
+
+    The endpoint also returns an ``fixtures`` array of upcoming fixtures
+    for the player. We don't capture that here — fixtures are kept in the
+    canonical ``fpl#fixtures, sk=latest`` row written by the bootstrap
+    ingest, and storing a per-player projection would just duplicate that
+    data with a less useful key.
+    """
+
+    history: list[PlayerHistoryRow]
+    history_past: list[PlayerHistoryPast]

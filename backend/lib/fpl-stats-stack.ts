@@ -133,6 +133,25 @@ export class FplStatsStack extends cdk.Stack {
     cacheTable.grantReadWriteData(ingestClubeloFn);
     snapshotsBucket.grantPut(ingestClubeloFn);
 
+    const ingestPlayerHistoryFn = new FplPythonFunction(
+      this,
+      'IngestPlayerHistory',
+      {
+        name: 'ingest_player_history',
+        description:
+          'Scheduled weekly ingestion — pulls per-player history (xG, xA, xGI, xGC, defcon counts) from /element-summary/{id}/ for ~700 players. Inputs to the v2 xP model.',
+        environment: {
+          CACHE_TABLE_NAME: cacheTable.tableName,
+        },
+        // ~700 sequential GETs at 50ms inter-call sleep + per-player
+        // batch_writer puts. Headroom: timeout 5min, memory 256MB.
+        memorySize: 256,
+        timeout: cdk.Duration.minutes(5),
+        layers: [fplSchemasLayer],
+      },
+    );
+    cacheTable.grantReadWriteData(ingestPlayerHistoryFn);
+
     const gameweekCurrentFn = new FplPythonFunction(this, 'GameweekCurrent', {
       name: 'gameweek_current',
       description: 'Read API — returns current gameweek + its fixtures.',
@@ -304,6 +323,16 @@ export class FplStatsStack extends cdk.Stack {
       targets: [new LambdaTarget(ingestClubeloFn)],
     });
 
+    // Player history is large and stable — once a week is enough. Sunday
+    // 02:00 UTC sits after the weekend matchday + post-match BPS settling
+    // and before the daily ingest_clubelo (03:00) / form analyzer (04:00).
+    new Rule(this, 'IngestPlayerHistorySchedule', {
+      description:
+        'Trigger per-player history ingestion weekly Sunday 02:00 UTC.',
+      schedule: Schedule.cron({ minute: '0', hour: '2', weekDay: 'SUN' }),
+      targets: [new LambdaTarget(ingestPlayerHistoryFn)],
+    });
+
     new Rule(this, 'AnalyzePlayerFormSchedule', {
       description:
         'Trigger player-form analyzer daily at 04:00 UTC (post-match quiet window).',
@@ -356,6 +385,22 @@ export class FplStatsStack extends cdk.Stack {
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
     ingestClubeloErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
+
+    const ingestPlayerHistoryErrorsAlarm = ingestPlayerHistoryFn
+      .metricErrors({
+        // 7-day window so the once-a-week trigger has a full cycle to be counted.
+        period: cdk.Duration.days(7),
+        statistic: 'Sum',
+      })
+      .createAlarm(this, 'IngestPlayerHistoryErrorsAlarm', {
+        alarmDescription:
+          'Player-history ingestion Lambda returned an error — fpl#player_history rows may be stale and the v2 xP model is missing fresh per-player underlying stats.',
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+    ingestPlayerHistoryErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
     const analyzePlayerFormErrorsAlarm = analyzePlayerFormFn
       .metricErrors({
