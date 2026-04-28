@@ -14,13 +14,15 @@ from handler import lambda_handler  # noqa: E402
 
 
 def _xp_row(player_id, web_name, team, pos, xp):
-    """Mirror what the player-xP analyzer writes — Decimals because DDB
-    resource API returns them that way."""
+    """Mirror what the v2 player-xP analyzer writes — same wire shape,
+    pk routes to the v2 partition (#118). Decimals because DDB resource
+    API returns them that way."""
     return {
-        "pk": "analytics#player_xp",
+        "pk": "analytics#player_xp_v2",
         "sk": str(player_id),
         "schema_version": 1,
-        "computed_at": "2026-04-26T04:30:00+00:00",
+        "model_version": "v2.0",
+        "computed_at": "2026-04-28T04:30:00+00:00",
         "player_id": player_id,
         "web_name": web_name,
         "team_id": team,
@@ -28,10 +30,18 @@ def _xp_row(player_id, web_name, team, pos, xp):
         "gameweek": 33,
         "xp": Decimal(str(xp)),
         "components": {
-            "form_score": Decimal("6.0"),
-            "fixture_easiness": Decimal("0.6"),
             "minutes_prob": Decimal("1.0"),
-            "num_fixtures": 1,
+            "p60": Decimal("0.95"),
+            "appearance_xp": Decimal("1.85"),
+            "goals_xp": Decimal("2.0"),
+        },
+        "horizon_gw_ids": [33, 34, 35, 36, 37],
+        "horizon_xp_by_gw": {
+            "33": Decimal(str(xp)),
+            "34": Decimal(str(xp)),
+            "35": Decimal(str(xp)),
+            "36": Decimal(str(xp)),
+            "37": Decimal(str(xp)),
         },
     }
 
@@ -65,7 +75,7 @@ def test_happy_path_returns_all_rows_slimmed(mock_table):
 
     assert body["gameweek"] == 33
     assert body["schema_version"] == 1
-    assert body["computed_at"] == "2026-04-26T04:30:00+00:00"
+    assert body["computed_at"] == "2026-04-28T04:30:00+00:00"
     assert len(body["players"]) == 3
 
     haaland = next(p for p in body["players"] if p["player_id"] == 308)
@@ -73,6 +83,17 @@ def test_happy_path_returns_all_rows_slimmed(mock_table):
         "player_id": 308, "web_name": "Haaland",
         "team_id": 13, "position_id": 4, "xp": 18.4,
     }
+
+
+def test_queries_v2_partition(mock_table):
+    """Phase 7 (#118): the source partition is analytics#player_xp_v2.
+    Asserting on the actual KeyConditionExpression catches an accidental
+    revert during the soak window."""
+    lambda_handler({}, None)
+    assert mock_table.query.call_count >= 1
+    cond = mock_table.query.call_args.kwargs["KeyConditionExpression"]
+    pk_value = cond.get_expression()["values"][1]
+    assert pk_value == "analytics#player_xp_v2"
 
 
 def test_drops_components_block(mock_table):
