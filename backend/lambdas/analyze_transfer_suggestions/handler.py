@@ -43,6 +43,7 @@ from boto3.dynamodb.conditions import Key
 from compute import TransferCandidate, suggest_transfers
 from fpl_session import make_fpl_session
 from schemas import SCHEMA_VERSION, Bootstrap, Entry, EntryPicks, Fixture
+from v2_horizon import compute_v2_horizon_xps, scan_player_history
 from xp_compute import horizon_xp, upcoming_gameweek_ids
 
 log = logging.getLogger()
@@ -56,6 +57,12 @@ PICKS_TTL_SECONDS = 1800
 DEFAULT_HORIZON = 3
 MAX_HORIZON = 5
 TOP_N = 10
+
+# Default model. Stays "v1" through Phase 6 — clients opt in via
+# ?model=v2. Phase 7 (#118) flips this to "v2" once we've soaked the
+# opt-in path on real users for one GW cycle.
+DEFAULT_MODEL = "v1"
+SUPPORTED_MODELS = frozenset({"v1", "v2"})
 
 
 class EntryNotFound(Exception):
@@ -123,6 +130,23 @@ def _parse_positions(event: dict[str, Any]) -> set[int] | None:
             if value > 0:
                 out.add(value)
     return out if out else None
+
+
+def _parse_model(event: dict[str, Any]) -> str:
+    """``?model=v2`` opts into the per-component model; default ``v1``.
+
+    Unknown values fall back to the default rather than 400-erroring —
+    a future v3 token from a stale client should degrade gracefully to
+    "give them v1" rather than break the request entirely.
+    """
+    params = event.get("queryStringParameters") or {}
+    raw = params.get("model") if isinstance(params, dict) else None
+    if not isinstance(raw, str):
+        return DEFAULT_MODEL
+    raw = raw.strip().lower()
+    if raw in SUPPORTED_MODELS:
+        return raw
+    return DEFAULT_MODEL
 
 
 def _is_fresh(item: dict[str, Any]) -> bool:
@@ -312,6 +336,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return _response(400, {"error": "invalid team id"})
     horizon = _parse_horizon(event)
     position_filter = _parse_positions(event)
+    model = _parse_model(event)
 
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
@@ -391,6 +416,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         )
 
+    # player_form rows still drive the per-card UI fields (form_score,
+    # avg_upcoming_difficulty, avg_upcoming_elo_expected_score) under
+    # both models — keeping the mobile contract identical when v2 is
+    # opted in. Only the horizon_xp ranking signal switches.
     snapshots = _read_player_forms(table)
     if not snapshots:
         raise RuntimeError(
@@ -399,12 +428,25 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     by_id = {p.id: p for p in bootstrap.players}
     horizon_xps: dict[int, float] = {}
-    for player in bootstrap.players:
-        snap = snapshots.get(player.id, {})
-        form_score = snap.get("form_score") or 0.0
-        horizon_xps[player.id] = horizon_xp(
-            player, form_score, fixtures, horizon_gw_ids
+    if model == "v2":
+        history_rows = scan_player_history(table)
+        if not history_rows:
+            raise RuntimeError(
+                "fpl#player_history#* rows missing — has ingest_player_history run?"
+            )
+        horizon_xps = compute_v2_horizon_xps(
+            bootstrap=bootstrap,
+            fixtures=fixtures,
+            history_rows=history_rows,
+            horizon_gw_ids=horizon_gw_ids,
         )
+    else:
+        for player in bootstrap.players:
+            snap = snapshots.get(player.id, {})
+            form_score = snap.get("form_score") or 0.0
+            horizon_xps[player.id] = horizon_xp(
+                player, form_score, fixtures, horizon_gw_ids
+            )
 
     squad_ids = [pick.element for pick in picks.picks]
     squad = [by_id[pid] for pid in squad_ids if pid in by_id]
@@ -443,6 +485,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "horizon_gw_ids": horizon_gw_ids,
             "season_over": False,
             "preseason": False,
+            "model": model,
             "current_squad_xp": round(
                 sum(horizon_xps.get(pid, 0.0) for pid in squad_ids), 4
             ),
