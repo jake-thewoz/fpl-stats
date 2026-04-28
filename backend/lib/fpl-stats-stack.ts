@@ -316,12 +316,21 @@ export class FplStatsStack extends cdk.Stack {
       {
         name: 'analyze_transfer_suggestions',
         description:
-          'Read API — GET /analytics/squad/{teamId}/transfers. On-demand single-transfer suggestions across the next N gameweeks.',
+          'Read API — GET /analytics/squad/{teamId}/transfers. On-demand single-transfer suggestions across the next N gameweeks. Supports ?model=v2 for the per-component model (#117) which scans ~21k history rows + per-player feature pass.',
         environment: {
           CACHE_TABLE_NAME: cacheTable.tableName,
         },
-        memorySize: 256,
-        timeout: cdk.Duration.seconds(15),
+        // 1024 MB picked over 256 MB after #117 (#125) showed the v2 path
+        // timing out at 15 s with 256 MB. Lambda CPU scales linearly with
+        // memory; 1024 MB gives ~4× the vCPU share of 256 MB, which is
+        // what lets the 700-player feature loop finish on time. v1 calls
+        // are unaffected by the runtime cost (still finish in <1 s) but
+        // do pay 4× per-100ms billing — well within free-tier budget.
+        memorySize: 1024,
+        // 30 s lets the v2 path absorb a slow DDB Scan (10+ pages over
+        // ~21k history rows) plus a cold cache-aside FPL fetch. v1 still
+        // completes in ~3 s; v2 typically ~5-8 s.
+        timeout: cdk.Duration.seconds(30),
         layers: [fplSchemasLayer],
       },
     );
