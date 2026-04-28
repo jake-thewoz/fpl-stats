@@ -73,6 +73,56 @@ held-out validation set so we can see whether mean-matching generalizes.
 4. Open a PR with the JSON change, the report, and the snapshot test
    update. Reviewer reads the report and approves.
 
+## `backtest_xp.py` — gate v2's promotion against v1
+
+Phase 4. Loads the same history rows the fit script uses, replays both
+**v1** (the production formula `form × easiness × minutes × num_fixtures`)
+and **v2** (the per-component model in this branch), and scores both
+against actual outcomes. The first section of the markdown report is
+the **pass/fail verdict** — v2 ships only if all four criteria pass.
+
+### Usage
+
+```bash
+TABLE=$(aws cloudformation describe-stacks --stack-name FplStatsStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`CacheTableName`].OutputValue' \
+  --output text)
+
+# Dry-run prints the report without writing it to backtest_results/.
+python3 backtest_xp.py --table-name "$TABLE" --dry-run
+
+# Real run writes the report + a JSON sidecar dated by today's UTC date.
+python3 backtest_xp.py --table-name "$TABLE"
+```
+
+Exit code is 0 when v2 passes all criteria, 1 when it fails — useful
+for any future CI gate.
+
+### Pass criteria
+
+1. **MAE overall** — v2 strictly less than v1
+2. **Spearman ρ overall** — v2 ≥ v1 (rank correlation drives transfer
+   suggestions and captain picks)
+3. **Per-position regression** — no single position's MAE regresses
+   by more than 5%
+4. **Captain pick total** — sum of actual points scored by each
+   model's top-ranked player per GW; v2 ≥ v1
+
+A failure on any one criterion blocks **Phase 5 (#116)** promotion.
+Iterate on Phase 1 (math), Phase 2 (features), or Phase 3 (fit) and
+re-run.
+
+### Approximations to be aware of
+
+- **`minutes_prob`** uses the observed-minutes oracle (1.0 if played,
+  0.0 otherwise) — we don't have historical snapshots of FPL's
+  `chance_of_playing_next_round`. Both v1 and v2 use the same oracle,
+  so the comparison is apples-to-apples; the absolute MAE numbers are
+  optimistic compared to real-time inference.
+- **Fixture difficulty** is read from the *current* `fpl#fixtures`
+  cache. FPL adjusts these rarely, but historical values may differ
+  slightly. Phase 3.x can fix this by archiving fixture snapshots.
+
 ## Tests
 
 ```bash
@@ -81,6 +131,7 @@ source .venv/bin/activate
 python3 -m pytest tests/ -v
 ```
 
-Unit tests cover the pure fit logic (mean-matching, decompose, time-
-series split, ranking metrics, report rendering) on synthetic data.
-DDB integration is verified manually via the `--dry-run` workflow above.
+Unit tests cover the pure fit logic, the v1 replay arithmetic, the
+backtest metrics (top-K hit rate, captain pick, pass criteria edge
+cases), and report rendering on synthetic data. DDB integration is
+verified manually via the `--dry-run` workflows above.
