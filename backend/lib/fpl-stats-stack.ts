@@ -242,23 +242,6 @@ export class FplStatsStack extends cdk.Stack {
     );
     cacheTable.grantReadWriteData(analyzePlayerFormFn);
 
-    const analyzePlayerXpFn = new FplPythonFunction(
-      this,
-      'AnalyzePlayerXp',
-      {
-        name: 'analyze_player_xp',
-        description:
-          'Scheduled analyzer — writes per-player expected points for the upcoming gameweek to analytics#player_xp.',
-        environment: {
-          CACHE_TABLE_NAME: cacheTable.tableName,
-        },
-        memorySize: 256,
-        timeout: cdk.Duration.seconds(60),
-        layers: [fplSchemasLayer],
-      },
-    );
-    cacheTable.grantReadWriteData(analyzePlayerXpFn);
-
     const analyzePlayerXpV2Fn = new FplPythonFunction(
       this,
       'AnalyzePlayerXpV2',
@@ -370,23 +353,11 @@ export class FplStatsStack extends cdk.Stack {
       targets: [new LambdaTarget(analyzePlayerFormFn)],
     });
 
-    // Player-xP reads the form analyzer's output, so schedule it 30 min
-    // later in the same quiet window. Both share the match-window guard,
-    // so a live match defers both runs to the next tick.
-    new Rule(this, 'AnalyzePlayerXpSchedule', {
-      description:
-        'Trigger player-xP analyzer daily at 04:30 UTC (after the player-form analyzer).',
-      schedule: Schedule.cron({ minute: '30', hour: '4' }),
-      targets: [new LambdaTarget(analyzePlayerXpFn)],
-    });
-
-    // v2 analyzer runs at the same 04:30 slot as v1 — both share the
-    // match-window guard so a live match defers both. Scheduling them
-    // together keeps the post-match quiet window predictable for any
-    // reader that polls "is the daily analytics complete?".
+    // v2 analyzer runs at 04:30 UTC, after the form analyzer. Shares
+    // the match-window guard so a live match defers it to the next tick.
     new Rule(this, 'AnalyzePlayerXpV2Schedule', {
       description:
-        'Trigger player-xP-v2 analyzer daily at 04:30 UTC (shadow-mode writer alongside v1).',
+        'Trigger player-xP-v2 analyzer daily at 04:30 UTC.',
       schedule: Schedule.cron({ minute: '30', hour: '4' }),
       targets: [new LambdaTarget(analyzePlayerXpV2Fn)],
     });
@@ -459,21 +430,6 @@ export class FplStatsStack extends cdk.Stack {
       });
     analyzePlayerFormErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
 
-    const analyzePlayerXpErrorsAlarm = analyzePlayerXpFn
-      .metricErrors({
-        period: cdk.Duration.hours(24),
-        statistic: 'Sum',
-      })
-      .createAlarm(this, 'AnalyzePlayerXpErrorsAlarm', {
-        alarmDescription:
-          'Player-xP analyzer returned an error — analytics#player_xp rows may be stale.',
-        threshold: 1,
-        evaluationPeriods: 1,
-        comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-        treatMissingData: TreatMissingData.NOT_BREACHING,
-      });
-    analyzePlayerXpErrorsAlarm.addAlarmAction(new SnsAction(alertsTopic));
-
     const analyzePlayerXpV2ErrorsAlarm = analyzePlayerXpV2Fn
       .metricErrors({
         period: cdk.Duration.hours(24),
@@ -481,7 +437,7 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'AnalyzePlayerXpV2ErrorsAlarm', {
         alarmDescription:
-          'Player-xP-v2 analyzer returned an error — analytics#player_xp_v2 rows may be stale. v1 is unaffected; mobile users see no symptom while v2 is in shadow mode.',
+          'Player-xP-v2 analyzer returned an error — analytics#player_xp_v2 rows may be stale, which means transfer suggestions and the players-list xP column will degrade until the next successful run.',
         threshold: 1,
         evaluationPeriods: 1,
         comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,

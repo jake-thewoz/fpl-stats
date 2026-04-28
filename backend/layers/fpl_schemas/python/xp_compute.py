@@ -1,43 +1,26 @@
-"""Pure xP (expected points) computation, shared across analyzers.
+"""Shared GW + fixtures helpers used by the v2 analyzers.
 
-Lives in the layer so multiple consumers (``analyze_player_xp``,
-``analyze_transfer_suggestions``, future analyzers) all use one source of
-truth for the per-GW xP math. Side-effect-free — no DDB, no HTTP, no
-time — so each function can be unit-tested in isolation against
-hand-built data.
+This module used to host the v1 xP formula (``form × easiness × minutes
+× num_fixtures``) plus its supporting math; that code was retired
+alongside the v1 analyzer Lambda when the v2 cutover landed (#118 +
+follow-up). What remains is the pure GW/fixtures plumbing the v2
+writer needs:
+
+- ``upcoming_gameweek_ids``: pick the next N unfinished GW ids
+- ``fixtures_in_gw_for_team``: filter a fixtures list to one team's GW
+- ``minutes_probability``: P(plays this GW) from FPL's ``status`` /
+  ``chance_of_playing_next_round`` fields
+
+The v2 model's per-component math lives in ``xp_v2.py``; the v2 fixture-
+context derivation (FPL difficulty → ``opp_strength``) lives next to its
+consumer in ``analyze_player_xp_v2/compute.py`` and
+``analyze_transfer_suggestions/v2_horizon.py``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable
 
 from schemas import Fixture, Gameweek, Player
-
-
-@dataclass(frozen=True)
-class XpComponents:
-    """Inputs that fed into a player's xP — kept on output records so the
-    API/UI can show 'why' alongside the value, and so a stale-looking xP
-    can be debugged from the stored data alone."""
-
-    form_score: float
-    fixture_easiness: float
-    minutes_prob: float
-    num_fixtures: int
-
-
-def upcoming_gameweek(gameweeks: Iterable[Gameweek]) -> Optional[int]:
-    """Return the next un-finished gameweek's id, or None if the season's
-    over. Prefers ``is_next`` (FPL's own pointer) and falls back to the
-    smallest unfinished id so this still works in pre-season when no
-    gameweek is flagged ``is_next``.
-    """
-    gw_list = list(gameweeks)
-    for gw in gw_list:
-        if gw.is_next:
-            return gw.id
-    unfinished = sorted(gw.id for gw in gw_list if not gw.finished)
-    return unfinished[0] if unfinished else None
 
 
 def upcoming_gameweek_ids(
@@ -71,35 +54,6 @@ def fixtures_in_gw_for_team(
     ]
 
 
-def fixture_easiness(difficulty: Optional[int]) -> float:
-    """Map FPL's 1-5 difficulty (lower = easier) to a 0.2-1.0 multiplier.
-
-    None difficulty (pre-deploy cached rows missing the field) falls back
-    to 0.6 — the mid value — so we don't rank players by accident of the
-    cache state. The form-analyzer made the same conservative choice for
-    its average_difficulty fallback, just at a different layer.
-    """
-    if difficulty is None:
-        return 0.6
-    return (6 - difficulty) / 5
-
-
-def gw_easiness(team_fixtures: Iterable[Fixture], team_id: int) -> float:
-    """Average easiness across all the team's fixtures this GW. Empty
-    iterable -> 0.0 so a blank-GW player ends up with xP=0 without a
-    divide-by-zero."""
-    fxs = list(team_fixtures)
-    if not fxs:
-        return 0.0
-    easinesses = [
-        fixture_easiness(
-            fx.team_h_difficulty if fx.team_h == team_id else fx.team_a_difficulty
-        )
-        for fx in fxs
-    ]
-    return sum(easinesses) / len(easinesses)
-
-
 def minutes_probability(player: Player) -> float:
     """Probability the player plays meaningful minutes this GW.
 
@@ -115,51 +69,3 @@ def minutes_probability(player: Player) -> float:
     if player.status == "a":
         return 1.0
     return 0.0
-
-
-def expected_points(
-    form_score: float,
-    easiness: float,
-    minutes_prob: float,
-    num_fixtures: int,
-) -> float:
-    """Per-GW expected points for one player.
-
-    Captain EV is just this doubled (FPL's captain multiplier); a triple-
-    captain chip would triple it. Kept multiplier-free so consumers can
-    rank for captaincy, vice-captaincy, transfers, or display xP directly
-    without the math baking a captaincy assumption into the value.
-    """
-    return form_score * easiness * minutes_prob * num_fixtures
-
-
-def horizon_xp(
-    player: Player,
-    form_score: float,
-    fixtures: Iterable[Fixture],
-    horizon_gw_ids: Iterable[int],
-) -> float:
-    """Sum of expected_points across multiple gameweeks for one player.
-
-    Reuses the same per-GW math (`fixture_easiness × minutes_prob ×
-    num_fixtures × form_score`) for each GW in the horizon and sums the
-    results. Skipped GWs (the team has no fixture, e.g. blank GW) just
-    contribute 0 — no special-case handling needed.
-
-    Note that ``minutes_prob`` is the *current* availability signal applied
-    uniformly across the horizon. We don't have FPL data for "expected
-    availability in 3 weeks," so a player flagged ``i`` (injured) today
-    gets xP=0 for the whole horizon. Conservative — a flagged player
-    shouldn't surface as a transfer target on the assumption they recover.
-    """
-    fx_list = list(fixtures)
-    mins_prob = minutes_probability(player)
-    total = 0.0
-    for gw in horizon_gw_ids:
-        team_fixtures = fixtures_in_gw_for_team(fx_list, player.team, gw)
-        n = len(team_fixtures)
-        if n == 0:
-            continue
-        easiness = gw_easiness(team_fixtures, player.team)
-        total += expected_points(form_score, easiness, mins_prob, n)
-    return total
