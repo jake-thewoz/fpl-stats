@@ -1,0 +1,13 @@
+{
+  "_comment": "Hand-tuned position-level priors for Bayesian shrinkage in xp_v2_features. Phase 3 may re-fit from historical aggregates. Position keys: 1=GK, 2=DEF, 3=MID, 4=FWD. Per-90 rates (npxg_p90, xa_p90, bonus_p90, yc_p90) are per-90-minutes; per-match rates (defcon_per_match_rate, historical_p60) are 0-1 probabilities; team_xgc_p90 is league-mean.",
+
+  "npxg_p90":              {"1": 0.00, "2": 0.05, "3": 0.15, "4": 0.40},
+  "xa_p90":                {"1": 0.00, "2": 0.05, "3": 0.20, "4": 0.10},
+  "bonus_p90":             {"1": 0.20, "2": 0.25, "3": 0.30, "4": 0.30},
+  "defcon_per_match_rate": {"1": 0.00, "2": 0.45, "3": 0.20, "4": 0.10},
+  "yc_p90":                {"1": 0.05, "2": 0.15, "3": 0.15, "4": 0.10},
+  "saves_p90_gkp": 3.00,
+  "rc_p90": 0.005,
+  "team_xgc_p90": 1.30,
+  "historical_p60": 0.85
+}
