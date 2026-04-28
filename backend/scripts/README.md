@@ -123,6 +123,31 @@ re-run.
   cache. FPL adjusts these rarely, but historical values may differ
   slightly. Phase 3.x can fix this by archiving fixture snapshots.
 
+## `delete_v1_xp_rows.py` — one-off legacy cleanup
+
+The v1 analyzer Lambda was retired alongside the v2 cutover (#118 +
+follow-up). Its ~700 per-player rows at `pk=analytics#player_xp` are no
+longer read by anything; this script batch-deletes them so the cache
+table stops carrying dead data.
+
+Run once after the v1-retirement PR deploys. Idempotent — a second run
+finds nothing.
+
+```bash
+cd backend/scripts
+source .venv/bin/activate
+
+TABLE=$(aws cloudformation describe-stacks --stack-name FplStatsStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`CacheTableName`].OutputValue' \
+  --output text)
+
+# Optional dry-run to confirm what's there.
+python3 delete_v1_xp_rows.py --table-name "$TABLE" --dry-run
+
+# Actually delete.
+python3 delete_v1_xp_rows.py --table-name "$TABLE"
+```
+
 ## Tests
 
 ```bash
