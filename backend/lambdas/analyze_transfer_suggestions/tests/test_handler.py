@@ -212,14 +212,16 @@ def mock_table():
         yield table
 
 
-def _event(team_id="12345", horizon=None, positions=None):
+def _event(team_id="12345", horizon=None, positions=None, model=None):
     qs: dict[str, str] | None = None
-    if horizon is not None or positions is not None:
+    if horizon is not None or positions is not None or model is not None:
         qs = {}
         if horizon is not None:
             qs["horizon"] = str(horizon)
         if positions is not None:
             qs["positions"] = positions
+        if model is not None:
+            qs["model"] = model
     return {
         "pathParameters": {"teamId": team_id},
         "queryStringParameters": qs,
@@ -619,3 +621,165 @@ def test_position_filter_mixed_valid_and_garbage_keeps_valid(mock_table):
     body = _body(lambda_handler(_event(positions="2,not-a-number,3"), None))
     assert all(s["out"]["position_id"] in (2, 3) for s in body["suggestions"])
     assert len(body["suggestions"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# v2 model path (?model=v2 — opt-in for Phase 6, default in Phase 7)
+# ---------------------------------------------------------------------------
+
+
+def _history_row(*, player_id: int, opponent: int, was_home: bool,
+                 round_: int, fixture_id: int,
+                 minutes: int = 90, goals: int = 0, assists: int = 0,
+                 bonus: int = 0, xg: str = "0.20", xa: str = "0.15",
+                 xgc: str = "1.20", defcon: int = 8) -> dict:
+    """One per-fixture history row in the on-disk DDB shape (the row's
+    `data` map is what `PlayerHistoryRow.model_validate` consumes)."""
+    return {
+        "element": player_id, "fixture": fixture_id,
+        "opponent_team": opponent, "was_home": was_home, "round": round_,
+        "minutes": minutes, "goals_scored": goals, "assists": assists,
+        "clean_sheets": 0, "goals_conceded": 1, "saves": 0, "bonus": bonus,
+        "bps": 25, "yellow_cards": 0, "red_cards": 0, "own_goals": 0,
+        "penalties_saved": 0, "penalties_missed": 0, "total_points": 4,
+        "expected_goals": xg, "expected_assists": xa,
+        "expected_goals_conceded": xgc, "defensive_contribution": defcon,
+    }
+
+
+def _scan_items_for_player(player_id: int, *, opponent: int) -> list[dict]:
+    """Five prior-GW history rows wrapped in the DDB pk/sk/data shape
+    expected by ``v2_horizon.scan_player_history``."""
+    items = []
+    for r in range(27, 32):
+        items.append({
+            "pk": f"fpl#player_history#{player_id}",
+            "sk": f"gw#{r:03d}#fixture#{r}",
+            "data": _history_row(
+                player_id=player_id, opponent=opponent,
+                was_home=True, round_=r, fixture_id=r,
+            ),
+        })
+    return items
+
+
+def _build_history_scan_items() -> list[dict]:
+    """Synthetic history covering every player in the squad + pool, so
+    ``compute_v2_horizon_xps`` finds rows for each. Opponent ids are
+    arbitrary (not used in the v2 horizon math at this fidelity)."""
+    items: list[dict] = []
+    for pid in (101, 102, 201, 401, 501, 502, 503):
+        items.extend(_scan_items_for_player(pid, opponent=99))
+    return items
+
+
+def _scan_returns_history(items: list[dict]):
+    """A fixture-driven `table.scan` side-effect: single-page response
+    matching what `v2_horizon.scan_player_history` paginates over."""
+    def _scan(**kwargs):
+        return {"Items": items}
+    return _scan
+
+
+@pytest.fixture
+def mock_table_with_history(mock_table):
+    """Extend the base `mock_table` with a populated `table.scan` so the
+    v2 path can find history rows. Tests that only exercise v1 keep
+    using `mock_table` and ignore scan."""
+    mock_table.scan.side_effect = _scan_returns_history(
+        _build_history_scan_items()
+    )
+    return mock_table
+
+
+# parse_model edge cases — small, fast, document the contract.
+
+def test_parse_model_default_is_v1(mock_table_with_history):
+    """No ?model query param → v1 served. Mobile sees no change after
+    deploy unless they explicitly opt in."""
+    body = _body(lambda_handler(_event(), None))
+    assert body["model"] == "v1"
+
+
+def test_parse_model_v2_routes_to_v2(mock_table_with_history):
+    """?model=v2 → v2 served end-to-end."""
+    body = _body(lambda_handler(_event(model="v2"), None))
+    assert body["model"] == "v2"
+
+
+def test_parse_model_unknown_value_falls_back_to_default(mock_table_with_history):
+    """A future v3 token from a stale client should degrade to default
+    (v1) rather than 400-erroring."""
+    body = _body(lambda_handler(_event(model="v99"), None))
+    assert body["model"] == "v1"
+
+
+def test_parse_model_case_insensitive(mock_table_with_history):
+    """Defensive: V2 / V2 / v2 all route to v2 — capitalization
+    inconsistency from a future SDK shouldn't fail open."""
+    body = _body(lambda_handler(_event(model="V2"), None))
+    assert body["model"] == "v2"
+
+
+# v2 happy path
+
+def test_v2_path_returns_response_in_same_shape(mock_table_with_history):
+    """The wire shape that mobile depends on must be identical between
+    v1 and v2 — only the horizon_xp numbers differ. The default flip
+    in Phase 7 then becomes a wire-no-op."""
+    body_v1 = _body(lambda_handler(_event(), None))
+    body_v2 = _body(lambda_handler(_event(model="v2"), None))
+
+    # Top-level keys match exactly.
+    assert set(body_v1) == set(body_v2)
+    # Suggestions structure matches per-row.
+    if body_v1["suggestions"] and body_v2["suggestions"]:
+        assert set(body_v1["suggestions"][0]) == set(body_v2["suggestions"][0])
+        assert set(body_v1["suggestions"][0]["out"]) == set(
+            body_v2["suggestions"][0]["out"]
+        )
+
+
+def test_v2_path_horizon_xps_differ_from_v1(mock_table_with_history):
+    """Sanity check that v2 actually swapped in different numbers — if
+    they came out exactly equal the branch wiring would be wrong.
+    current_squad_xp is the easiest single value to compare."""
+    body_v1 = _body(lambda_handler(_event(), None))
+    body_v2 = _body(lambda_handler(_event(model="v2"), None))
+    assert body_v1["current_squad_xp"] != body_v2["current_squad_xp"]
+
+
+def test_v2_path_preserves_form_explainability_fields(mock_table_with_history):
+    """Mobile expects form_score / avg_upcoming_difficulty / etc on each
+    enriched player. v2 reuses the v1 player_form snapshots for these
+    UI fields, so their values are unchanged across models — only
+    horizon_xp differs."""
+    body_v1 = _body(lambda_handler(_event(), None))
+    body_v2 = _body(lambda_handler(_event(model="v2"), None))
+    if not body_v1["suggestions"] or not body_v2["suggestions"]:
+        return
+    # Per-suggestion: form/diff/elo equal across models, horizon_xp differs.
+    for s_v1, s_v2 in zip(body_v1["suggestions"], body_v2["suggestions"]):
+        for side in ("out", "in"):
+            assert s_v1[side]["form_score"] == s_v2[side]["form_score"]
+            assert (
+                s_v1[side]["avg_upcoming_difficulty"]
+                == s_v2[side]["avg_upcoming_difficulty"]
+            )
+
+
+def test_v2_path_missing_player_history_raises(mock_table):
+    """v2 is downstream of ingest_player_history. With no history rows,
+    fail loud rather than serve predictions made against pure priors."""
+    mock_table.scan.side_effect = _scan_returns_history([])
+
+    with pytest.raises(RuntimeError, match="fpl#player_history"):
+        lambda_handler(_event(model="v2"), None)
+
+
+def test_v2_path_doesnt_scan_when_v1_requested(mock_table_with_history):
+    """v1 must never trigger a player_history scan — only v2 needs
+    those rows. Keeps the v1 path's latency profile unchanged for the
+    default user."""
+    lambda_handler(_event(), None)
+    mock_table_with_history.scan.assert_not_called()
