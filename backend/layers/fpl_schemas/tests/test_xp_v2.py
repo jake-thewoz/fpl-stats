@@ -463,21 +463,25 @@ def test_default_coefficients_synthetic_set_snapshot() -> None:
     coefficient bump in xp_v2_coefficients.json forces an explicit re-fit
     or test update — never silently shifts every player's xP.
 
-    Exact values come from the hand-tuned v2.0 defaults; Phase 3 will
-    rewrite this snapshot when it lands new coefficients.
+    Values reflect the **first Phase 3 fit run (2026-04-28)**: mean-match
+    against ~21k history rows. Notable shifts from the hand-tuned floor:
+    FWD assists weight bumped (+0.83 on Haaland as the most visible),
+    GK saves weight halved (Pickford −1.30), DEF cs/concede/defcon
+    rebalanced (Gabriel −1.20). The fit's full report is committed at
+    backend/scripts/fit_reports/2026-04-28.md.
     """
     coefs = load_default_coefficients()
     fx = FixtureContext(home=True, opponent_strength=0.5, fpl_difficulty=3)
 
     expected_totals = {
         # Premium FWD: high xG, no CS / defcon contribution.
-        "haaland":  (FWD, _baseline_rates(npxg_p90=0.7, xa_p90=0.2, bonus_p90=0.6, historical_p60=0.95), 0.95, 0.9, 5.630),
+        "haaland":  (FWD, _baseline_rates(npxg_p90=0.7, xa_p90=0.2, bonus_p90=0.6, historical_p60=0.95), 0.95, 0.9, 6.460),
         # Premium MID: balanced xG/xA, bonus, defcon-eligible.
-        "bruno":    (MID, _baseline_rates(npxg_p90=0.4, xa_p90=0.3, bonus_p90=0.5, defcon_per_match_rate=0.4, yc_p90=0.1, historical_p60=0.95), 0.95, 0.9, 5.996),
+        "bruno":    (MID, _baseline_rates(npxg_p90=0.4, xa_p90=0.3, bonus_p90=0.5, defcon_per_match_rate=0.4, yc_p90=0.1, historical_p60=0.95), 0.95, 0.9, 6.127),
         # Solid DEF: low attacking stats, tight defence, defcon-eligible.
-        "gabriel":  (DEF, _baseline_rates(npxg_p90=0.05, xa_p90=0.05, team_xgc_p90=0.9, bonus_p90=0.5, defcon_per_match_rate=0.5, historical_p60=0.95), 0.95, 0.9, 4.719),
+        "gabriel":  (DEF, _baseline_rates(npxg_p90=0.05, xa_p90=0.05, team_xgc_p90=0.9, bonus_p90=0.5, defcon_per_match_rate=0.5, historical_p60=0.95), 0.95, 0.9, 3.521),
         # Busy GK: high saves, mid-tier team xGC.
-        "pickford": (GKP, _baseline_rates(team_xgc_p90=1.5, saves_p90=4.0, bonus_p90=0.4, historical_p60=1.0), 0.95, 0.95, 3.668),
+        "pickford": (GKP, _baseline_rates(team_xgc_p90=1.5, saves_p90=4.0, bonus_p90=0.4, historical_p60=1.0), 0.95, 0.95, 2.367),
         # Flagged player: minutes_prob=0 → exactly 0 across the board.
         "flagged":  (MID, _baseline_rates(npxg_p90=1.0, xa_p90=0.5, bonus_p90=1.0), 0.0, 0.0, 0.0),
     }

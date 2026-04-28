@@ -1,22 +1,59 @@
 {
-  "_comment": "Hand-tuned v2.0 defaults. Phase 3 replaces with offline calibration. Position keys: 1=GK, 2=DEF, 3=MID, 4=FWD. Per-component _w[pos] is 0 for ineligible positions (e.g. saves_w[DEF]=0) — the compute layer also short-circuits these via position checks, but keeping the coefficient at 0 makes Phase 3's optimizer behave nicely (no nuisance gradient on disabled components).",
-
-  "goals_w":   {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
-  "assists_w": {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
-  "cs_w":      {"1": 1.0, "2": 1.0, "3": 1.0, "4": 0.0},
-  "concede_w": {"1": 1.0, "2": 1.0, "3": 0.0, "4": 0.0},
-  "saves_w":   {"1": 1.0, "2": 0.0, "3": 0.0, "4": 0.0},
-  "defcon_w":  {"1": 0.0, "2": 1.0, "3": 1.0, "4": 1.0},
-  "bonus_w":   {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
-
+  "_comment": "Hand-tuned v2.0 defaults. Phase 3 replaces with offline calibration. Position keys: 1=GK, 2=DEF, 3=MID, 4=FWD. Per-component _w[pos] is 0 for ineligible positions (e.g. saves_w[DEF]=0) \u2014 the compute layer also short-circuits these via position checks, but keeping the coefficient at 0 makes Phase 3's optimizer behave nicely (no nuisance gradient on disabled components).",
+  "goals_w": {
+    "1": 0.0,
+    "2": 0.8873828569133493,
+    "3": 1.105781919543366,
+    "4": 1.069600991695272
+  },
+  "assists_w": {
+    "1": 4.966697717994624,
+    "2": 1.5173343074045158,
+    "3": 1.1963947768199197,
+    "4": 1.886039740526311
+  },
+  "cs_w": {
+    "1": 0.43990535067052206,
+    "2": 0.47505415909103915,
+    "3": 0.5385073214216914,
+    "4": 0.0
+  },
+  "concede_w": {
+    "1": 1.4863792386749923,
+    "2": 1.3742401004154658,
+    "3": 0.0,
+    "4": 0.0
+  },
+  "saves_w": {
+    "1": 0.6091168396001122,
+    "2": 0.0,
+    "3": 0.0,
+    "4": 0.0
+  },
+  "defcon_w": {
+    "1": 0.0,
+    "2": 0.690633292399035,
+    "3": 0.7835112356362078,
+    "4": 0.14137797488317544
+  },
+  "bonus_w": {
+    "1": 1.059107536920155,
+    "2": 0.9204124001557087,
+    "3": 1.09206306859566,
+    "4": 1.2530105056314973
+  },
   "home_advantage": 0.05,
-  "opp_strength_w_goals":   -0.4,
+  "opp_strength_w_goals": -0.4,
   "opp_strength_w_assists": -0.3,
-  "opp_strength_w_cs":      -0.6,
-  "opp_strength_w_concede":  0.6,
-  "opp_strength_w_saves":    0.5,
-  "opp_strength_w_defcon":   0.3,
-  "opp_strength_w_bonus":   -0.3,
-
-  "overall_scale": {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0}
+  "opp_strength_w_cs": -0.6,
+  "opp_strength_w_concede": 0.6,
+  "opp_strength_w_saves": 0.5,
+  "opp_strength_w_defcon": 0.3,
+  "opp_strength_w_bonus": -0.3,
+  "overall_scale": {
+    "1": 1.0,
+    "2": 1.0,
+    "3": 1.0,
+    "4": 1.0
+  }
 }
