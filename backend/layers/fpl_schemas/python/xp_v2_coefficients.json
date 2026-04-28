@@ -1,0 +1,22 @@
+{
+  "_comment": "Hand-tuned v2.0 defaults. Phase 3 replaces with offline calibration. Position keys: 1=GK, 2=DEF, 3=MID, 4=FWD. Per-component _w[pos] is 0 for ineligible positions (e.g. saves_w[DEF]=0) — the compute layer also short-circuits these via position checks, but keeping the coefficient at 0 makes Phase 3's optimizer behave nicely (no nuisance gradient on disabled components).",
+
+  "goals_w":   {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
+  "assists_w": {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
+  "cs_w":      {"1": 1.0, "2": 1.0, "3": 1.0, "4": 0.0},
+  "concede_w": {"1": 1.0, "2": 1.0, "3": 0.0, "4": 0.0},
+  "saves_w":   {"1": 1.0, "2": 0.0, "3": 0.0, "4": 0.0},
+  "defcon_w":  {"1": 0.0, "2": 1.0, "3": 1.0, "4": 1.0},
+  "bonus_w":   {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0},
+
+  "home_advantage": 0.05,
+  "opp_strength_w_goals":   -0.4,
+  "opp_strength_w_assists": -0.3,
+  "opp_strength_w_cs":      -0.6,
+  "opp_strength_w_concede":  0.6,
+  "opp_strength_w_saves":    0.5,
+  "opp_strength_w_defcon":   0.3,
+  "opp_strength_w_bonus":   -0.3,
+
+  "overall_scale": {"1": 1.0, "2": 1.0, "3": 1.0, "4": 1.0}
+}
