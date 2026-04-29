@@ -11,7 +11,7 @@
  *     └─ Main         (bottom-tab navigator)
  *          ├─ MyTeamTab    -> MyTeamStack    (MyTeam, Gameweek)
  *          ├─ PlayersTab   -> PlayersStack   (Players)
- *          ├─ AnalyticsTab -> AnalyticsStack (Analytics)
+ *          ├─ TransfersTab -> TransfersStack (Transfers)
  *          ├─ FriendsTab   -> FriendsStack   (Friends, ManageFriends, AddFriend, ImportLeague)
  *          └─ SettingsTab  -> SettingsStack  (Settings)
  */
@@ -28,8 +28,8 @@ export type PlayersStackParamList = {
   Players: undefined;
 };
 
-export type AnalyticsStackParamList = {
-  Analytics: undefined;
+export type TransfersStackParamList = {
+  Transfers: undefined;
 };
 
 export type FriendsStackParamList = {
@@ -46,7 +46,7 @@ export type SettingsStackParamList = {
 export type MainTabParamList = {
   MyTeamTab: NavigatorScreenParams<MyTeamStackParamList>;
   PlayersTab: NavigatorScreenParams<PlayersStackParamList>;
-  AnalyticsTab: NavigatorScreenParams<AnalyticsStackParamList>;
+  TransfersTab: NavigatorScreenParams<TransfersStackParamList>;
   FriendsTab: NavigatorScreenParams<FriendsStackParamList>;
   SettingsTab: NavigatorScreenParams<SettingsStackParamList>;
 };
@@ -72,7 +72,7 @@ export type GameweekScreenProps = NativeStackScreenProps<MyTeamStackParamList, '
 
 export type PlayersScreenProps = NativeStackScreenProps<PlayersStackParamList, 'Players'>;
 
-export type AnalyticsScreenProps = NativeStackScreenProps<AnalyticsStackParamList, 'Analytics'>;
+export type TransfersScreenProps = NativeStackScreenProps<TransfersStackParamList, 'Transfers'>;
 
 export type FriendsScreenProps = CompositeScreenProps<
   NativeStackScreenProps<FriendsStackParamList, 'Friends'>,
