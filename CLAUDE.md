@@ -1,6 +1,6 @@
 # FPL Stats
 
-Fantasy Premier League companion app for personal/friends use. Secondary goal: hands-on AWS learning.
+Fantasy Premier League companion app for personal/friends use, eventually public. Secondary goal: hands-on AWS learning.
 
 ## Stack
 
