@@ -11,6 +11,7 @@ import { fetchPlayersXp } from '../api/playersXp';
 import type { Entry } from '../api/entry';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
@@ -431,10 +432,13 @@ function MyTeamNameCell({ row }: { row: MyTeamRow }) {
 
   return (
     <>
+      <ClubBackground teamShort={row.team} />
       <View style={styles.nameLine}>
-        <Text style={styles.nameText} numberOfLines={1}>
-          {row.name}
-        </Text>
+        <View style={styles.textBackdrop}>
+          <Text style={styles.nameText} numberOfLines={1}>
+            {row.name}
+          </Text>
+        </View>
         {row.isCaptain ? (
           <Text style={styles.playerBadge} accessibilityLabel="captain">
             C
@@ -446,10 +450,12 @@ function MyTeamNameCell({ row }: { row: MyTeamRow }) {
           </Text>
         ) : null}
       </View>
-      <Text style={styles.subText} numberOfLines={1}>
-        {subline}
-        {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
-      </Text>
+      <View style={styles.textBackdrop}>
+        <Text style={styles.subText} numberOfLines={1}>
+          {subline}
+          {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
+        </Text>
+      </View>
     </>
   );
 }
@@ -513,12 +519,12 @@ const makeStyles = (colors: Colors) =>
   chipBannerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#070707',
+    color: colors.onWarning,
     marginBottom: 2,
   },
   chipBannerBody: {
     fontSize: 12,
-    color: '#070707',
+    color: colors.onWarning,
     lineHeight: 16,
   },
   chipBadge: {
@@ -568,6 +574,17 @@ const makeStyles = (colors: Colors) =>
   },
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
   subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  // Surface-coloured halo behind name + subtitle so they remain legible
+  // against the club gradient. Invisible where the gradient has faded
+  // to surface (same colour); only appears in the coloured-band area
+  // where contrast is needed. ``alignSelf: 'flex-start'`` keeps the
+  // backdrop hugging the text width rather than spanning the row.
+  textBackdrop: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    borderRadius: 3,
+  },
   // Same accent-coloured pill for both captain (C) and vice (V) — only
   // the letter differentiates. Matches FPL's own visual treatment.
   playerBadge: {

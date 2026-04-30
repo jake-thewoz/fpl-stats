@@ -84,6 +84,9 @@ export type Colors = {
   onHighlight: string;
   danger: string;
   warning: string;
+  /** Readable text/icon colors on top of warning/danger backgrounds. */
+  onWarning: string;
+  onDanger: string;
 };
 
 export const lightColors: Colors = {
@@ -100,6 +103,9 @@ export const lightColors: Colors = {
   onHighlight: lightPalette.black,
   danger: '#c0495c',
   warning: '#e0b340',
+  // Black on warning's amber ≈ 7:1; white on danger's brick ≈ 4.6:1.
+  onWarning: lightPalette.black,
+  onDanger: '#ffffff',
 };
 
 export const darkColors: Colors = {
@@ -121,4 +127,8 @@ export const darkColors: Colors = {
   // Lifted versions of light-mode danger/warning for legibility on dark.
   danger: '#e0667a',
   warning: '#f0c860',
+  // Both lifted tones land light enough that black text wins on contrast
+  // (warning ~10:1 / danger ~6:1); white falls below 3:1 on warning.
+  onWarning: darkPalette.black,
+  onDanger: darkPalette.black,
 };

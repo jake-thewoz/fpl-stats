@@ -31,6 +31,7 @@ import {
 import { fetchPlayers, type Player } from '../api/players';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import {
@@ -391,16 +392,97 @@ function BundleCard({
 
 function BundleSummary({ bundle }: { bundle: TransferBundle }) {
   const styles = useThemedStyles(makeStyles);
-  // Net is the headline; gross + hit explain how we got there.
-  const netStr = `${bundle.delta_xp_net >= 0 ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
-  const detail =
-    bundle.hit_cost > 0
-      ? `${bundle.num_transfers} transfers · gross ${bundle.delta_xp_gross.toFixed(1)} − ${bundle.hit_cost} hit`
-      : `${bundle.num_transfers} transfers · no hit`;
+  const positive = bundle.delta_xp_net >= 0;
+  const netStr = `${positive ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP`;
   return (
     <View style={styles.bundleSummary}>
-      <Text style={styles.bundleSummaryNet}>{netStr}</Text>
-      <Text style={styles.bundleSummaryDetail}>{detail}</Text>
+      {/* Net xP gets the same sign-coloured-pill treatment as the
+          per-move CenterBadge so the bundle headline is visually
+          consistent with the moves it describes. Slightly larger
+          font / padding to keep it the dominant element on the card. */}
+      <View
+        style={[
+          styles.bundleSummaryNetPill,
+          positive
+            ? styles.bundleSummaryNetPillPositive
+            : styles.bundleSummaryNetPillNegative,
+        ]}
+      >
+        <Text
+          style={[
+            styles.bundleSummaryNetPillText,
+            positive
+              ? styles.bundleSummaryNetPillTextPositive
+              : styles.bundleSummaryNetPillTextNegative,
+          ]}
+        >
+          {netStr}
+        </Text>
+      </View>
+      {/* Detail row: bank pill + (conditional) hit pill. The bundle's
+          transfer count is implicit from the move stack rendered
+          below, so the previous "N transfers" text has been dropped. */}
+      <View style={styles.bundleSummaryDetailRow}>
+        <BankDeltaPill costChange={bundle.total_cost_change} />
+        {bundle.hit_cost > 0 ? <HitPill hitCost={bundle.hit_cost} /> : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Small pill showing the bank delta for a swap or bundle. ``costChange``
+ * is what FPL's API uses (positive = the swap costs you money). We
+ * negate it for display so the pill reads as the user's bank delta:
+ * positive = "you gained money", negative = "you lost money".
+ *
+ * - Gain → sage / accentSoft (matches the positive delta-xP pill).
+ * - Loss → red / danger.
+ * - £0.0 → muted text without a tinted background, since neither
+ *   "good" nor "bad" applies to a wash trade.
+ */
+function BankDeltaPill({ costChange }: { costChange: number }) {
+  const styles = useThemedStyles(makeStyles);
+  const bankDelta = -costChange / 10;
+  const text =
+    bankDelta === 0
+      ? '£0.0'
+      : `${bankDelta > 0 ? '+' : '−'}£${Math.abs(bankDelta).toFixed(1)}m`;
+  if (bankDelta === 0) {
+    return <Text style={styles.bankDeltaNeutral}>{text}</Text>;
+  }
+  const positive = bankDelta > 0;
+  return (
+    <View
+      style={[
+        styles.bankDeltaPill,
+        positive ? styles.bankDeltaPillPositive : styles.bankDeltaPillNegative,
+      ]}
+    >
+      <Text
+        style={[
+          styles.bankDeltaPillText,
+          positive
+            ? styles.bankDeltaPillTextPositive
+            : styles.bankDeltaPillTextNegative,
+        ]}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** Small red pill showing the −N point hit cost on a multi-transfer
+ *  bundle. Only rendered when ``hit_cost > 0``; the absence of the
+ *  pill is the "no hit" signal. */
+function HitPill({ hitCost }: { hitCost: number }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={[styles.bankDeltaPill, styles.bankDeltaPillNegative]}>
+      <Text style={[styles.bankDeltaPillText, styles.bankDeltaPillTextNegative]}>
+        −{hitCost} pts
+      </Text>
     </View>
   );
 }
@@ -532,7 +614,6 @@ function PlayerBlock({
   fallback: string;
   player: Player | undefined;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const name = player?.name ?? fallback;
@@ -550,12 +631,19 @@ function PlayerBlock({
         align === 'right' ? styles.playerBlockRight : styles.playerBlockLeft,
       ]}
     >
-      <Text style={styles.playerName} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={styles.playerSub} numberOfLines={1}>
-        {sub}
-      </Text>
+      {team ? (
+        <ClubBackground teamShort={team} mirror={align === 'right'} />
+      ) : null}
+      <View style={styles.playerTextBackdrop}>
+        <Text style={styles.playerName} numberOfLines={1}>
+          {name}
+        </Text>
+      </View>
+      <View style={styles.playerTextBackdrop}>
+        <Text style={styles.playerSub} numberOfLines={1}>
+          {sub}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -567,30 +655,38 @@ function CenterBadge({
   deltaXp: number;
   costChange: number;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const xpStr = `${deltaXp >= 0 ? '+' : ''}${deltaXp.toFixed(1)} xP`;
-  // cost_change in 0.1m units; positive = costs you money. Show £x.x with
-  // signs flipped so it reads as "your bank delta" — negative cost_change
-  // (cheaper in player) shows as a positive bank delta.
-  const bankDelta = -costChange / 10;
-  const costStr = bankDelta === 0
-    ? '£0.0'
-    : `${bankDelta > 0 ? '+' : ''}£${bankDelta.toFixed(1)}m`;
+  const positive = deltaXp >= 0;  // 0.0 ties to positive (matches "+0.0" sign)
 
   return (
     <View style={styles.center}>
       <View style={styles.arrowRow}>
         <Text style={styles.arrowText}>→</Text>
       </View>
-      {/* xP delta gets a filled accent pill — the headline value of the
-          card. Plain accent-colored text was washing out in dark mode
-          (#96 PR review). */}
-      <View style={styles.deltaXpPill}>
-        <Text style={styles.deltaXpPillText}>{xpStr}</Text>
+      {/* xP delta pill is sign-coloured: sage for positive moves, red
+          for negative. Mostly the bundle-net positives, but per-move
+          deltas inside a multi-move bundle can go negative — the pill
+          colour gives that move's contribution at a glance. */}
+      <View
+        style={[
+          styles.deltaXpPill,
+          positive ? styles.deltaXpPillPositive : styles.deltaXpPillNegative,
+        ]}
+      >
+        <Text
+          style={[
+            styles.deltaXpPillText,
+            positive
+              ? styles.deltaXpPillTextPositive
+              : styles.deltaXpPillTextNegative,
+          ]}
+        >
+          {xpStr}
+        </Text>
       </View>
-      <Text style={styles.deltaCost}>{costStr}</Text>
+      <BankDeltaPill costChange={costChange} />
     </View>
   );
 }
@@ -866,10 +962,13 @@ const makeStyles = (colors: Colors) =>
   // suggestions are computed against the persistent squad, not the
   // FH eleven. Mirrors the louder banner on the My Team screen but
   // doesn't need the warning treatment because suggestions are still
-  // actionable in this state.
+  // actionable in this state. ``onWarning`` (matches My Team's
+  // ChipBanner) keeps the text dark against the light-yellow
+  // warning bg in both light and dark mode — without this dark-mode
+  // text was white-on-yellow and unreadable.
   headerFreehitNote: {
     fontSize: 12,
-    color: colors.textPrimary,
+    color: colors.onWarning,
     backgroundColor: colors.warning,
     marginTop: 8,
     paddingHorizontal: 10,
@@ -905,15 +1004,33 @@ const makeStyles = (colors: Colors) =>
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  bundleSummaryNet: {
+  // Bundle-level net xP pill. Same sign-coloured visual language as
+  // the per-move CenterBadge, sized up so the bundle headline reads
+  // as the dominant element on the card.
+  bundleSummaryNetPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  bundleSummaryNetPillPositive: { backgroundColor: colors.accentSoft },
+  bundleSummaryNetPillNegative: { backgroundColor: colors.danger },
+  bundleSummaryNetPillText: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
   },
-  bundleSummaryDetail: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
+  bundleSummaryNetPillTextPositive: { color: colors.onAccentSoft },
+  bundleSummaryNetPillTextNegative: { color: colors.onDanger },
+  // Detail row holds the bank + (optional) hit pills inline below
+  // the net-xP pill. Centered alignment keeps the small pills
+  // baseline-matched.
+  bundleSummaryDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    flexWrap: 'wrap',
   },
   // Per-move heading inside the expanded compare section, only shown
   // for multi-move bundles so the user knows which compare table goes
@@ -977,8 +1094,8 @@ const makeStyles = (colors: Colors) =>
   toneCellMid: { backgroundColor: colors.warning },
   toneCellBad: { backgroundColor: colors.danger },
   toneTextGood: { color: colors.onAccentSoft },
-  toneTextMid: { color: '#070707' },
-  toneTextBad: { color: '#ffffff' },
+  toneTextMid: { color: colors.onWarning },
+  toneTextBad: { color: colors.onDanger },
   toneTextNeutral: { color: colors.textPrimary },
   playerBlock: {
     flex: 1,
@@ -1002,6 +1119,17 @@ const makeStyles = (colors: Colors) =>
     color: colors.textMuted,
     marginTop: 2,
   },
+  // Surface-coloured halo behind the name + subtitle text on each
+  // PlayerBlock. ``alignSelf: auto`` lets each backdrop inherit the
+  // parent block's ``alignItems`` (flex-start for the left block,
+  // flex-end for the right one) so the backdrop hugs the text on
+  // whichever side the text aligns to. Invisible where the gradient
+  // has faded to surface.
+  playerTextBackdrop: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    borderRadius: 3,
+  },
 
   // Center column: arrow + delta xp + bank delta.
   center: {
@@ -1019,17 +1147,40 @@ const makeStyles = (colors: Colors) =>
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
-    backgroundColor: colors.accent,
   },
+  deltaXpPillPositive: { backgroundColor: colors.accentSoft },
+  deltaXpPillNegative: { backgroundColor: colors.danger },
   deltaXpPillText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.onAccent,
   },
-  deltaCost: {
+  deltaXpPillTextPositive: { color: colors.onAccentSoft },
+  deltaXpPillTextNegative: { color: colors.onDanger },
+  // Bank-delta pill (used by both CenterBadge and BundleSummary) and
+  // the matching hit pill. Smaller than the xP delta so the headline
+  // pill stays the dominant visual element.
+  bankDeltaPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  bankDeltaPillPositive: { backgroundColor: colors.accentSoft },
+  bankDeltaPillNegative: { backgroundColor: colors.danger },
+  bankDeltaPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  bankDeltaPillTextPositive: { color: colors.onAccentSoft },
+  bankDeltaPillTextNegative: { color: colors.onDanger },
+  // Wash trade — neutral muted text instead of a pill. Avoids slapping
+  // a green/red verdict on a no-bank-impact swap.
+  bankDeltaNeutral: {
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
 
   // Empty / message states.
