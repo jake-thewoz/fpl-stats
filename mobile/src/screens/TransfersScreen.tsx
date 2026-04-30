@@ -392,15 +392,37 @@ function BundleCard({
 
 function BundleSummary({ bundle }: { bundle: TransferBundle }) {
   const styles = useThemedStyles(makeStyles);
-  const netStr = `${bundle.delta_xp_net >= 0 ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
+  const positive = bundle.delta_xp_net >= 0;
+  const netStr = `${positive ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP`;
   return (
     <View style={styles.bundleSummary}>
-      <Text style={styles.bundleSummaryNet}>{netStr}</Text>
-      <View style={styles.bundleSummaryDetailRow}>
-        <Text style={styles.bundleSummaryDetail}>
-          {bundle.num_transfers}{' '}
-          {bundle.num_transfers === 1 ? 'transfer' : 'transfers'}
+      {/* Net xP gets the same sign-coloured-pill treatment as the
+          per-move CenterBadge so the bundle headline is visually
+          consistent with the moves it describes. Slightly larger
+          font / padding to keep it the dominant element on the card. */}
+      <View
+        style={[
+          styles.bundleSummaryNetPill,
+          positive
+            ? styles.bundleSummaryNetPillPositive
+            : styles.bundleSummaryNetPillNegative,
+        ]}
+      >
+        <Text
+          style={[
+            styles.bundleSummaryNetPillText,
+            positive
+              ? styles.bundleSummaryNetPillTextPositive
+              : styles.bundleSummaryNetPillTextNegative,
+          ]}
+        >
+          {netStr}
         </Text>
+      </View>
+      {/* Detail row: bank pill + (conditional) hit pill. The bundle's
+          transfer count is implicit from the move stack rendered
+          below, so the previous "N transfers" text has been dropped. */}
+      <View style={styles.bundleSummaryDetailRow}>
         <BankDeltaPill costChange={bundle.total_cost_change} />
         {bundle.hit_cost > 0 ? <HitPill hitCost={bundle.hit_cost} /> : null}
       </View>
@@ -940,10 +962,13 @@ const makeStyles = (colors: Colors) =>
   // suggestions are computed against the persistent squad, not the
   // FH eleven. Mirrors the louder banner on the My Team screen but
   // doesn't need the warning treatment because suggestions are still
-  // actionable in this state.
+  // actionable in this state. ``onWarning`` (matches My Team's
+  // ChipBanner) keeps the text dark against the light-yellow
+  // warning bg in both light and dark mode — without this dark-mode
+  // text was white-on-yellow and unreadable.
   headerFreehitNote: {
     fontSize: 12,
-    color: colors.textPrimary,
+    color: colors.onWarning,
     backgroundColor: colors.warning,
     marginTop: 8,
     paddingHorizontal: 10,
@@ -979,23 +1004,32 @@ const makeStyles = (colors: Colors) =>
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  bundleSummaryNet: {
+  // Bundle-level net xP pill. Same sign-coloured visual language as
+  // the per-move CenterBadge, sized up so the bundle headline reads
+  // as the dominant element on the card.
+  bundleSummaryNetPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  bundleSummaryNetPillPositive: { backgroundColor: colors.accentSoft },
+  bundleSummaryNetPillNegative: { backgroundColor: colors.danger },
+  bundleSummaryNetPillText: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
   },
-  bundleSummaryDetail: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  // Detail row holds the count text plus the bank + (optional) hit
-  // pills inline. Centered alignment keeps the small pills baseline-
-  // matched with the count text.
+  bundleSummaryNetPillTextPositive: { color: colors.onAccentSoft },
+  bundleSummaryNetPillTextNegative: { color: colors.onDanger },
+  // Detail row holds the bank + (optional) hit pills inline below
+  // the net-xP pill. Centered alignment keeps the small pills
+  // baseline-matched.
   bundleSummaryDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 2,
+    marginTop: 4,
     flexWrap: 'wrap',
   },
   // Per-move heading inside the expanded compare section, only shown

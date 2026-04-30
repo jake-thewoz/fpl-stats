@@ -51,15 +51,16 @@ export function ClubBackground({ teamShort, mirror = false }: Props) {
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
       <ClubPattern club={club} />
-      {/* Fade overlay. ``locations`` keep the leftmost ~25% of the
-          gradient axis at full pattern opacity (the colour part the
-          brief wants), then ramp to the surface colour over the
-          remaining ~75% so the row blends back into the background.
-          Flipping ``start``/``end`` reverses the axis without touching
-          the locations or colours, which is how mirror works. */}
+      {/* Fade overlay. ``locations`` keep the outer ~60% of the
+          gradient axis at full pattern opacity — covering the player
+          name + subtitle line — then ramp to the surface colour over
+          the inner ~40% so the row blends out before reaching the
+          xP / data column. Flipping ``start``/``end`` reverses the
+          axis without touching the locations or colours, which is
+          how mirror works. */}
       <LinearGradient
         colors={['transparent', colors.surface]}
-        locations={[0.25, 1]}
+        locations={[0.6, 1]}
         start={mirror ? { x: 1, y: 0 } : { x: 0, y: 0 }}
         end={mirror ? { x: 0, y: 0 } : { x: 1, y: 0 }}
         style={StyleSheet.absoluteFillObject}
