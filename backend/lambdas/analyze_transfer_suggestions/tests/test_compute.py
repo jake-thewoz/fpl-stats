@@ -554,3 +554,45 @@ class TestSuggestTransferBundlesMultiMove:
         # No 2-move bundle should appear (combined cost 100 > 50). Single
         # moves are fine (each fits the bank).
         assert all(b.num_transfers == 1 for b in result)
+
+    def test_max_transfers_three_completes_on_realistic_squad(self):
+        """Regression: ``max_transfers=3`` on a realistic 15-player squad
+        used to time the Lambda out (~30s) because the cartesian product
+        is 15C3 × 25^3 ≈ 7M combinations. The branch-and-bound prune in
+        ``suggest_transfer_bundles`` collapses this to <1s by skipping
+        slot subsets whose theoretical-best gross can't beat the current
+        top-N threshold. Pytest will hang past the session timeout if
+        the prune ever regresses."""
+        # 15-player squad: realistic FPL shape (2 GKP / 5 DEF / 5 MID /
+        # 3 FWD), 3 per team across 5 teams.
+        positions = [1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4]
+        squad = [
+            _player(i + 1, team=(i % 5) + 1, position=pos, cost=80)
+            for i, pos in enumerate(positions)
+        ]
+        # Pool: 240 players spread across 20 different teams + 4 positions.
+        pool: list[Player] = []
+        pid = 1000
+        for team in range(6, 26):
+            for pos in range(1, 5):
+                for _ in range(3):
+                    pool.append(_player(pid, team=team, position=pos, cost=80))
+                    pid += 1
+
+        # Squad on low xP, pool on high xP — guarantees multi-move bundles
+        # actually win, exercising the full search path rather than getting
+        # entirely pruned by the slot-subset upper bound.
+        horizon_xps = {p.id: 1.0 for p in squad}
+        horizon_xps.update({p.id: 6.0 for p in pool})
+
+        bundles = suggest_transfer_bundles(
+            squad=squad, bank=200, candidate_pool=pool,
+            horizon_xps=horizon_xps,
+            free_transfers=1, max_transfers=3, top_n=10,
+        )
+        # Verify the multi-move logic was exercised (top should be a
+        # 3-move bundle: gross 3×5 = 15, hit 2×4 = 8, net 7 — beats any
+        # 1-move bundle's net of 5).
+        assert bundles[0].num_transfers == 3
+        assert bundles[0].hit_cost == 2 * HIT_COST_POINTS
+        assert bundles[0].delta_xp_net == pytest.approx(7.0)

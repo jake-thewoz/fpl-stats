@@ -6,6 +6,7 @@ the issue's AC. The handler wires these against DDB I/O and HTTP.
 """
 from __future__ import annotations
 
+import heapq
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations, product
@@ -285,25 +286,53 @@ def suggest_transfer_bundles(
     for p in candidate_pool:
         player_by_id[p.id] = p
 
-    bundles: list[TransferBundle] = []
+    # Branch-and-bound + heap-based top-N. Without pruning, max_transfers=3
+    # explores ~7M (15C3 × 25^3) combinations and times the Lambda out;
+    # with the slot-subset upper-bound prune, most subsets are skipped
+    # entirely once the heap fills with strong 1- and 2-move bundles.
+    #
+    # heap entries: (delta_xp_net, counter, bundle). The min-heap's root
+    # is the *worst* bundle currently in the top-N; once the heap is full
+    # we replace the root only when a new bundle beats it. ``counter``
+    # is a unique tiebreaker so the heap never has to compare TransferBundle
+    # objects (which aren't ordered).
+    heap: list[tuple[float, int, TransferBundle]] = []
+    counter = 0
+    threshold = float("-inf")
+
     for size in range(1, capped_max + 1):
         hit_cost = max(0, size - free_transfers) * HIT_COST_POINTS
         for slot_indices in combinations(range(len(squad)), size):
             slot_options = [per_slot_moves[i] for i in slot_indices]
             if any(not opts for opts in slot_options):
                 continue
+            # Per-slot top-K is sorted by delta desc, so opts[0] is each
+            # slot's best move. The sum is an upper bound on any bundle
+            # we could build from this slot subset (constraints can only
+            # lower it). If even that ceiling can't beat the current
+            # top-N threshold, skip the entire cartesian product.
+            max_gross = sum(opts[0].delta_xp for opts in slot_options)
+            if max_gross - hit_cost <= threshold:
+                continue
             for move_combo in product(*slot_options):
                 if not is_valid_bundle(move_combo, counts, bank, player_by_id):
                     continue
-                gross = sum(m.delta_xp for m in move_combo)
-                bundles.append(
-                    TransferBundle(
-                        moves=move_combo,
-                        hit_cost=hit_cost,
-                        delta_xp_net=gross - hit_cost,
-                    )
+                net = sum(m.delta_xp for m in move_combo) - hit_cost
+                bundle = TransferBundle(
+                    moves=move_combo,
+                    hit_cost=hit_cost,
+                    delta_xp_net=net,
                 )
+                if len(heap) < top_n:
+                    heapq.heappush(heap, (net, counter, bundle))
+                    if len(heap) == top_n:
+                        threshold = heap[0][0]
+                elif net > threshold:
+                    heapq.heappushpop(heap, (net, counter, bundle))
+                    threshold = heap[0][0]
+                counter += 1
 
+    bundles = [b for _, _, b in heap]
     bundles.sort(
         key=lambda b: (
             -b.delta_xp_net,
@@ -311,4 +340,4 @@ def suggest_transfer_bundles(
             tuple((m.out_player_id, m.in_player_id) for m in b.moves),
         )
     )
-    return bundles[:top_n]
+    return bundles
