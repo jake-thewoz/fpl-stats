@@ -66,6 +66,11 @@ export type TransferSuggestionsResponse = {
   free_transfers: number;
   /** The bundle-size ceiling actually applied (default 2, capped at 3). */
   max_transfers_considered: number;
+  /** True when the current GW has Free Hit active. The server has already
+   *  swapped the squad to the previous GW's persistent picks for the
+   *  bundle math, so the suggestions apply to the user's real team —
+   *  this flag exists so the UI can surface that fact. */
+  freehit_active: boolean;
   /** Top N (server-capped at 10), ranked by delta_xp_net desc, then by
    *  num_transfers asc (prefer fewer moves at equal net). */
   bundles: TransferBundle[];
