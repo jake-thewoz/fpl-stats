@@ -1,31 +1,40 @@
-"""Read API — GET /analytics/squad/{teamId}/transfers?horizon=N.
+"""Read API — GET /analytics/squad/{teamId}/transfers.
 
-On-demand single-transfer suggestions for the user's squad. Computes at
-request time rather than pre-computing on a schedule: per-user output,
-not pre-storing means we don't accumulate per-team rows or run a daily
-scan over every cached entry.
+On-demand FT-aware multi-transfer suggestions for the user's squad.
+Returns a ranked list of *bundles* — each is a 1-, 2-, or 3-move
+package, scored by net delta-xP across the requested horizon after
+subtracting the FT-aware hit cost (4 pts per transfer beyond the user's
+free count). A 2-move bundle that requires a hit only beats a 1-move
+free bundle if its gross gain outweighs the −4.
 
-For each player in the user's 15, considers every PL player who would
-be a valid swap (same position, budget fits, 3-per-team rule satisfied,
-not already in squad), scores the swap by projected delta-xP across the
-next N gameweeks, and returns the top 10 ranked descending.
+Query params:
+- ``horizon=N`` — GWs to sum xP over (default 3, clamped to MAX_HORIZON)
+- ``positions=2,3`` — restrict to FPL element_type set
+- ``max_transfers=N`` — bundle size ceiling (default 2, clamped to
+  MAX_BUNDLE_SIZE = 3)
+- ``free_transfers=N`` — override the FT count derived from FPL history.
+  Mostly for testing; production calls omit it and rely on derivation.
 
 Inputs (from DDB cache, with cache-aside FPL fetches for per-team data):
 - entry#{teamId}                — bank + current_event (cache-aside)
 - entry#{teamId}#gw#{event}     — the 15 picks (cache-aside)
+- entry#{teamId}#history        — per-GW transfers + chips for FT walk
+                                  (cache-aside)
 - fpl#bootstrap                 — players, positions, teams, gameweeks
 - fpl#fixtures                  — upcoming fixtures + difficulty
 - analytics#player_form rows    — form_score per player (xP input)
+- analytics#player_xp_v2 rows   — pre-computed horizon xP
 
 Approximations (documented for the smoke tester so the output isn't
 mysterious):
 - Buy and sell prices both use ``now_cost``. Real FPL keeps half of any
   appreciation as the sell price; we don't have purchase prices without
   FPL auth, and the delta-xP ranking is robust to small budget noise.
-- Free-transfer count is ignored. Output is a ranked list; the user
-  applies their own FT count + hit calculus.
-- Single-transfer only. Multi-transfer combos (banked FTs, hit math)
-  are deliberately deferred — see follow-up issue.
+- FT derivation walks the public history endpoint and applies 25/26
+  rules (banked cap of 5, Wildcard/Free Hit preserve FTs). Doesn't
+  account for transfers made *during* the current GW lead-up that
+  haven't landed in history yet — typical staleness is < 30 min via
+  the cache TTL.
 """
 from __future__ import annotations
 
@@ -40,9 +49,21 @@ import boto3
 import requests
 from boto3.dynamodb.conditions import Key
 
-from compute import TransferCandidate, suggest_transfers
+from compute import (
+    MAX_BUNDLE_SIZE,
+    TransferBundle,
+    derive_free_transfers,
+    suggest_transfer_bundles,
+)
 from fpl_session import make_fpl_session
-from schemas import SCHEMA_VERSION, Bootstrap, Entry, EntryPicks, Fixture
+from schemas import (
+    SCHEMA_VERSION,
+    Bootstrap,
+    Entry,
+    EntryFullHistory,
+    EntryPicks,
+    Fixture,
+)
 from v2_horizon import read_v2_horizon_xps
 from xp_compute import upcoming_gameweek_ids
 
@@ -53,10 +74,18 @@ FPL_BASE_URL = "https://fantasy.premierleague.com/api"
 HTTP_TIMEOUT_SECONDS = 10
 ENTRY_TTL_SECONDS = 1800  # 30 min, matches /entry/{teamId}
 PICKS_TTL_SECONDS = 1800
+HISTORY_TTL_SECONDS = 1800
 
 DEFAULT_HORIZON = 3
 MAX_HORIZON = 5
+DEFAULT_MAX_TRANSFERS = 2
 TOP_N = 10
+# Conservative fallback when FT derivation fails (history fetch failed,
+# malformed response, etc.). Charging 1 FT means we'll over-charge hits
+# in some cases, which is the safer direction — better to under-promise
+# and let users execute fewer transfers than to mislead them into hits
+# they thought were free.
+FALLBACK_FREE_TRANSFERS = 1
 
 
 class EntryNotFound(Exception):
@@ -99,6 +128,33 @@ def _parse_horizon(event: dict[str, Any]) -> int:
     if value <= 0:
         return DEFAULT_HORIZON
     return min(value, MAX_HORIZON)
+
+
+def _parse_max_transfers(event: dict[str, Any]) -> int:
+    """``?max_transfers=N`` → bundle size ceiling. Defaults to
+    DEFAULT_MAX_TRANSFERS (2). Clamped to MAX_BUNDLE_SIZE (3) to keep
+    the combinatorial search inside the Lambda timeout."""
+    params = event.get("queryStringParameters") or {}
+    raw = params.get("max_transfers") if isinstance(params, dict) else None
+    if not isinstance(raw, str) or not raw.isdigit():
+        return DEFAULT_MAX_TRANSFERS
+    value = int(raw)
+    if value <= 0:
+        return DEFAULT_MAX_TRANSFERS
+    return min(value, MAX_BUNDLE_SIZE)
+
+
+def _parse_free_transfers(event: dict[str, Any]) -> int | None:
+    """``?free_transfers=N`` → override the FT count derived from FPL
+    history. Returns ``None`` when absent so the handler falls back to
+    derivation. Mostly for testing — production callers shouldn't pass it.
+    Negative values are silently dropped (treated as absent)."""
+    params = event.get("queryStringParameters") or {}
+    raw = params.get("free_transfers") if isinstance(params, dict) else None
+    if not isinstance(raw, str) or not raw.isdigit():
+        return None
+    value = int(raw)
+    return value if value >= 0 else None
 
 
 # FPL element_type values: 1=GKP, 2=DEF, 3=MID, 4=FWD. We don't validate
@@ -170,6 +226,43 @@ def _fetch_entry_with_cache(
         }
     )
     return entry
+
+
+def _fetch_history_with_cache(
+    table: Any,
+    session: requests.Session,
+    team_id: int,
+) -> EntryFullHistory:
+    """Fetch ``/entry/{teamId}/history/`` with cache-aside semantics
+    (same TTL pattern as entry/picks). Provides per-GW transfer counts
+    and chip activations for the FT-derivation walk."""
+    cached = table.get_item(
+        Key={"pk": f"entry#{team_id}#history", "sk": "latest"}
+    ).get("Item")
+    if cached and _is_fresh(cached):
+        return EntryFullHistory.model_validate(cached["data"])
+
+    url = f"{FPL_BASE_URL}/entry/{team_id}/history/"
+    response = session.get(url, timeout=HTTP_TIMEOUT_SECONDS)
+    if response.status_code == 404:
+        raise EntryNotFound(team_id)
+    response.raise_for_status()
+    history = EntryFullHistory.model_validate(response.json())
+
+    now = time.time()
+    expires_at = int(now) + HISTORY_TTL_SECONDS
+    table.put_item(
+        Item={
+            "pk": f"entry#{team_id}#history",
+            "sk": "latest",
+            "schema_version": SCHEMA_VERSION,
+            "fetched_at": int(now),
+            "expires_at": expires_at,
+            "ttl": expires_at,
+            "data": history.model_dump(),
+        }
+    )
+    return history
 
 
 def _fetch_picks_with_cache(
@@ -289,22 +382,55 @@ def _enriched_player(
     }
 
 
-def _suggestion_to_dict(
-    candidate: TransferCandidate,
+def _bundle_to_dict(
+    bundle: TransferBundle,
     by_id: dict[int, Any],
     horizon_xps: dict[int, float],
     snapshots: dict[int, dict[str, float | None]],
 ) -> dict[str, Any]:
     return {
-        "out": _enriched_player(
-            candidate.out_player_id, by_id, horizon_xps, snapshots
-        ),
-        "in": _enriched_player(
-            candidate.in_player_id, by_id, horizon_xps, snapshots
-        ),
-        "delta_xp": round(candidate.delta_xp, 4),
-        "cost_change": candidate.cost_change,
+        "moves": [
+            {
+                "out": _enriched_player(
+                    move.out_player_id, by_id, horizon_xps, snapshots
+                ),
+                "in": _enriched_player(
+                    move.in_player_id, by_id, horizon_xps, snapshots
+                ),
+                "delta_xp": round(move.delta_xp, 4),
+                "cost_change": move.cost_change,
+            }
+            for move in bundle.moves
+        ],
+        "num_transfers": bundle.num_transfers,
+        "hit_cost": bundle.hit_cost,
+        "delta_xp_gross": round(bundle.delta_xp_gross, 4),
+        "delta_xp_net": round(bundle.delta_xp_net, 4),
+        "total_cost_change": bundle.total_cost_change,
     }
+
+
+def _empty_response(
+    team_id: int,
+    *,
+    season_over: bool,
+    preseason: bool,
+    free_transfers: int,
+    max_transfers: int,
+) -> dict[str, Any]:
+    return _response(
+        200,
+        {
+            "team_id": team_id,
+            "horizon_gws": 0,
+            "horizon_gw_ids": [],
+            "season_over": season_over,
+            "preseason": preseason,
+            "free_transfers": free_transfers,
+            "max_transfers_considered": max_transfers,
+            "bundles": [],
+        },
+    )
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -313,6 +439,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return _response(400, {"error": "invalid team id"})
     horizon = _parse_horizon(event)
     position_filter = _parse_positions(event)
+    max_transfers = _parse_max_transfers(event)
+    free_transfers_override = _parse_free_transfers(event)
 
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
@@ -328,18 +456,28 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         log.exception("FPL entry fetch failed for team %s", team_id)
         return _response(502, {"error": "upstream error"})
 
+    # FT derivation: walks history applying 25/26 banking rules. Falls
+    # back to FALLBACK_FREE_TRANSFERS on history fetch failure (over-
+    # charging hits is safer than under-charging — see the constant's
+    # comment). Override path skips derivation entirely.
+    if free_transfers_override is not None:
+        free_transfers = free_transfers_override
+    else:
+        try:
+            history = _fetch_history_with_cache(table, session, team_id)
+            free_transfers = derive_free_transfers(history.current, history.chips)
+        except (EntryNotFound, requests.RequestException, Exception):
+            log.exception(
+                "FT derivation failed for team %s, falling back to %d",
+                team_id, FALLBACK_FREE_TRANSFERS,
+            )
+            free_transfers = FALLBACK_FREE_TRANSFERS
+
     if entry.current_event is None:
         # Pre-season: user hasn't played a GW yet, so no picks to read.
-        return _response(
-            200,
-            {
-                "team_id": team_id,
-                "horizon_gws": 0,
-                "horizon_gw_ids": [],
-                "season_over": False,
-                "preseason": True,
-                "suggestions": [],
-            },
+        return _empty_response(
+            team_id, season_over=False, preseason=True,
+            free_transfers=free_transfers, max_transfers=max_transfers,
         )
 
     try:
@@ -380,16 +518,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, horizon)
     if not horizon_gw_ids:
         # Post-final-deadline: nothing left to score.
-        return _response(
-            200,
-            {
-                "team_id": team_id,
-                "horizon_gws": 0,
-                "horizon_gw_ids": [],
-                "season_over": True,
-                "preseason": False,
-                "suggestions": [],
-            },
+        return _empty_response(
+            team_id, season_over=True, preseason=False,
+            free_transfers=free_transfers, max_transfers=max_transfers,
         )
 
     # player_form rows drive the per-card UI fields (form_score,
@@ -425,7 +556,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
 
     # Position filter applies to BOTH sides of every swap. FPL's same-
-    # position rule (enforced inside is_valid_swap) means a swap is
+    # position rule (enforced inside the bundle compute) means a swap is
     # always position(out) == position(in), so filtering both squad and
     # candidate pool to the same set yields the right answer naturally.
     if position_filter is not None:
@@ -436,11 +567,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     else:
         candidate_pool = bootstrap.players
 
-    candidates = suggest_transfers(
+    bundles = suggest_transfer_bundles(
         squad=squad,
         bank=entry.last_deadline_bank or 0,
         candidate_pool=candidate_pool,
         horizon_xps=horizon_xps,
+        free_transfers=free_transfers,
+        max_transfers=max_transfers,
         top_n=TOP_N,
     )
 
@@ -452,12 +585,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "horizon_gw_ids": horizon_gw_ids,
             "season_over": False,
             "preseason": False,
+            "free_transfers": free_transfers,
+            "max_transfers_considered": max_transfers,
             "current_squad_xp": round(
                 sum(horizon_xps.get(pid, 0.0) for pid in squad_ids), 4
             ),
-            "suggestions": [
-                _suggestion_to_dict(c, by_id, horizon_xps, snapshots)
-                for c in candidates
+            "bundles": [
+                _bundle_to_dict(b, by_id, horizon_xps, snapshots)
+                for b in bundles
             ],
         },
     )

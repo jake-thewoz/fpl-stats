@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../config';
 
-/** One side of a transfer suggestion (the out or in player). */
+/** One side of a transfer move (the out or in player). */
 export type SuggestionPlayer = {
   player_id: number;
   web_name: string;
@@ -24,14 +24,31 @@ export type SuggestionPlayer = {
   avg_upcoming_elo_expected_score: number | null;
 };
 
-/** A single ranked swap. */
-export type TransferSuggestion = {
+/** A single move within a bundle: out -> in. */
+export type TransferMove = {
   out: SuggestionPlayer;
   in: SuggestionPlayer;
-  /** in.horizon_xp − out.horizon_xp. Higher is better. */
+  /** in.horizon_xp − out.horizon_xp for this move alone. */
   delta_xp: number;
-  /** in.now_cost − out.now_cost in 0.1m units. Positive = costs you money. */
+  /** in.now_cost − out.now_cost in 0.1m units. Positive = costs money. */
   cost_change: number;
+};
+
+/** A bundle is a 1-, 2-, or 3-move transfer package, scored by net
+ *  delta-xp after subtracting the FT-aware hit cost. */
+export type TransferBundle = {
+  moves: TransferMove[];
+  /** Number of transfers in this bundle (length of `moves`). */
+  num_transfers: number;
+  /** Points penalty for transfers beyond the user's free count:
+   *  max(0, num_transfers − free_transfers) × 4. */
+  hit_cost: number;
+  /** Sum of move.delta_xp across the bundle. */
+  delta_xp_gross: number;
+  /** delta_xp_gross − hit_cost. Bundles are ranked descending by this. */
+  delta_xp_net: number;
+  /** Sum of move.cost_change across the bundle (net bank impact). */
+  total_cost_change: number;
 };
 
 export type TransferSuggestionsResponse = {
@@ -44,8 +61,14 @@ export type TransferSuggestionsResponse = {
   preseason: boolean;
   /** Sum of horizon_xp across the user's 15. Null when no fixtures to score. */
   current_squad_xp?: number;
-  /** Top N (server-capped at 10), ranked by delta_xp desc. */
-  suggestions: TransferSuggestion[];
+  /** FT count derived from FPL history (or override). The hit_cost on
+   *  each bundle is computed against this. */
+  free_transfers: number;
+  /** The bundle-size ceiling actually applied (default 2, capped at 3). */
+  max_transfers_considered: number;
+  /** Top N (server-capped at 10), ranked by delta_xp_net desc, then by
+   *  num_transfers asc (prefer fewer moves at equal net). */
+  bundles: TransferBundle[];
 };
 
 /** Picks not cached on the server side and FPL didn't have any either —
@@ -73,10 +96,15 @@ export async function fetchTransferSuggestions(
    * Empty = no filter (all positions). */
   positions: readonly number[],
   signal?: AbortSignal,
+  /** Bundle-size ceiling. Default omitted → server picks DEFAULT_MAX_TRANSFERS=2. */
+  maxTransfers?: number,
 ): Promise<TransferSuggestionsResponse> {
   const params = new URLSearchParams({ horizon: String(horizon) });
   if (positions.length > 0) {
     params.set('positions', positions.join(','));
+  }
+  if (maxTransfers !== undefined) {
+    params.set('max_transfers', String(maxTransfers));
   }
   const url = `${API_BASE_URL}/analytics/squad/${teamId}/transfers?${params.toString()}`;
   const res = await fetch(url, { signal });

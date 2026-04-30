@@ -190,6 +190,32 @@ class EntryPicks(BaseModel):
     entry_history: EntryHistory
 
 
+class EntryChip(BaseModel):
+    """One chip usage on an entry. Returned by ``/entry/{id}/history/`` in
+    the ``chips`` array. The ``name`` matches ``EntryPicks.active_chip``
+    string values: 'wildcard', 'freehit', '3xc', 'bboost'."""
+
+    name: str
+    event: int
+
+
+class EntryFullHistory(BaseModel):
+    """Subset of FPL ``/entry/{id}/history/`` — the fields we use for FT
+    derivation and chip-state surfacing.
+
+    ``current`` lists per-GW entries for completed GWs (entries match
+    ``EntryHistory``, but the full history response provides them as a
+    list rather than the single entry on ``EntryPicks.entry_history``).
+
+    ``chips`` lists chip activations across the season; we cross-reference
+    by ``event`` to know which GWs used Wildcard / Free Hit (the two chips
+    that affect the FT-balance walk).
+    """
+
+    current: list[EntryHistory]
+    chips: list[EntryChip] = []
+
+
 class GameweekLiveElement(BaseModel):
     """Per-player live stats for a gameweek — what we keep is tight on
     purpose: id, points, minutes. Any future needs (bonus, goals, xG join
