@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   LayoutAnimation,
@@ -10,6 +10,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Android needs LayoutAnimation explicitly enabled. Once-per-app call,
 // safe to leave at module scope — the runtime guards against re-enable.
@@ -69,9 +70,19 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => {
-    getFplTeamId().then(setTeamId);
-  }, []);
+  // Re-read on every focus so a team-id change in Settings propagates
+  // here without a full app reload (matches the My Team tab).
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getFplTeamId().then((id) => {
+        if (alive) setTeamId(id);
+      });
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
@@ -298,6 +309,7 @@ function SuggestionsList({
           horizonGwIds={response.horizon_gw_ids}
           currentSquadXp={response.current_squad_xp}
           freeTransfers={response.free_transfers}
+          freehitActive={response.freehit_active}
         />
       }
       contentContainerStyle={styles.listContent}
@@ -591,10 +603,12 @@ function Header({
   horizonGwIds,
   currentSquadXp,
   freeTransfers,
+  freehitActive,
 }: {
   horizonGwIds: number[];
   currentSquadXp: number | undefined;
   freeTransfers: number;
+  freehitActive: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
 
@@ -616,6 +630,13 @@ function Header({
           ? ` · current squad projected ${currentSquadXp.toFixed(1)} xP`
           : ''}
       </Text>
+      {freehitActive ? (
+        <Text style={styles.headerFreehitNote}>
+          Free Hit active — suggestions are for your persistent squad (not the
+          temporary FH eleven), so they apply once your real team reappears
+          at the next deadline.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -840,6 +861,21 @@ const makeStyles = (colors: Colors) =>
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  // FH note: small but visually distinct so the user sees that
+  // suggestions are computed against the persistent squad, not the
+  // FH eleven. Mirrors the louder banner on the My Team screen but
+  // doesn't need the warning treatment because suggestions are still
+  // actionable in this state.
+  headerFreehitNote: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    backgroundColor: colors.warning,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    lineHeight: 16,
   },
 
   // Card.

@@ -349,13 +349,12 @@ function Row({ row }: { row: ComparisonRow }) {
 }
 
 function displayAlias(row: ComparisonRow): string {
-  // For the signed-in user, prefer the real team name once it loads — the
-  // 'You' badge next to it is what identifies the row. Fall back to a
-  // neutral placeholder while the fetch is in flight or if it failed.
-  if (row.target.isMe) {
-    if (row.state.status === 'ok') return row.state.data.name;
-    return 'Your team';
-  }
+  // Use the live squad name from FPL once it loads — squad names change
+  // during the season, and stale aliases set at import time become hard
+  // to recognise. The user-set alias is kept as the fallback for in-flight
+  // / failed fetches and stays canonical on the Manage list.
+  if (row.state.status === 'ok') return row.state.data.name;
+  if (row.target.isMe) return 'Your team';
   return row.target.alias;
 }
 
@@ -369,6 +368,16 @@ function RowSubtext({ state, teamId }: { state: RowState; teamId: string }) {
         {state.kind === 'not_found' ? 'Team not found' : "Couldn't load"}
       </Text>
     );
+  }
+  // Manager name as the secondary line — stable across the season even
+  // when the squad name above changes. Falls back to team ID while the
+  // entry fetch is in flight so the row never looks empty.
+  if (state.status === 'ok') {
+    const { player_first_name, player_last_name } = state.data;
+    const managerName = `${player_first_name} ${player_last_name}`.trim();
+    if (managerName) {
+      return <Text style={styles.rowMeta}>{managerName}</Text>;
+    }
   }
   return <Text style={styles.rowMeta}>Team ID {teamId}</Text>;
 }

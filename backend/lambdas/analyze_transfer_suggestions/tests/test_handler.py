@@ -889,3 +889,109 @@ def test_bundle_top_level_fields_present(mock_table):
     assert expected_top.issubset(b.keys())
     for move in b["moves"]:
         assert {"out", "in", "delta_xp", "cost_change"}.issubset(move.keys())
+
+
+# ---------------------------------------------------------------------------
+# Free Hit fallback: during FH the picks endpoint returns the temporary
+# eleven, which is useless for transfer suggestions (it disappears at the
+# next deadline). The handler refetches picks for ``current_event - 1``
+# and uses those as the squad. Mirrors the same fallback in fetchMyTeam.
+# ---------------------------------------------------------------------------
+
+
+# A "Free Hit" snapshot: same metadata as PICKS_CACHE but with active_chip
+# flagged AND a different squad — IDs that are NOT 401, so the (401→503)
+# swap can only appear when the fallback successfully swaps in the
+# persistent (non-FH) squad.
+FH_PICKS_CACHE = {
+    "active_chip": "freehit",
+    "picks": [
+        {"element": pid, "position": i + 1, "multiplier": 1,
+         "is_captain": False, "is_vice_captain": False}
+        for i, pid in enumerate([501, 502, 503, 201])
+    ],
+    "entry_history": PICKS_CACHE["entry_history"],
+}
+
+# Persistent (pre-FH) squad: identical to PICKS_CACHE but stored under the
+# previous-GW key. The fallback path queries this when active_chip='freehit'.
+PREV_GW_PICKS_CACHE = {
+    "active_chip": None,
+    "picks": [
+        {"element": pid, "position": i + 1, "multiplier": 1,
+         "is_captain": False, "is_vice_captain": False}
+        for i, pid in enumerate(SQUAD_IDS)  # [101, 102, 201, 401]
+    ],
+    "entry_history": {**PICKS_CACHE["entry_history"], "event": 31},
+}
+
+
+def _ddb_get_item_freehit(Key):
+    """Cache routing for FH-active scenarios: GW32 picks have FH set
+    (FH temporary squad), GW31 picks return the persistent squad."""
+    pk, sk = Key["pk"], Key["sk"]
+    if (pk, sk) == ("entry#12345#gw#32", "latest"):
+        return {"Item": _cached_item(pk, sk, FH_PICKS_CACHE)}
+    if (pk, sk) == ("entry#12345#gw#31", "latest"):
+        return {"Item": _cached_item(pk, sk, PREV_GW_PICKS_CACHE)}
+    return _ddb_get_item_default(Key)
+
+
+def test_freehit_active_falls_back_to_previous_gw_squad(mock_table):
+    """When FH is active, the FH temporary squad ([501, 502, 503, 201])
+    contains 503 — so the (401, 503) swap that the happy path produces
+    is impossible against that squad (401 isn't in it, and 503 already
+    is). The fact that we still get back the (401, 503) suggestion
+    proves the handler refetched the previous GW's picks and used those
+    for the transfer math."""
+    mock_table.get_item.side_effect = _ddb_get_item_freehit
+    body = _body(lambda_handler(_event(), None))
+
+    # Squad summed for current_squad_xp uses the persistent squad ids
+    # (PICKS_CACHE), not the FH temporary squad ids.
+    assert body["current_squad_xp"] == 52.0  # same as the happy path
+    swaps = {(b["moves"][0]["out"]["player_id"],
+              b["moves"][0]["in"]["player_id"])
+             for b in body["bundles"] if b["num_transfers"] == 1}
+    assert (401, 503) in swaps
+
+
+def test_freehit_active_surfaces_freehit_active_flag(mock_table):
+    """``freehit_active: true`` lets the mobile UI surface a banner
+    on the Transfers screen that mirrors the My Team chip banner."""
+    mock_table.get_item.side_effect = _ddb_get_item_freehit
+    body = _body(lambda_handler(_event(), None))
+    assert body["freehit_active"] is True
+
+
+def test_freehit_inactive_surfaces_freehit_active_false(mock_table):
+    """When no chip is active on the current GW, the response carries
+    ``freehit_active: false`` (the common case)."""
+    body = _body(lambda_handler(_event(), None))
+    assert body["freehit_active"] is False
+
+
+def test_freehit_fallback_failure_degrades_to_fh_squad(mock_table):
+    """If the previous-GW picks fetch fails (cache miss + FPL 404), the
+    handler degrades to the FH temporary squad rather than crashing.
+    ``freehit_active`` is still surfaced so the UI can label the state."""
+    def get_item(Key):
+        # GW32 has FH; GW31 cache miss; FPL also 404 (set up below).
+        pk, sk = Key["pk"], Key["sk"]
+        if (pk, sk) == ("entry#12345#gw#32", "latest"):
+            return {"Item": _cached_item(pk, sk, FH_PICKS_CACHE)}
+        if (pk, sk) == ("entry#12345#gw#31", "latest"):
+            return {}
+        return _ddb_get_item_default(Key)
+    mock_table.get_item.side_effect = get_item
+
+    with responses.RequestsMock() as rsps:
+        rsps.get(
+            "https://fantasy.premierleague.com/api/entry/12345/event/31/picks/",
+            status=404,
+        )
+        body = _body(lambda_handler(_event(), None))
+    assert body["freehit_active"] is True
+    # Fell back to FH squad — current_squad_xp now sums [501, 502, 503, 201]
+    # instead of the persistent [101, 102, 201, 401].
+    assert body["current_squad_xp"] != 52.0

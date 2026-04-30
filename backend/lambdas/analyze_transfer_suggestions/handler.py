@@ -417,6 +417,7 @@ def _empty_response(
     preseason: bool,
     free_transfers: int,
     max_transfers: int,
+    freehit_active: bool = False,
 ) -> dict[str, Any]:
     return _response(
         200,
@@ -428,6 +429,7 @@ def _empty_response(
             "preseason": preseason,
             "free_transfers": free_transfers,
             "max_transfers_considered": max_transfers,
+            "freehit_active": freehit_active,
             "bundles": [],
         },
     )
@@ -501,6 +503,28 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
         return _response(502, {"error": "upstream error"})
 
+    # Free Hit fallback: when FH is active in the current GW, the picks
+    # endpoint returns the temporary FH eleven, not the persistent squad.
+    # Transfer suggestions against the FH squad are useless because that
+    # squad reverts at the next deadline — the user wants moves for their
+    # *real* team. Refetch picks for ``current_event - 1`` and use those
+    # as the squad. Mirrors the same fallback in fetchMyTeam on mobile.
+    # Surface ``freehit_active`` so the UI can label the suggestion list.
+    freehit_active = picks.active_chip == "freehit"
+    if freehit_active and entry.current_event > 1:
+        try:
+            picks = _fetch_picks_with_cache(
+                table, session, team_id, entry.current_event - 1
+            )
+        except (PicksNotFound, requests.RequestException):
+            # Couldn't get the previous-GW picks — degrade silently to
+            # the FH temporary squad. Recommendations will be off, but
+            # ``freehit_active`` still tells mobile to surface a banner.
+            log.warning(
+                "Free Hit fallback failed for team %s — using FH squad",
+                team_id,
+            )
+
     bootstrap_item = table.get_item(
         Key={"pk": "fpl#bootstrap", "sk": "latest"}
     ).get("Item")
@@ -521,6 +545,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return _empty_response(
             team_id, season_over=True, preseason=False,
             free_transfers=free_transfers, max_transfers=max_transfers,
+            freehit_active=freehit_active,
         )
 
     # player_form rows drive the per-card UI fields (form_score,
@@ -587,6 +612,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "preseason": False,
             "free_transfers": free_transfers,
             "max_transfers_considered": max_transfers,
+            "freehit_active": freehit_active,
             "current_squad_xp": round(
                 sum(horizon_xps.get(pid, 0.0) for pid in squad_ids), 4
             ),
