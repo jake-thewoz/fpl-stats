@@ -62,10 +62,49 @@ def minutes_probability(player: Player) -> float:
     1.0 for available players, 0.0 for everyone else (injured, suspended,
     etc.). Conservative on availability: a flagged player should never
     rank highly on the back of historical form alone.
+
+    Use ``minutes_probability_with_selection`` for the v2 analyzer path:
+    that variant additionally dampens by the player's season selection
+    rate, which closes the "fringe player who's available but never
+    picked" gap that this function alone can't see.
     """
     cop = player.chance_of_playing_next_round
     if cop is not None:
         return max(0.0, min(1.0, cop / 100.0))
     if player.status == "a":
         return 1.0
+    return 0.0
+
+
+def minutes_probability_with_selection(
+    player: Player,
+    season_play_rate: float,
+) -> float:
+    """Like ``minutes_probability`` but dampens by an empirical "the
+    manager actually picks them" signal when FPL has no specific
+    availability flag.
+
+    Why: FPL surfaces injury / suspension / squad-status via ``status``
+    + ``chance_of_playing_next_round`` (cop), but doesn't expose
+    "rotation risk". A fringe bench player who's technically available
+    has ``status='a'`` and ``cop=null`` — the same signature as a
+    guaranteed starter — so plain ``minutes_probability`` returns 1.0
+    for both. Combined with position-prior fallback rates and a Double
+    Gameweek, that's enough to push them to the top of the transfer
+    suggestions despite never seeing the pitch.
+
+    Behaviour:
+    - ``cop`` set: trust FPL verbatim (returning-from-injury players
+      get cop=75 / 100; we don't want a long-absence ``season_play_rate``
+      to override "FPL says they're back").
+    - ``cop=null`` + ``status='a'``: dampen by ``season_play_rate``.
+      For a starter this is ~0.85+, near-no-op; for a fringe player
+      (50 mins after 30 GWs ≈ 0.018) the xP collapses appropriately.
+    - Anything else (status='i'/'s'/'u'/None): 0.0, as before.
+    """
+    cop = player.chance_of_playing_next_round
+    if cop is not None:
+        return max(0.0, min(1.0, cop / 100.0))
+    if player.status == "a":
+        return max(0.0, min(1.0, season_play_rate))
     return 0.0

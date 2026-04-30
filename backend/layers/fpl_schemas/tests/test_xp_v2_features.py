@@ -24,6 +24,7 @@ from xp_v2_features import (
     compute_team_xgc_at_gw,
     load_default_priors,
     merge_team_xgc,
+    season_play_rate,
 )
 
 
@@ -460,3 +461,55 @@ def test_unknown_position_raises() -> None:
             history=[], position=99, as_of_gw=1,
             priors=_TEST_PRIORS, window=_DEFAULT_WINDOW,
         )
+
+
+# ---------------------------------------------------------------------------
+# season_play_rate
+# ---------------------------------------------------------------------------
+
+
+class TestSeasonPlayRate:
+    def test_full_season_starter_returns_one(self) -> None:
+        # 2400 mins / (90 * 30) = 0.889 — a typical starter who's missed
+        # the occasional 90 due to rotation. Should land near 1.0 and
+        # leave their xP largely unaffected.
+        assert season_play_rate(season_minutes=2400, gws_completed=30) == pytest.approx(
+            2400 / (90 * 30)
+        )
+
+    def test_zero_minutes_after_many_gws_returns_zero(self) -> None:
+        # The bug-driving case: a 30-GW veteran with 0 minutes. xP should
+        # be effectively wiped out for them.
+        assert season_play_rate(season_minutes=0, gws_completed=30) == 0.0
+
+    def test_clamped_to_one_when_player_played_more_than_max(self) -> None:
+        # FPL minutes can technically include extra time / overrun;
+        # clamp at 1.0 so we never *boost* anyone above their FPL signal.
+        assert season_play_rate(season_minutes=10000, gws_completed=10) == pytest.approx(
+            1.0
+        )
+
+    def test_rotation_player_around_half(self) -> None:
+        # Half-time rotation player: 1350 mins after 30 GWs ~= 0.5.
+        assert season_play_rate(season_minutes=1350, gws_completed=30) == pytest.approx(
+            0.5
+        )
+
+    def test_pre_season_returns_one(self) -> None:
+        # gws_completed = 0 (pre-season). Return 1.0 so the model's
+        # FPL-signal-only behaviour is unchanged before the season starts.
+        assert season_play_rate(season_minutes=0, gws_completed=0) == 1.0
+
+    def test_under_min_gws_threshold_returns_one(self) -> None:
+        # Below ~4 GWs the rate is too noisy to trust (one DNP looks
+        # identical to "fringe player"). Match pre-fix behaviour.
+        assert season_play_rate(season_minutes=0, gws_completed=2) == 1.0
+        assert season_play_rate(season_minutes=180, gws_completed=2) == 1.0
+
+    def test_at_min_gws_threshold_dampening_kicks_in(self) -> None:
+        # GW4 onwards, the rate becomes meaningful. A 0-minute player
+        # at GW4 starts getting dampened.
+        assert season_play_rate(season_minutes=0, gws_completed=4) == 0.0
+        assert season_play_rate(
+            season_minutes=180, gws_completed=4
+        ) == pytest.approx(0.5)

@@ -529,5 +529,89 @@ def test_player_with_no_history_falls_back_to_priors(mock_table) -> None:
     items = _items_by_player(writer)
     rookie = items[999]
     # Rookie should still get a prediction (from priors), not crash.
+    # Note: this fixture's bootstrap has only 1 completed GW (GW32),
+    # which is below the season-play-rate min-GWs threshold, so the
+    # dampening doesn't kick in here. The fringe-player dampening test
+    # below uses a longer-completed-season fixture to exercise that path.
     assert rookie["xp"] > Decimal("0")
     assert rookie["position_id"] == 4
+
+
+def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
+    """The bug-driving case: a player with status='a' and cop=null but
+    near-zero season minutes should NOT be projected at full position-
+    prior strength. The dampener pulls their xP toward 0; without it
+    they'd compete with starters on the back of the position prior alone
+    (and a Double Gameweek would put them at the top of the suggestions
+    list, which is what Jakob observed)."""
+    table, writer = mock_table
+
+    # Override bootstrap so 6 GWs are finished — above the
+    # _SEASON_PLAY_RATE_MIN_GWS threshold (4). One *fringe* FWD with 50
+    # season minutes (~50/(90·6) = 0.093) and one *starter* FWD with
+    # 540 season minutes (= 1.0, full starter). Same position, same
+    # team-prior fallback for rates, same fixtures — only the dampener
+    # differentiates them.
+    long_season_bootstrap = {
+        **BOOTSTRAP_DATA,
+        "gameweeks": [
+            {
+                "id": gw_id, "name": f"Gameweek {gw_id}",
+                "deadline_time": f"2026-02-{gw_id:02d}T10:00:00Z",
+                "is_current": gw_id == 32,
+                "is_next": gw_id == 33,
+                "finished": gw_id <= 32,
+            }
+            for gw_id in range(27, 38)
+        ],
+        "players": list(BOOTSTRAP_DATA["players"]) + [
+            {
+                "id": 800, "first_name": "Fringe", "second_name": "FWD",
+                "web_name": "FringeFWD", "team": 1, "element_type": 4,
+                "total_points": 5, "form": "0.5", "now_cost": 45,
+                "status": "a", "chance_of_playing_next_round": None,
+                "minutes": 50,  # ~0.09 of available — proper fringe
+            },
+            {
+                "id": 801, "first_name": "Starter", "second_name": "FWD",
+                "web_name": "StarterFWD", "team": 1, "element_type": 4,
+                "total_points": 100, "form": "5.0", "now_cost": 75,
+                "status": "a", "chance_of_playing_next_round": None,
+                "minutes": 540,  # full starter (= 6 × 90)
+            },
+        ],
+    }
+
+    def get_item(Key):
+        if (Key["pk"], Key["sk"]) == ("fpl#bootstrap", "latest"):
+            return {
+                "Item": {"pk": Key["pk"], "sk": Key["sk"],
+                         "data": long_season_bootstrap}
+            }
+        return _ddb_get_item(Key)
+
+    table.get_item.side_effect = get_item
+
+    lambda_handler({}, None)
+    items = _items_by_player(writer)
+    fringe = items[800]
+    starter = items[801]
+
+    # Both players hit the position prior for per-90 rates (no history),
+    # so without dampening they'd have similar xP. With dampening the
+    # fringe player's projection should be roughly an order of magnitude
+    # lower than the starter's.
+    assert fringe["xp"] < starter["xp"] / 5
+
+    # And concretely: a fringe FWD with rate ≈ 0.09 should land far
+    # below the typical 4–6 xP range of a starter FWD — well under 1.0.
+    assert fringe["xp"] < Decimal("1.0")
+
+    # Sanity: the surfaced ``season_play_rate`` matches what we expect.
+    # 50 / (90 · 6) ≈ 0.0926.
+    fringe_components = fringe["components"]
+    assert float(fringe_components["season_play_rate"]) == pytest.approx(
+        50 / (90 * 6), abs=1e-3,
+    )
+    starter_components = starter["components"]
+    assert float(starter_components["season_play_rate"]) == pytest.approx(1.0)

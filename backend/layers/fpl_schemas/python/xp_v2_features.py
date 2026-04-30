@@ -190,6 +190,41 @@ def _smoothed_match_share(
     ) / (total_matches + prior_strength_matches)
 
 
+# ``season_play_rate`` below ignores the season's first few GWs because the
+# ratio is too noisy when the denominator is tiny (1 GW with 0 minutes is
+# 0% — but it's also barely any data). 4 GWs is enough to separate "didn't
+# get picked" from "stat noise" while still kicking in early enough to
+# matter for fringe players.
+_SEASON_PLAY_RATE_MIN_GWS = 4
+
+
+def season_play_rate(*, season_minutes: int, gws_completed: int) -> float:
+    """How often the player has actually played this season, expressed
+    as a 0–1 multiplier on top of FPL's ``minutes_probability``.
+
+    Formula: ``min(1.0, season_minutes / (90 · gws_completed))``. A full
+    starter lands near 1.0; a Crystal Palace 4th-choice CB with 50
+    minutes after 30 GWs lands near 0.02. Used by
+    ``minutes_probability_with_selection`` to close the "available but
+    never picked" gap that FPL's status fields don't expose.
+
+    Below ``_SEASON_PLAY_RATE_MIN_GWS`` completed GWs the rate is too
+    noisy to trust, so we return 1.0 (no dampening, matches pre-fix
+    behaviour). The recommender's quality is constrained by lack of
+    season data anyway in those GWs.
+
+    Caveat: under-rates a returning-from-injury starter for ~4–6 GWs
+    until their cumulative minutes catch up. Acceptable for v1; a
+    recent-window variant can replace this if the under-rating bites.
+    """
+    if gws_completed < _SEASON_PLAY_RATE_MIN_GWS:
+        return 1.0
+    if gws_completed <= 0:
+        return 1.0
+    raw = season_minutes / (90.0 * gws_completed)
+    return max(0.0, min(1.0, raw))
+
+
 def compute_rates_at_gw(
     *,
     history: Iterable[PlayerHistoryRow],

@@ -63,7 +63,7 @@ from match_window import get_match_window
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture, PlayerHistoryRow
 from xp_compute import (
     fixtures_in_gw_for_team,
-    minutes_probability,
+    minutes_probability_with_selection,
     upcoming_gameweek_ids,
 )
 from xp_v2 import (
@@ -75,6 +75,7 @@ from xp_v2_features import (
     FeatureWindow,
     compute_rates_at_gw,
     compute_team_xgc_at_gw,
+    season_play_rate,
     load_default_priors,
     merge_team_xgc,
 )
@@ -155,11 +156,23 @@ def _scan_player_history(table: Any) -> list[PlayerHistoryRow]:
     return rows
 
 
-def _components_to_ddb(comp: Any, rates: Any, fixture_map: list[dict]) -> dict:
+def _components_to_ddb(
+    comp: Any,
+    rates: Any,
+    fixture_map: list[dict],
+    *,
+    play_rate: float,
+) -> dict:
     """Translate XpV2Components + the per-90 rates + per-fixture meta
-    into a DDB-friendly nested map. Floats → Decimal everywhere."""
+    into a DDB-friendly nested map. Floats → Decimal everywhere.
+
+    ``play_rate`` is the season-cumulative selection rate folded into
+    ``minutes_prob`` — surfaced separately so debug consumers can tell
+    "low xP because injured (cop=0)" from "low xP because never picked".
+    """
     return {
         "minutes_prob": _to_ddb_number(comp.minutes_prob),
+        "season_play_rate": _to_ddb_number(play_rate),
         "p60": _to_ddb_number(comp.p60),
         "appearance_xp": _to_ddb_number(comp.appearance_xp),
         "goals_xp": _to_ddb_number(comp.goals_xp),
@@ -201,6 +214,12 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if not horizon_gw_ids:
         log.info("No upcoming gameweek — season over, nothing to analyze")
         return {"ok": True, "skipped": "no_upcoming_gameweek"}
+
+    # Season-cumulative play-rate denominator. Counted once per run and
+    # reused per player below to dampen ``minutes_probability`` for
+    # fringe / never-picked players (closes the "available but never
+    # plays" gap that FPL's status fields don't expose).
+    gws_completed = sum(1 for gw_obj in bootstrap.gameweeks if gw_obj.finished)
     # The "single GW" fields on the stored row (xp / components / gameweek)
     # describe the immediate-next GW — what the players-list xP column
     # surfaces. The horizon adds GW+1..GW+(MAX_HORIZON-1) so transfer
@@ -290,7 +309,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     for fx in team_fixtures
                 ]
 
-            mins_prob = minutes_probability(player)
+            play_rate = season_play_rate(
+                season_minutes=player.minutes or 0,
+                gws_completed=gws_completed,
+            )
+            mins_prob = minutes_probability_with_selection(player, play_rate)
 
             horizon_components: dict[int, XpV2Components] = xp_for_horizon(
                 position=player.element_type,
@@ -328,6 +351,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "xp": _to_ddb_number(single_gw_components.total),
                 "components": _components_to_ddb(
                     single_gw_components, rates, fixture_meta,
+                    play_rate=play_rate,
                 ),
                 # Horizon view — keyed by GW id (string, DDB Map keys are
                 # strings). Consumers (analyze_transfer_suggestions) sum
