@@ -169,6 +169,15 @@ PICKS_CACHE = {
     },
 }
 
+# History fixture: empty `current` so the FT walk yields the season-
+# start default (1). Tests that need specific FT scenarios can override
+# via the ``free_transfers`` query param on _event(), avoiding having
+# to construct a 30+ GW history walk per test.
+HISTORY_CACHE = {
+    "current": [],
+    "chips": [],
+}
+
 FUTURE_TIME = int(time.time()) + 1800  # cached items still fresh
 
 
@@ -193,6 +202,8 @@ def _ddb_get_item_default(key):
         return {"Item": _cached_item(pk, sk, ENTRY_CACHE)}
     if (pk, sk) == ("entry#12345#gw#32", "latest"):
         return {"Item": _cached_item(pk, sk, PICKS_CACHE)}
+    if (pk, sk) == ("entry#12345#history", "latest"):
+        return {"Item": _cached_item(pk, sk, HISTORY_CACHE)}
     return {}
 
 
@@ -274,14 +285,24 @@ def mock_table():
         yield table
 
 
-def _event(team_id="12345", horizon=None, positions=None):
+def _event(
+    team_id="12345",
+    horizon=None,
+    positions=None,
+    max_transfers=None,
+    free_transfers=None,
+):
     qs: dict[str, str] | None = None
-    if horizon is not None or positions is not None:
+    if any(p is not None for p in (horizon, positions, max_transfers, free_transfers)):
         qs = {}
         if horizon is not None:
             qs["horizon"] = str(horizon)
         if positions is not None:
             qs["positions"] = positions
+        if max_transfers is not None:
+            qs["max_transfers"] = str(max_transfers)
+        if free_transfers is not None:
+            qs["free_transfers"] = str(free_transfers)
     return {
         "pathParameters": {"teamId": team_id},
         "queryStringParameters": qs,
@@ -290,6 +311,15 @@ def _event(team_id="12345", horizon=None, positions=None):
 
 def _body(response):
     return json.loads(response["body"])
+
+
+def _moves_in(body):
+    """Flatten ``body['bundles']`` to a list of single moves. For tests
+    written against the single-transfer endpoint shape, where every
+    bundle is size-1, this list mirrors the legacy ``suggestions``
+    array. For tests where size>1 bundles may appear, prefer accessing
+    ``body['bundles']`` directly."""
+    return [b["moves"][0] for b in body["bundles"] if b["num_transfers"] == 1]
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +360,7 @@ def test_happy_path_returns_ranked_suggestions(mock_table):
     assert body["preseason"] is False
     assert body["current_squad_xp"] == 52.0
 
-    suggestions = body["suggestions"]
+    suggestions = _moves_in(body)
     assert len(suggestions) == 1
     s = suggestions[0]
     assert s["out"]["player_id"] == 401
@@ -349,7 +379,7 @@ def test_enriched_player_carries_form_and_fixture_signals(mock_table):
     (#97) can render its comparison table without a second round-trip."""
     response = lambda_handler(_event(), None)
     body = _body(response)
-    s = body["suggestions"][0]
+    s = _moves_in(body)[0]
 
     # 401 (CheapDef, going out) — values from the fixture row.
     assert s["out"]["form_score"] == 1.0
@@ -381,7 +411,7 @@ def test_enriched_player_handles_null_fixture_signals(mock_table):
     # Find a suggestion where 502 appears (in or out) — it's the player
     # whose fixture signals are null in the fixture data.
     swap_with_502 = next(
-        s for s in body["suggestions"]
+        s for s in _moves_in(body)
         if s["in"]["player_id"] == 502 or s["out"]["player_id"] == 502
     )
     side = "in" if swap_with_502["in"]["player_id"] == 502 else "out"
@@ -402,9 +432,11 @@ def test_happy_path_bigger_bank_unlocks_more_swaps(mock_table):
 
     mock_table.get_item.side_effect = get_item
 
-    body = _body(lambda_handler(_event(), None))
+    # Constrain to single-transfer bundles for the legacy assertion shape;
+    # multi-move bundles get exercised in the dedicated multi-transfer tests.
+    body = _body(lambda_handler(_event(max_transfers=1), None))
     swaps = {(s["out"]["player_id"], s["in"]["player_id"])
-             for s in body["suggestions"]}
+             for s in _moves_in(body)}
     assert (101, 502) in swaps  # Bruno -> Salah
     assert (201, 502) in swaps  # Palmer -> Salah
     assert (401, 503) in swaps  # CheapDef -> CheapDef2
@@ -445,7 +477,7 @@ def test_season_over_returns_empty_suggestions(mock_table):
     mock_table.get_item.side_effect = get_item
     body = _body(lambda_handler(_event(), None))
     assert body["season_over"] is True
-    assert body["suggestions"] == []
+    assert body["bundles"] == []
     assert body["horizon_gws"] == 0
 
 
@@ -577,7 +609,7 @@ def test_preseason_returns_empty(mock_table):
 
     body = _body(lambda_handler(_event(), None))
     assert body["preseason"] is True
-    assert body["suggestions"] == []
+    assert body["bundles"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -592,7 +624,7 @@ def test_position_filter_def_only_returns_def_swap(mock_table):
     is explicit.)"""
     body = _body(lambda_handler(_event(positions="2"), None))
     swaps = {(s["out"]["player_id"], s["in"]["player_id"])
-             for s in body["suggestions"]}
+             for s in _moves_in(body)}
     assert swaps == {(401, 503)}
 
 
@@ -600,7 +632,7 @@ def test_position_filter_fwd_returns_no_suggestions(mock_table):
     """positions=4 (FWD) -> squad has no FWD members, so no candidate
     swaps exist. Empty list, no crash."""
     body = _body(lambda_handler(_event(positions="4"), None))
-    assert body["suggestions"] == []
+    assert body["bundles"] == []
 
 
 def test_position_filter_def_and_mid_with_bigger_bank(mock_table):
@@ -615,16 +647,16 @@ def test_position_filter_def_and_mid_with_bigger_bank(mock_table):
         return _ddb_get_item_default(Key)
     mock_table.get_item.side_effect = get_item
 
-    body = _body(lambda_handler(_event(positions="2,3"), None))
+    body = _body(lambda_handler(_event(positions="2,3", max_transfers=1), None))
     swaps = {(s["out"]["player_id"], s["in"]["player_id"])
-             for s in body["suggestions"]}
+             for s in _moves_in(body)}
     # DEF: 401 -> 503; MID: 101 -> 502, 201 -> 502.
     assert (401, 503) in swaps
     assert (101, 502) in swaps
     assert (201, 502) in swaps
     # No GKP or FWD swaps even though they'd be valid otherwise — the
     # filter excludes positions 1 and 4 entirely.
-    assert all(s["out"]["position_id"] in (2, 3) for s in body["suggestions"])
+    assert all(s["out"]["position_id"] in (2, 3) for s in _moves_in(body))
 
 
 def test_position_filter_mid_only_with_bigger_bank(mock_table):
@@ -638,10 +670,10 @@ def test_position_filter_mid_only_with_bigger_bank(mock_table):
         return _ddb_get_item_default(Key)
     mock_table.get_item.side_effect = get_item
 
-    body = _body(lambda_handler(_event(positions="3"), None))
-    assert all(s["out"]["position_id"] == 3 for s in body["suggestions"])
+    body = _body(lambda_handler(_event(positions="3", max_transfers=1), None))
+    assert all(s["out"]["position_id"] == 3 for s in _moves_in(body))
     swaps = {(s["out"]["player_id"], s["in"]["player_id"])
-             for s in body["suggestions"]}
+             for s in _moves_in(body)}
     assert (401, 503) not in swaps  # DEF swap excluded
 
 
@@ -651,7 +683,7 @@ def test_position_filter_invalid_falls_back_to_no_filter(mock_table):
     happy path."""
     body_filtered = _body(lambda_handler(_event(positions="not-numbers"), None))
     body_default = _body(lambda_handler(_event(), None))
-    assert len(body_filtered["suggestions"]) == len(body_default["suggestions"])
+    assert len(body_filtered["bundles"]) == len(body_default["bundles"])
 
 
 def test_position_filter_unknown_positions_yields_empty(mock_table):
@@ -659,7 +691,7 @@ def test_position_filter_unknown_positions_yields_empty(mock_table):
     so squad and pool both filter to empty. Empty suggestions, no
     crash. (Distinct from invalid strings which fall back to None.)"""
     body = _body(lambda_handler(_event(positions="99"), None))
-    assert body["suggestions"] == []
+    assert body["bundles"] == []
 
 
 def test_position_filter_mixed_valid_and_garbage_keeps_valid(mock_table):
@@ -673,9 +705,9 @@ def test_position_filter_mixed_valid_and_garbage_keeps_valid(mock_table):
         return _ddb_get_item_default(Key)
     mock_table.get_item.side_effect = get_item
 
-    body = _body(lambda_handler(_event(positions="2,not-a-number,3"), None))
-    assert all(s["out"]["position_id"] in (2, 3) for s in body["suggestions"])
-    assert len(body["suggestions"]) > 0
+    body = _body(lambda_handler(_event(positions="2,not-a-number,3", max_transfers=1), None))
+    assert all(s["out"]["position_id"] in (2, 3) for s in _moves_in(body))
+    assert len(_moves_in(body)) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -714,3 +746,146 @@ def test_missing_v2_xp_rows_raises(mock_table):
 
     with pytest.raises(RuntimeError, match="analytics#player_xp_v2"):
         lambda_handler(_event(), None)
+
+
+# ---------------------------------------------------------------------------
+# FT-aware multi-transfer behaviour (#90).
+# ---------------------------------------------------------------------------
+
+
+def test_response_carries_free_transfers_and_max_transfers(mock_table):
+    """The response surfaces FT-related fields the mobile UI uses to
+    explain bundle scoring (e.g. labelling hit cost on a card)."""
+    body = _body(lambda_handler(_event(), None))
+    # Default HISTORY_CACHE has no completed GWs, so derived FT = 1
+    # (season-start convention).
+    assert body["free_transfers"] == 1
+    # Default max_transfers is 2 (DEFAULT_MAX_TRANSFERS).
+    assert body["max_transfers_considered"] == 2
+
+
+def test_free_transfers_query_param_overrides_derivation(mock_table):
+    """``?free_transfers=N`` skips the history fetch and uses N directly.
+    Useful for previewing 'what if I had 3 banked FTs' scenarios."""
+    body = _body(lambda_handler(_event(free_transfers=3), None))
+    assert body["free_transfers"] == 3
+
+
+def test_max_transfers_clamped_to_module_constant(mock_table):
+    """``?max_transfers=99`` is clamped to MAX_BUNDLE_SIZE (3) so the
+    combinatorial search stays bounded."""
+    from compute import MAX_BUNDLE_SIZE
+    body = _body(lambda_handler(_event(max_transfers=99), None))
+    assert body["max_transfers_considered"] == MAX_BUNDLE_SIZE
+
+
+def test_max_transfers_one_returns_only_size_one_bundles(mock_table):
+    body = _body(lambda_handler(_event(max_transfers=1), None))
+    assert all(b["num_transfers"] == 1 for b in body["bundles"])
+
+
+def test_two_move_bundle_includes_hit_cost_when_ft_is_one(mock_table):
+    """Bigger bank + max_transfers=2 + free_transfers=1 enables 2-move
+    bundles. Each 2-move bundle should report hit_cost = 4 and a
+    delta_xp_net that's exactly delta_xp_gross − 4."""
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+
+    mock_table.get_item.side_effect = get_item
+
+    body = _body(lambda_handler(
+        _event(max_transfers=2, free_transfers=1), None,
+    ))
+    two_move_bundles = [b for b in body["bundles"] if b["num_transfers"] == 2]
+    assert two_move_bundles, "expected at least one 2-move bundle with bigger bank"
+    for b in two_move_bundles:
+        assert b["hit_cost"] == 4
+        assert b["delta_xp_net"] == pytest.approx(b["delta_xp_gross"] - 4)
+
+
+def test_two_move_bundle_no_hit_when_ft_is_two(mock_table):
+    """Same bigger-bank setup, but with free_transfers=2 the 2-move
+    bundles should report hit_cost=0 and net == gross."""
+    bigger_entry = {**ENTRY_CACHE, "last_deadline_bank": 50}
+
+    def get_item(Key):
+        if Key["pk"] == "entry#12345" and Key["sk"] == "latest":
+            return {"Item": _cached_item(Key["pk"], Key["sk"], bigger_entry)}
+        return _ddb_get_item_default(Key)
+
+    mock_table.get_item.side_effect = get_item
+
+    body = _body(lambda_handler(
+        _event(max_transfers=2, free_transfers=2), None,
+    ))
+    two_move_bundles = [b for b in body["bundles"] if b["num_transfers"] == 2]
+    assert two_move_bundles
+    for b in two_move_bundles:
+        assert b["hit_cost"] == 0
+        assert b["delta_xp_net"] == pytest.approx(b["delta_xp_gross"])
+
+
+def test_history_cache_miss_falls_back_to_fpl(mock_table):
+    """No cached history → handler fetches from FPL and caches the result.
+    Verifies the FT-derivation cache-aside path."""
+    # Cached history removed: handler will fetch from FPL.
+    def get_item(Key):
+        if Key["pk"] == "entry#12345#history":
+            return {}
+        return _ddb_get_item_default(Key)
+
+    mock_table.get_item.side_effect = get_item
+
+    with responses.RequestsMock() as rsps:
+        rsps.get(
+            "https://fantasy.premierleague.com/api/entry/12345/history/",
+            json={"current": [], "chips": []},
+        )
+        response = lambda_handler(_event(), None)
+        assert response["statusCode"] == 200
+
+    # Cache-aside put: history written.
+    pk_writes = {call.kwargs["Item"]["pk"]
+                 for call in mock_table.put_item.call_args_list}
+    assert "entry#12345#history" in pk_writes
+
+
+def test_history_fetch_failure_falls_back_to_one_ft(mock_table):
+    """If FPL history fetch fails, handler defaults to FALLBACK_FREE_TRANSFERS=1
+    rather than crashing — see fallback rationale in the handler."""
+    def get_item(Key):
+        if Key["pk"] == "entry#12345#history":
+            return {}
+        return _ddb_get_item_default(Key)
+
+    mock_table.get_item.side_effect = get_item
+
+    with responses.RequestsMock() as rsps:
+        rsps.get(
+            "https://fantasy.premierleague.com/api/entry/12345/history/",
+            status=500,
+        )
+        response = lambda_handler(_event(), None)
+        assert response["statusCode"] == 200
+        body = _body(response)
+        assert body["free_transfers"] == 1
+
+
+def test_bundle_top_level_fields_present(mock_table):
+    """Each bundle has all the fields mobile expects: moves array (with
+    out/in/delta_xp/cost_change per move), num_transfers, hit_cost,
+    delta_xp_gross, delta_xp_net, total_cost_change."""
+    body = _body(lambda_handler(_event(), None))
+    assert body["bundles"], "happy path returns at least one bundle"
+    b = body["bundles"][0]
+    expected_top = {
+        "moves", "num_transfers", "hit_cost",
+        "delta_xp_gross", "delta_xp_net", "total_cost_change",
+    }
+    assert expected_top.issubset(b.keys())
+    for move in b["moves"]:
+        assert {"out", "in", "delta_xp", "cost_change"}.issubset(move.keys())

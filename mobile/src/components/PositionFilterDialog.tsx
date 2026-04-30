@@ -2,7 +2,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles, type Colors } from '../theme';
 
 /**
- * Slim single-section filter dialog used by the Analytics tab to narrow
+ * Slim single-section filter dialog used by the Transfers tab to narrow
  * transfer suggestions to a chosen position set. Mirrors the visual
  * vocabulary of the Players-screen FilterDialog (modal + checkbox rows
  * + Clear/Done top bar) without the team section that's specific to

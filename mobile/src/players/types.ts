@@ -26,6 +26,11 @@ export type JoinedPlayer = {
   /** Projected xP for the upcoming GW. null when the analyzer hasn't
    *  scored this player (e.g. fresh deploy, position not in xp output). */
   xp: number | null;
+  /** Sum of next 3 GWs of xP. Null when the analyzer hasn't stored
+   *  horizon data on this player. */
+  xp_h3: number | null;
+  /** Sum of next 5 GWs of xP (clamped to remaining GWs). */
+  xp_h5: number | null;
   /** Defensive contributions — a 25/26 scoring lever (DEF 10+ / MID-FWD 12+
    *  per match = +2 pts). null when ingest hasn't picked it up. */
   defcon: number | null;
@@ -48,6 +53,8 @@ export type JoinedPlayer = {
 /** The set of column/filter keys the UI knows about. */
 export type FieldKey =
   | 'xp'
+  | 'xp_h3'
+  | 'xp_h5'
   | 'form'
   | 'price'
   | 'total_points'

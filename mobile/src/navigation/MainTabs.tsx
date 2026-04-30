@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MainTabParamList } from './types';
 import { MyTeamStack } from './stacks/MyTeamStack';
 import { PlayersStack } from './stacks/PlayersStack';
-import { AnalyticsStack } from './stacks/AnalyticsStack';
+import { TransfersStack } from './stacks/TransfersStack';
 import { FriendsStack } from './stacks/FriendsStack';
 import { SettingsStack } from './stacks/SettingsStack';
 import { useTheme } from '../theme';
@@ -86,13 +86,13 @@ export function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="AnalyticsTab"
-        component={AnalyticsStack}
+        name="TransfersTab"
+        component={TransfersStack}
         options={{
-          title: 'Analytics',
+          title: 'Transfers',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name={focused ? 'analytics' : 'analytics-outline'}
+              name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'}
               size={size}
               color={color}
             />

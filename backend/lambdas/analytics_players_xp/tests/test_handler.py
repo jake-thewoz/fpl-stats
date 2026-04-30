@@ -76,12 +76,16 @@ def test_happy_path_returns_all_rows_slimmed(mock_table):
     assert body["gameweek"] == 33
     assert body["schema_version"] == 1
     assert body["computed_at"] == "2026-04-28T04:30:00+00:00"
+    assert body["horizon_gw_ids"] == [33, 34, 35, 36, 37]
     assert len(body["players"]) == 3
 
+    # Sample fixture stores xp = 18.4 for every GW in a player's horizon,
+    # so xp_h3 = 18.4 × 3 = 55.2 and xp_h5 = 18.4 × 5 = 92.0.
     haaland = next(p for p in body["players"] if p["player_id"] == 308)
     assert haaland == {
         "player_id": 308, "web_name": "Haaland",
-        "team_id": 13, "position_id": 4, "xp": 18.4,
+        "team_id": 13, "position_id": 4,
+        "xp": 18.4, "xp_h3": 55.2, "xp_h5": 92.0,
     }
 
 
@@ -129,6 +133,73 @@ def test_empty_table_returns_200_with_empty_list(mock_table):
     assert body["players"] == []
     assert body["gameweek"] is None
     assert body["computed_at"] is None
+    assert body["horizon_gw_ids"] == []
+
+
+def test_horizon_3_and_5_summed_per_player(mock_table):
+    """Per-row xp_h3 / xp_h5 are sums over the first N entries from
+    horizon_xp_by_gw, in the order given by horizon_gw_ids."""
+    body = _body(lambda_handler({}, None))
+    bruno = next(p for p in body["players"] if p["player_id"] == 427)
+    # Sample fixture has xp = 12.6 for every GW, so xp_h3 = 37.8, xp_h5 = 63.0.
+    assert bruno["xp"] == 12.6
+    assert bruno["xp_h3"] == pytest.approx(37.8)
+    assert bruno["xp_h5"] == pytest.approx(63.0)
+
+
+def test_horizon_clamped_when_writer_stored_fewer_gws(mock_table):
+    """End-of-season case: writer pre-computed only 4 GWs (e.g. GWs 35-38).
+    xp_h5 should sum what's available rather than crashing or returning 0."""
+    short_horizon_row = {
+        "pk": "analytics#player_xp_v2",
+        "sk": "999",
+        "schema_version": 1,
+        "model_version": "v2.0",
+        "computed_at": "2026-04-28T04:30:00+00:00",
+        "player_id": 999,
+        "web_name": "EndOfSeason",
+        "team_id": 1,
+        "position_id": 3,
+        "gameweek": 35,
+        "xp": Decimal("3.0"),
+        "horizon_gw_ids": [35, 36, 37, 38],  # 4 GWs only
+        "horizon_xp_by_gw": {
+            "35": Decimal("3.0"),
+            "36": Decimal("3.0"),
+            "37": Decimal("3.0"),
+            "38": Decimal("3.0"),
+        },
+    }
+    mock_table.query.return_value = {"Items": [short_horizon_row]}
+    body = _body(lambda_handler({}, None))
+    p = body["players"][0]
+    assert p["xp"] == 3.0
+    assert p["xp_h3"] == pytest.approx(9.0)   # 3 GWs × 3.0
+    assert p["xp_h5"] == pytest.approx(12.0)  # only 4 GWs available
+    assert body["horizon_gw_ids"] == [35, 36, 37, 38]
+
+
+def test_horizon_null_when_writer_didnt_store_horizon_data(mock_table):
+    """Old-shape rows (pre-Phase 7) without ``horizon_xp_by_gw`` should
+    surface ``xp_h3 = null`` rather than 0 — null distinguishes "no data
+    written" from "predicted to score zero". Mobile renders null as '—'."""
+    no_horizon_row = {
+        "pk": "analytics#player_xp_v2",
+        "sk": "888",
+        "player_id": 888,
+        "web_name": "Legacy",
+        "team_id": 1,
+        "position_id": 3,
+        "gameweek": 33,
+        "xp": Decimal("4.0"),
+        # No horizon_gw_ids or horizon_xp_by_gw fields.
+    }
+    mock_table.query.return_value = {"Items": [no_horizon_row]}
+    body = _body(lambda_handler({}, None))
+    p = body["players"][0]
+    assert p["xp"] == 4.0
+    assert p["xp_h3"] is None
+    assert p["xp_h5"] is None
 
 
 def test_pagination_aggregates_across_pages(mock_table):
