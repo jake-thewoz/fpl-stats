@@ -22,12 +22,9 @@
  *   otherwise occur when `scrollToOffset` itself fires `onScroll` on the
  *   target list.
  *
- * RefreshControl is wired into BOTH the left and right FlatLists so the
- *   pull-to-refresh gesture fires regardless of which column the user
- *   touches first. (The earlier "left only" approach assumed users would
- *   pull from the name column; in practice they pull from the data side
- *   just as often, and the gesture went nowhere.) The two controls share
- *   ``refreshing`` / ``onRefresh`` so a single state drives both.
+ * RefreshControl lives on the **left** FlatList. The right list intentionally
+ *   doesn't carry one — the spinner would render twice otherwise. Users
+ *   will most often pull from the name column anyway.
  */
 import { useCallback, useRef, useState } from 'react';
 import {
@@ -275,14 +272,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
               getItemLayout={getItemLayout}
               onScroll={onRightScroll}
               scrollEventThrottle={16}
-              refreshControl={
-                onRefresh != null ? (
-                  <RefreshControl
-                    refreshing={refreshing ?? false}
-                    onRefresh={onRefresh}
-                  />
-                ) : undefined
-              }
+              // No RefreshControl here — see file header comment.
               showsVerticalScrollIndicator={true}
               style={{ width: dataWidth, flex: 1 }}
             />
