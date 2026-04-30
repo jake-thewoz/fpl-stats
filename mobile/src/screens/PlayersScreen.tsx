@@ -12,8 +12,8 @@ import { fetchPlayersXp } from '../api/playersXp';
 import { fetchMyTeam } from '../api/myTeam';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
-import { PositionChip } from '../components/PositionChip';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
@@ -214,14 +214,16 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         getId={(p) => p.id}
         renderNameCell={(p) => (
           <>
-            <Text style={styles.nameText} numberOfLines={1}>
-              {p.name}
-            </Text>
-            <View style={styles.subRow}>
-              <Text style={styles.subText} numberOfLines={1}>
-                {p.team}
+            <ClubBackground teamShort={p.team} />
+            <View style={styles.textBackdrop}>
+              <Text style={styles.nameText} numberOfLines={1}>
+                {p.name}
               </Text>
-              <PositionChip pos={p.position} />
+            </View>
+            <View style={styles.textBackdrop}>
+              <Text style={styles.subText} numberOfLines={1}>
+                {p.team} · {p.position}
+              </Text>
             </View>
           </>
         )}
@@ -424,14 +426,17 @@ const makeStyles = (colors: Colors) =>
 
   // Used by renderNameCell passed to PlayerListTable.
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
-  subText: { fontSize: 12, color: colors.textMuted },
-  // Inline row for "TEAM · [chip]" so the chip aligns with the muted
-  // team text. ``alignItems: center`` is what stops the chip from
-  // appearing taller than the line.
-  subRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
+  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  // Surface-coloured backdrop sits behind the text so it stays legible
+  // against the club gradient. Self-shrinks to the text width via
+  // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the
+  // rounded chip-style halo the brief asked for. Where the gradient
+  // has already faded to surface, the backdrop is invisible (same
+  // colour as the row), so it only "appears" where contrast is needed.
+  textBackdrop: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    borderRadius: 3,
   },
 });

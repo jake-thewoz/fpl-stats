@@ -87,17 +87,6 @@ export type Colors = {
   /** Readable text/icon colors on top of warning/danger backgrounds. */
   onWarning: string;
   onDanger: string;
-  /** Position chip colors — earth-toned mapping of FPL's classic
-   *  GKP=yellow / DEF=blue / MID=green / FWD=red. Used by the
-   *  ``PositionChip`` component on the player-list sublines. */
-  posGkp: string;
-  posDef: string;
-  posMid: string;
-  posFwd: string;
-  onPosGkp: string;
-  onPosDef: string;
-  onPosMid: string;
-  onPosFwd: string;
 };
 
 export const lightColors: Colors = {
@@ -117,16 +106,6 @@ export const lightColors: Colors = {
   // Black on warning's amber ≈ 7:1; white on danger's brick ≈ 4.6:1.
   onWarning: lightPalette.black,
   onDanger: '#ffffff',
-  // Earth-toned position chips. Darker / more saturated than the
-  // dark-mode counterparts so they read against the off-white surface.
-  posGkp: '#d4a017',  // amber
-  posDef: '#4f7c9c',  // slate-blue
-  posMid: '#5c9c7e',  // sage-green (deeper than accentSoft so chips don't blur into "good fixture" cells)
-  posFwd: '#b8584b',  // terracotta
-  onPosGkp: lightPalette.black,
-  onPosDef: '#ffffff',
-  onPosMid: lightPalette.black,
-  onPosFwd: '#ffffff',
 };
 
 export const darkColors: Colors = {
@@ -152,15 +131,4 @@ export const darkColors: Colors = {
   // (warning ~10:1 / danger ~6:1); white falls below 3:1 on warning.
   onWarning: darkPalette.black,
   onDanger: darkPalette.black,
-  // Lifted versions of the light-mode position chips. Same hues, pushed
-  // up the lightness scale to read against the near-black background.
-  // All four pair with black text in dark mode.
-  posGkp: '#e6b740',
-  posDef: '#7eaad0',
-  posMid: '#a8d5c0',
-  posFwd: '#d2776b',
-  onPosGkp: darkPalette.black,
-  onPosDef: darkPalette.black,
-  onPosMid: darkPalette.black,
-  onPosFwd: darkPalette.black,
 };

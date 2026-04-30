@@ -32,7 +32,6 @@ import { fetchPlayers, type Player } from '../api/players';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
-import { PositionChip } from '../components/PositionChip';
 import { ErrorView } from '../components/ErrorView';
 import {
   PositionFilterDialog,
@@ -539,7 +538,7 @@ function PlayerBlock({
   const team = player?.team ?? '';
   const position = player?.position ?? '';
   const price = player?.price;
-  const teamPriceText = [team, price ? `£${price.toFixed(1)}m` : null]
+  const sub = [team, position, price ? `£${price.toFixed(1)}m` : null]
     .filter(Boolean)
     .join(' · ');
 
@@ -553,21 +552,9 @@ function PlayerBlock({
       <Text style={styles.playerName} numberOfLines={1}>
         {name}
       </Text>
-      <View
-        style={[
-          styles.playerSubRow,
-          align === 'right'
-            ? styles.playerSubRowRight
-            : styles.playerSubRowLeft,
-        ]}
-      >
-        {position ? <PositionChip pos={position} /> : null}
-        {teamPriceText ? (
-          <Text style={styles.playerSub} numberOfLines={1}>
-            {teamPriceText}
-          </Text>
-        ) : null}
-      </View>
+      <Text style={styles.playerSub} numberOfLines={1}>
+        {sub}
+      </Text>
     </View>
   );
 }
@@ -1027,18 +1014,8 @@ const makeStyles = (colors: Colors) =>
   playerSub: {
     fontSize: 12,
     color: colors.textMuted,
-  },
-  // Inline row that holds the position chip alongside the team · £price
-  // text. Per-side alignment lets the right-aligned PlayerBlock keep
-  // its chip flush with the right edge of the card.
-  playerSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     marginTop: 2,
   },
-  playerSubRowLeft: { justifyContent: 'flex-start' },
-  playerSubRowRight: { justifyContent: 'flex-end' },
 
   // Center column: arrow + delta xp + bank delta.
   center: {

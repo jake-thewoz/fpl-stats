@@ -11,8 +11,8 @@ import { fetchPlayersXp } from '../api/playersXp';
 import type { Entry } from '../api/entry';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
-import { PositionChip } from '../components/PositionChip';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
@@ -426,19 +426,19 @@ function ControlButton({
  *  this component is responsible for the name + badges + sub-line. */
 function MyTeamNameCell({ row }: { row: MyTeamRow }) {
   const styles = useThemedStyles(makeStyles);
-  // Build the trailing fragment (Bench, GW pts) from optional pieces;
-  // the team name and position chip handle the leading two slots.
-  const trailingParts: string[] = [];
-  if (!row.isStarter) trailingParts.push('Bench');
-  if (row.gwPoints != null) trailingParts.push(`${row.gwPoints} GW pts`);
-  const trailing = trailingParts.join(' · ');
+  const subParts = [row.team, row.position];
+  if (!row.isStarter) subParts.push('Bench');
+  const subline = subParts.join(' · ');
 
   return (
     <>
+      <ClubBackground teamShort={row.team} />
       <View style={styles.nameLine}>
-        <Text style={styles.nameText} numberOfLines={1}>
-          {row.name}
-        </Text>
+        <View style={styles.textBackdrop}>
+          <Text style={styles.nameText} numberOfLines={1}>
+            {row.name}
+          </Text>
+        </View>
         {row.isCaptain ? (
           <Text style={styles.playerBadge} accessibilityLabel="captain">
             C
@@ -450,16 +450,11 @@ function MyTeamNameCell({ row }: { row: MyTeamRow }) {
           </Text>
         ) : null}
       </View>
-      <View style={styles.subRow}>
+      <View style={styles.textBackdrop}>
         <Text style={styles.subText} numberOfLines={1}>
-          {row.team}
+          {subline}
+          {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
         </Text>
-        <PositionChip pos={row.position} />
-        {trailing ? (
-          <Text style={styles.subText} numberOfLines={1}>
-            · {trailing}
-          </Text>
-        ) : null}
       </View>
     </>
   );
@@ -578,15 +573,17 @@ const makeStyles = (colors: Colors) =>
     gap: 6,
   },
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
-  subText: { fontSize: 12, color: colors.textMuted },
-  // Inline row for "TEAM · [chip] · trailing" — keeps the chip's
-  // baseline aligned with the muted text. ``alignItems: center`` is
-  // load-bearing; without it the chip sits taller than the text line.
-  subRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
+  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  // Surface-coloured halo behind name + subtitle so they remain legible
+  // against the club gradient. Invisible where the gradient has faded
+  // to surface (same colour); only appears in the coloured-band area
+  // where contrast is needed. ``alignSelf: 'flex-start'`` keeps the
+  // backdrop hugging the text width rather than spanning the row.
+  textBackdrop: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    borderRadius: 3,
   },
   // Same accent-coloured pill for both captain (C) and vice (V) — only
   // the letter differentiates. Matches FPL's own visual treatment.
