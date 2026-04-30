@@ -12,6 +12,7 @@ import type { Entry } from '../api/entry';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
+import { PositionChip } from '../components/PositionChip';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
@@ -425,9 +426,12 @@ function ControlButton({
  *  this component is responsible for the name + badges + sub-line. */
 function MyTeamNameCell({ row }: { row: MyTeamRow }) {
   const styles = useThemedStyles(makeStyles);
-  const subParts = [row.team, row.position];
-  if (!row.isStarter) subParts.push('Bench');
-  const subline = subParts.join(' · ');
+  // Build the trailing fragment (Bench, GW pts) from optional pieces;
+  // the team name and position chip handle the leading two slots.
+  const trailingParts: string[] = [];
+  if (!row.isStarter) trailingParts.push('Bench');
+  if (row.gwPoints != null) trailingParts.push(`${row.gwPoints} GW pts`);
+  const trailing = trailingParts.join(' · ');
 
   return (
     <>
@@ -446,10 +450,17 @@ function MyTeamNameCell({ row }: { row: MyTeamRow }) {
           </Text>
         ) : null}
       </View>
-      <Text style={styles.subText} numberOfLines={1}>
-        {subline}
-        {row.gwPoints != null ? `  ·  ${row.gwPoints} GW pts` : ''}
-      </Text>
+      <View style={styles.subRow}>
+        <Text style={styles.subText} numberOfLines={1}>
+          {row.team}
+        </Text>
+        <PositionChip pos={row.position} />
+        {trailing ? (
+          <Text style={styles.subText} numberOfLines={1}>
+            · {trailing}
+          </Text>
+        ) : null}
+      </View>
     </>
   );
 }
@@ -513,12 +524,12 @@ const makeStyles = (colors: Colors) =>
   chipBannerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#070707',
+    color: colors.onWarning,
     marginBottom: 2,
   },
   chipBannerBody: {
     fontSize: 12,
-    color: '#070707',
+    color: colors.onWarning,
     lineHeight: 16,
   },
   chipBadge: {
@@ -567,7 +578,16 @@ const makeStyles = (colors: Colors) =>
     gap: 6,
   },
   nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
-  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  subText: { fontSize: 12, color: colors.textMuted },
+  // Inline row for "TEAM · [chip] · trailing" — keeps the chip's
+  // baseline aligned with the muted text. ``alignItems: center`` is
+  // load-bearing; without it the chip sits taller than the text line.
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
   // Same accent-coloured pill for both captain (C) and vice (V) — only
   // the letter differentiates. Matches FPL's own visual treatment.
   playerBadge: {

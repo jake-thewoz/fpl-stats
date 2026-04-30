@@ -95,6 +95,6 @@ const makeStyles = (c: Colors) =>
     btnPrimary: { backgroundColor: c.accent },
     btnPrimaryText: { color: c.onAccent, fontSize: 15, fontWeight: '600' },
     btnDanger: { backgroundColor: c.danger },
-    btnDangerText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
+    btnDangerText: { color: c.onDanger, fontSize: 15, fontWeight: '600' },
     pressed: { opacity: 0.6 },
   });

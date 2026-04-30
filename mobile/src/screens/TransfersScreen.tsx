@@ -32,6 +32,7 @@ import { fetchPlayers, type Player } from '../api/players';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
+import { PositionChip } from '../components/PositionChip';
 import { ErrorView } from '../components/ErrorView';
 import {
   PositionFilterDialog,
@@ -532,14 +533,13 @@ function PlayerBlock({
   fallback: string;
   player: Player | undefined;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const name = player?.name ?? fallback;
   const team = player?.team ?? '';
   const position = player?.position ?? '';
   const price = player?.price;
-  const sub = [team, position, price ? `£${price.toFixed(1)}m` : null]
+  const teamPriceText = [team, price ? `£${price.toFixed(1)}m` : null]
     .filter(Boolean)
     .join(' · ');
 
@@ -553,9 +553,21 @@ function PlayerBlock({
       <Text style={styles.playerName} numberOfLines={1}>
         {name}
       </Text>
-      <Text style={styles.playerSub} numberOfLines={1}>
-        {sub}
-      </Text>
+      <View
+        style={[
+          styles.playerSubRow,
+          align === 'right'
+            ? styles.playerSubRowRight
+            : styles.playerSubRowLeft,
+        ]}
+      >
+        {position ? <PositionChip pos={position} /> : null}
+        {teamPriceText ? (
+          <Text style={styles.playerSub} numberOfLines={1}>
+            {teamPriceText}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -567,10 +579,10 @@ function CenterBadge({
   deltaXp: number;
   costChange: number;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const xpStr = `${deltaXp >= 0 ? '+' : ''}${deltaXp.toFixed(1)} xP`;
+  const positive = deltaXp >= 0;  // 0.0 ties to positive (matches "+0.0" sign)
   // cost_change in 0.1m units; positive = costs you money. Show £x.x with
   // signs flipped so it reads as "your bank delta" — negative cost_change
   // (cheaper in player) shows as a positive bank delta.
@@ -584,11 +596,26 @@ function CenterBadge({
       <View style={styles.arrowRow}>
         <Text style={styles.arrowText}>→</Text>
       </View>
-      {/* xP delta gets a filled accent pill — the headline value of the
-          card. Plain accent-colored text was washing out in dark mode
-          (#96 PR review). */}
-      <View style={styles.deltaXpPill}>
-        <Text style={styles.deltaXpPillText}>{xpStr}</Text>
+      {/* xP delta pill is sign-coloured: sage for positive moves, red
+          for negative. Mostly the bundle-net positives, but per-move
+          deltas inside a multi-move bundle can go negative — the pill
+          colour gives that move's contribution at a glance. */}
+      <View
+        style={[
+          styles.deltaXpPill,
+          positive ? styles.deltaXpPillPositive : styles.deltaXpPillNegative,
+        ]}
+      >
+        <Text
+          style={[
+            styles.deltaXpPillText,
+            positive
+              ? styles.deltaXpPillTextPositive
+              : styles.deltaXpPillTextNegative,
+          ]}
+        >
+          {xpStr}
+        </Text>
       </View>
       <Text style={styles.deltaCost}>{costStr}</Text>
     </View>
@@ -977,8 +1004,8 @@ const makeStyles = (colors: Colors) =>
   toneCellMid: { backgroundColor: colors.warning },
   toneCellBad: { backgroundColor: colors.danger },
   toneTextGood: { color: colors.onAccentSoft },
-  toneTextMid: { color: '#070707' },
-  toneTextBad: { color: '#ffffff' },
+  toneTextMid: { color: colors.onWarning },
+  toneTextBad: { color: colors.onDanger },
   toneTextNeutral: { color: colors.textPrimary },
   playerBlock: {
     flex: 1,
@@ -1000,8 +1027,18 @@ const makeStyles = (colors: Colors) =>
   playerSub: {
     fontSize: 12,
     color: colors.textMuted,
+  },
+  // Inline row that holds the position chip alongside the team · £price
+  // text. Per-side alignment lets the right-aligned PlayerBlock keep
+  // its chip flush with the right edge of the card.
+  playerSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 2,
   },
+  playerSubRowLeft: { justifyContent: 'flex-start' },
+  playerSubRowRight: { justifyContent: 'flex-end' },
 
   // Center column: arrow + delta xp + bank delta.
   center: {
@@ -1019,13 +1056,15 @@ const makeStyles = (colors: Colors) =>
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
-    backgroundColor: colors.accent,
   },
+  deltaXpPillPositive: { backgroundColor: colors.accentSoft },
+  deltaXpPillNegative: { backgroundColor: colors.danger },
   deltaXpPillText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.onAccent,
   },
+  deltaXpPillTextPositive: { color: colors.onAccentSoft },
+  deltaXpPillTextNegative: { color: colors.onDanger },
   deltaCost: {
     fontSize: 11,
     color: colors.textMuted,
