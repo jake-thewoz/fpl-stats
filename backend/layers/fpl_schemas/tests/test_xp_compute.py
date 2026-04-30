@@ -5,6 +5,7 @@ import pytest
 from xp_compute import (
     fixtures_in_gw_for_team,
     minutes_probability,
+    minutes_probability_with_selection,
     upcoming_gameweek_ids,
 )
 from schemas import Fixture, Gameweek, Player
@@ -127,6 +128,71 @@ def test_fixtures_in_gw_blank_returns_empty():
 def test_minutes_probability(label, status, cop, expected):
     p = _player(1, status=status, cop=cop)
     assert minutes_probability(p) == pytest.approx(expected), label
+
+
+# ---------------------------------------------------------------------------
+# minutes_probability_with_selection
+#
+# Adds the season selection-rate dampening to close the "available but
+# never picked" gap that plain minutes_probability can't see (the bug
+# behind the fringe-DGW Crystal Palace recommendations).
+# ---------------------------------------------------------------------------
+
+
+class TestMinutesProbabilityWithSelection:
+    def test_cop_under_100_real_doubt_trusts_fpl(self):
+        # cop=75: a returning-from-doubt player FPL has explicitly upgraded
+        # but hasn't fully cleared. Trust FPL even if season_play_rate is
+        # low (a long absence will have dragged it down — the upgrade is
+        # the signal that they're now coming back).
+        p = _player(1, status="d", cop=75)
+        assert minutes_probability_with_selection(p, 0.4) == pytest.approx(0.75)
+
+    def test_cop_50_returns_half_regardless_of_play_rate(self):
+        p = _player(1, status="d", cop=50)
+        assert minutes_probability_with_selection(p, 0.95) == pytest.approx(0.5)
+        assert minutes_probability_with_selection(p, 0.05) == pytest.approx(0.5)
+
+    def test_cop_zero_returns_zero(self):
+        # status='i'/'s'/'u' typically come with cop=0; either way mins_prob=0.
+        p = _player(1, status="i", cop=0)
+        assert minutes_probability_with_selection(p, 0.9) == 0.0
+
+    def test_cop_100_treated_as_no_concern_dampens_by_rate(self):
+        # The bug Jakob hit on the deployed Lambda. FPL ships cop=100 as
+        # an explicit "no concern" filler for ~60% of available players —
+        # including fringe bench warmers with 0 minutes. The original
+        # behaviour ("cop is not None ⇒ trust FPL") fed minutes_prob=1.0
+        # for never-picked fringes and put them on top of the transfer
+        # list. cop=100 must be treated the same as cop=null: dampen.
+        p = _player(1, status="a", cop=100)
+        assert minutes_probability_with_selection(p, 0.018) == pytest.approx(0.018)
+        assert minutes_probability_with_selection(p, 0.9) == pytest.approx(0.9)
+
+    def test_available_with_high_rate_near_no_op(self):
+        # Genuine starter: cop=null, status='a', rate~0.9 → near 1.0.
+        p = _player(1, status="a", cop=None)
+        assert minutes_probability_with_selection(p, 0.9) == pytest.approx(0.9)
+
+    def test_available_fringe_player_dampened(self):
+        # The bug fix: status='a' + cop=null + low play_rate = low mins_prob.
+        # Crystal Palace 4th-choice CB style: 50 mins after 30 GWs ≈ 0.018.
+        p = _player(1, status="a", cop=None)
+        assert minutes_probability_with_selection(p, 0.018) == pytest.approx(0.018)
+
+    def test_unavailable_returns_zero_regardless_of_rate(self):
+        # status='u' or status='i' players don't get any benefit from a
+        # high play_rate — they're flagged as not available.
+        for bad_status in ("i", "s", "u", "n"):
+            p = _player(1, status=bad_status, cop=None)
+            assert minutes_probability_with_selection(p, 0.9) == 0.0
+
+    def test_play_rate_clamped_to_unit_interval(self):
+        # Defensive: even a buggy upstream that hands us 1.5 or -0.2
+        # shouldn't escape the [0, 1] contract.
+        p = _player(1, status="a", cop=None)
+        assert minutes_probability_with_selection(p, 1.5) == pytest.approx(1.0)
+        assert minutes_probability_with_selection(p, -0.2) == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
