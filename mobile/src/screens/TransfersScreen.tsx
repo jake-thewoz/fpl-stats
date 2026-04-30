@@ -31,6 +31,7 @@ import {
 import { fetchPlayers, type Player } from '../api/players';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import {
@@ -391,16 +392,75 @@ function BundleCard({
 
 function BundleSummary({ bundle }: { bundle: TransferBundle }) {
   const styles = useThemedStyles(makeStyles);
-  // Net is the headline; gross + hit explain how we got there.
   const netStr = `${bundle.delta_xp_net >= 0 ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
-  const detail =
-    bundle.hit_cost > 0
-      ? `${bundle.num_transfers} transfers · gross ${bundle.delta_xp_gross.toFixed(1)} − ${bundle.hit_cost} hit`
-      : `${bundle.num_transfers} transfers · no hit`;
   return (
     <View style={styles.bundleSummary}>
       <Text style={styles.bundleSummaryNet}>{netStr}</Text>
-      <Text style={styles.bundleSummaryDetail}>{detail}</Text>
+      <View style={styles.bundleSummaryDetailRow}>
+        <Text style={styles.bundleSummaryDetail}>
+          {bundle.num_transfers}{' '}
+          {bundle.num_transfers === 1 ? 'transfer' : 'transfers'}
+        </Text>
+        <BankDeltaPill costChange={bundle.total_cost_change} />
+        {bundle.hit_cost > 0 ? <HitPill hitCost={bundle.hit_cost} /> : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Small pill showing the bank delta for a swap or bundle. ``costChange``
+ * is what FPL's API uses (positive = the swap costs you money). We
+ * negate it for display so the pill reads as the user's bank delta:
+ * positive = "you gained money", negative = "you lost money".
+ *
+ * - Gain → sage / accentSoft (matches the positive delta-xP pill).
+ * - Loss → red / danger.
+ * - £0.0 → muted text without a tinted background, since neither
+ *   "good" nor "bad" applies to a wash trade.
+ */
+function BankDeltaPill({ costChange }: { costChange: number }) {
+  const styles = useThemedStyles(makeStyles);
+  const bankDelta = -costChange / 10;
+  const text =
+    bankDelta === 0
+      ? '£0.0'
+      : `${bankDelta > 0 ? '+' : '−'}£${Math.abs(bankDelta).toFixed(1)}m`;
+  if (bankDelta === 0) {
+    return <Text style={styles.bankDeltaNeutral}>{text}</Text>;
+  }
+  const positive = bankDelta > 0;
+  return (
+    <View
+      style={[
+        styles.bankDeltaPill,
+        positive ? styles.bankDeltaPillPositive : styles.bankDeltaPillNegative,
+      ]}
+    >
+      <Text
+        style={[
+          styles.bankDeltaPillText,
+          positive
+            ? styles.bankDeltaPillTextPositive
+            : styles.bankDeltaPillTextNegative,
+        ]}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** Small red pill showing the −N point hit cost on a multi-transfer
+ *  bundle. Only rendered when ``hit_cost > 0``; the absence of the
+ *  pill is the "no hit" signal. */
+function HitPill({ hitCost }: { hitCost: number }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={[styles.bankDeltaPill, styles.bankDeltaPillNegative]}>
+      <Text style={[styles.bankDeltaPillText, styles.bankDeltaPillTextNegative]}>
+        −{hitCost} pts
+      </Text>
     </View>
   );
 }
@@ -549,12 +609,19 @@ function PlayerBlock({
         align === 'right' ? styles.playerBlockRight : styles.playerBlockLeft,
       ]}
     >
-      <Text style={styles.playerName} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={styles.playerSub} numberOfLines={1}>
-        {sub}
-      </Text>
+      {team ? (
+        <ClubBackground teamShort={team} mirror={align === 'right'} />
+      ) : null}
+      <View style={styles.playerTextBackdrop}>
+        <Text style={styles.playerName} numberOfLines={1}>
+          {name}
+        </Text>
+      </View>
+      <View style={styles.playerTextBackdrop}>
+        <Text style={styles.playerSub} numberOfLines={1}>
+          {sub}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -570,13 +637,6 @@ function CenterBadge({
 
   const xpStr = `${deltaXp >= 0 ? '+' : ''}${deltaXp.toFixed(1)} xP`;
   const positive = deltaXp >= 0;  // 0.0 ties to positive (matches "+0.0" sign)
-  // cost_change in 0.1m units; positive = costs you money. Show £x.x with
-  // signs flipped so it reads as "your bank delta" — negative cost_change
-  // (cheaper in player) shows as a positive bank delta.
-  const bankDelta = -costChange / 10;
-  const costStr = bankDelta === 0
-    ? '£0.0'
-    : `${bankDelta > 0 ? '+' : ''}£${bankDelta.toFixed(1)}m`;
 
   return (
     <View style={styles.center}>
@@ -604,7 +664,7 @@ function CenterBadge({
           {xpStr}
         </Text>
       </View>
-      <Text style={styles.deltaCost}>{costStr}</Text>
+      <BankDeltaPill costChange={costChange} />
     </View>
   );
 }
@@ -927,7 +987,16 @@ const makeStyles = (colors: Colors) =>
   bundleSummaryDetail: {
     fontSize: 12,
     color: colors.textMuted,
+  },
+  // Detail row holds the count text plus the bank + (optional) hit
+  // pills inline. Centered alignment keeps the small pills baseline-
+  // matched with the count text.
+  bundleSummaryDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 2,
+    flexWrap: 'wrap',
   },
   // Per-move heading inside the expanded compare section, only shown
   // for multi-move bundles so the user knows which compare table goes
@@ -1016,6 +1085,17 @@ const makeStyles = (colors: Colors) =>
     color: colors.textMuted,
     marginTop: 2,
   },
+  // Surface-coloured halo behind the name + subtitle text on each
+  // PlayerBlock. ``alignSelf: auto`` lets each backdrop inherit the
+  // parent block's ``alignItems`` (flex-start for the left block,
+  // flex-end for the right one) so the backdrop hugs the text on
+  // whichever side the text aligns to. Invisible where the gradient
+  // has faded to surface.
+  playerTextBackdrop: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    borderRadius: 3,
+  },
 
   // Center column: arrow + delta xp + bank delta.
   center: {
@@ -1042,10 +1122,31 @@ const makeStyles = (colors: Colors) =>
   },
   deltaXpPillTextPositive: { color: colors.onAccentSoft },
   deltaXpPillTextNegative: { color: colors.onDanger },
-  deltaCost: {
+  // Bank-delta pill (used by both CenterBadge and BundleSummary) and
+  // the matching hit pill. Smaller than the xP delta so the headline
+  // pill stays the dominant visual element.
+  bankDeltaPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  bankDeltaPillPositive: { backgroundColor: colors.accentSoft },
+  bankDeltaPillNegative: { backgroundColor: colors.danger },
+  bankDeltaPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  bankDeltaPillTextPositive: { color: colors.onAccentSoft },
+  bankDeltaPillTextNegative: { color: colors.onDanger },
+  // Wash trade — neutral muted text instead of a pill. Avoids slapping
+  // a green/red verdict on a no-bank-impact swap.
+  bankDeltaNeutral: {
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
 
   // Empty / message states.

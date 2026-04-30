@@ -34,11 +34,16 @@ import { CLUB_VISUALS, type ClubVisual } from './clubVisuals';
 type Props = {
   /** Team short_name (e.g. ``'ARS'``). Anything else renders nothing. */
   teamShort: string;
+  /** Mirror the fade direction: full pattern on the RIGHT edge, fading
+   *  to surface on the LEFT. Used by the right-aligned ``PlayerBlock``
+   *  on the Transfers card so both halves of the row fade toward the
+   *  middle. Default ``false`` matches the list-screen behaviour. */
+  mirror?: boolean;
 };
 
 const STRIPE_COUNT = 6;
 
-export function ClubBackground({ teamShort }: Props) {
+export function ClubBackground({ teamShort, mirror = false }: Props) {
   const { colors } = useTheme();
   const club = CLUB_VISUALS[teamShort];
   if (!club) return null;
@@ -46,16 +51,17 @@ export function ClubBackground({ teamShort }: Props) {
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
       <ClubPattern club={club} />
-      {/* Fade overlay. ``locations`` keep the leftmost ~30% of the column
-          at full pattern opacity (the colour part the brief wants), then
-          ramp from transparent to the surface colour over the right ~70%
-          so the row blends back into the background before the data
-          column starts. */}
+      {/* Fade overlay. ``locations`` keep the leftmost ~25% of the
+          gradient axis at full pattern opacity (the colour part the
+          brief wants), then ramp to the surface colour over the
+          remaining ~75% so the row blends back into the background.
+          Flipping ``start``/``end`` reverses the axis without touching
+          the locations or colours, which is how mirror works. */}
       <LinearGradient
         colors={['transparent', colors.surface]}
         locations={[0.25, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        start={mirror ? { x: 1, y: 0 } : { x: 0, y: 0 }}
+        end={mirror ? { x: 0, y: 0 } : { x: 1, y: 0 }}
         style={StyleSheet.absoluteFillObject}
       />
     </View>
