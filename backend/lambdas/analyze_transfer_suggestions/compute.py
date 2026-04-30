@@ -169,15 +169,20 @@ def derive_free_transfers(
 
     25/26 rules applied:
 
-    - Each completed GW deadline rolls over: ``ft = min(5, ft + 1)``.
-    - Transfers within a GW consume FTs down to 0 (extras are −4 hits,
-      tracked in ``event_transfers_cost``; we don't double-count them
-      here because the FT walk only cares about FT consumption, and FTs
-      can't go below 0).
-    - Wildcard / Free Hit GWs do NOT consume FTs (the chip itself replaces
-      normal transfer activity). Rollover still applies.
-    - Triple Captain / Bench Boost don't affect FTs at all (pure scoring
-      multipliers, no transfer impact), so they're ignored by this walk.
+    - Each completed non-chip GW deadline rolls over: ``ft = min(5, ft + 1)``.
+    - Transfers within a non-chip GW consume FTs down to 0 (extras are
+      −4 hits, tracked in ``event_transfers_cost``; we don't double-count
+      them here because the FT walk only cares about FT consumption,
+      and FTs can't go below 0).
+    - Wildcard / Free Hit GWs preserve banked FTs **and** skip that GW's
+      +1 rollover entirely. The chip replaces the GW's free transfer,
+      so the user neither consumes nor accrues an FT for that GW.
+      Empirically validated against Jakob's own team history (team 192273):
+      with the +1 rollover incorrectly applied on chip GWs, the algorithm
+      over-counted by 2 (gave 5 vs. FPL's 3 across two chip uses).
+    - Triple Captain / Bench Boost are pure scoring multipliers — they
+      don't affect transfer activity, so this walk treats them like any
+      other GW (consume FTs, +1 rollover).
 
     Starting balance: 1 FT (FPL convention for season start).
 
@@ -191,9 +196,11 @@ def derive_free_transfers(
     ft = 1
     for entry in sorted(history_current, key=lambda h: h.event):
         chip = chip_by_event.get(entry.event)
-        if chip not in ("wildcard", "freehit"):
-            transfers_made = entry.event_transfers or 0
-            ft = max(0, ft - transfers_made)
+        if chip in ("wildcard", "freehit"):
+            # WC/FH preserve banked FTs and skip the per-GW +1.
+            continue
+        transfers_made = entry.event_transfers or 0
+        ft = max(0, ft - transfers_made)
         ft = min(MAX_BANKED_FREE_TRANSFERS, ft + 1)
     return ft
 

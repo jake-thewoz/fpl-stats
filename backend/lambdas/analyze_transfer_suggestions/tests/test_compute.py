@@ -309,26 +309,26 @@ class TestDeriveFreeTransfers:
         history = [_hist(event=1, transfers=3)]
         assert derive_free_transfers(history, []) == 1
 
-    def test_wildcard_preserves_ft(self):
+    def test_wildcard_preserves_ft_and_skips_rollover(self):
         # GW1 and 2: bank to 3. GW3 uses Wildcard with 8 transfers — those
-        # don't count against FT. Post-WC GW3 ft = 3, rollover → 4.
+        # don't count against FT, AND the chip replaces the GW's +1 rollover.
+        # Post-WC GW3: ft stays at 3 (no consumption, no rollover).
         history = [
             _hist(event=1, transfers=0),
             _hist(event=2, transfers=0),
             _hist(event=3, transfers=8),
         ]
         chips = [EntryChip(name="wildcard", event=3)]
-        # GW1: ft 1→2; GW2: ft 2→3; GW3 (WC): ft stays 3, +1 rollover = 4
-        assert derive_free_transfers(history, chips) == 4
+        assert derive_free_transfers(history, chips) == 3
 
-    def test_freehit_preserves_ft(self):
+    def test_freehit_preserves_ft_and_skips_rollover(self):
         history = [
             _hist(event=1, transfers=0),
             _hist(event=2, transfers=0),
             _hist(event=3, transfers=11),  # FH: full team swap, doesn't consume FTs
         ]
         chips = [EntryChip(name="freehit", event=3)]
-        assert derive_free_transfers(history, chips) == 4
+        assert derive_free_transfers(history, chips) == 3
 
     def test_triple_captain_doesnt_affect_ft(self):
         # 3xc (Triple Captain) is a scoring chip, not a transfer chip — it
@@ -346,6 +346,33 @@ class TestDeriveFreeTransfers:
         history = [_hist(event=2, transfers=2), _hist(event=1, transfers=0)]
         # GW1: 1→2; GW2: 2-2=0, +1 rollover = 1
         assert derive_free_transfers(history, []) == 1
+
+    def test_jakob_team_192273_through_gw34(self):
+        """Regression: real history from Jakob's team (192273) walked
+        through GW1-34. FPL UI showed 3 FTs going into GW35; an earlier
+        version that applied +1 rollover on chip GWs gave 5. This test
+        encodes the exact ``event_transfers`` + chip pattern so the
+        chip-rollover rule can't silently regress without flipping it."""
+        per_gw = [
+            (1, 0), (2, 0), (3, 2), (4, 1), (5, 0),
+            (6, 0),  # WC
+            (7, 1), (8, 2), (9, 1), (10, 0), (11, 2), (12, 1), (13, 1),
+            (14, 1), (15, 0), (16, 5), (17, 1), (18, 1), (19, 1),
+            (20, 0), (21, 0), (22, 3), (23, 1), (24, 1), (25, 0),
+            (26, 2),  # 3xc — scoring chip, FT mechanics unchanged
+            (27, 1), (28, 0), (29, 0), (30, 0), (31, 3),
+            (32, 0),  # WC
+            (33, 0),
+            (34, 0),  # FH
+        ]
+        history = [_hist(event=gw, transfers=t) for gw, t in per_gw]
+        chips = [
+            EntryChip(name="wildcard", event=6),
+            EntryChip(name="3xc", event=26),
+            EntryChip(name="wildcard", event=32),
+            EntryChip(name="freehit", event=34),
+        ]
+        assert derive_free_transfers(history, chips) == 3
 
 
 # ---------------------------------------------------------------------------
