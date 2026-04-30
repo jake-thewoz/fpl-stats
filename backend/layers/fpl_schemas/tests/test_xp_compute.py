@@ -140,18 +140,34 @@ def test_minutes_probability(label, status, cop, expected):
 
 
 class TestMinutesProbabilityWithSelection:
-    def test_cop_set_trusts_fpl_ignores_play_rate(self):
-        # Returning-from-injury starter: FPL says cop=100, but a long
-        # absence has dragged the season play_rate down to 0.4. We must
-        # NOT override FPL's specific signal — they're back, the manager
-        # will play them.
-        p = _player(1, status="d", cop=100)
-        assert minutes_probability_with_selection(p, 0.4) == pytest.approx(1.0)
+    def test_cop_under_100_real_doubt_trusts_fpl(self):
+        # cop=75: a returning-from-doubt player FPL has explicitly upgraded
+        # but hasn't fully cleared. Trust FPL even if season_play_rate is
+        # low (a long absence will have dragged it down — the upgrade is
+        # the signal that they're now coming back).
+        p = _player(1, status="d", cop=75)
+        assert minutes_probability_with_selection(p, 0.4) == pytest.approx(0.75)
 
     def test_cop_50_returns_half_regardless_of_play_rate(self):
         p = _player(1, status="d", cop=50)
         assert minutes_probability_with_selection(p, 0.95) == pytest.approx(0.5)
         assert minutes_probability_with_selection(p, 0.05) == pytest.approx(0.5)
+
+    def test_cop_zero_returns_zero(self):
+        # status='i'/'s'/'u' typically come with cop=0; either way mins_prob=0.
+        p = _player(1, status="i", cop=0)
+        assert minutes_probability_with_selection(p, 0.9) == 0.0
+
+    def test_cop_100_treated_as_no_concern_dampens_by_rate(self):
+        # The bug Jakob hit on the deployed Lambda. FPL ships cop=100 as
+        # an explicit "no concern" filler for ~60% of available players —
+        # including fringe bench warmers with 0 minutes. The original
+        # behaviour ("cop is not None ⇒ trust FPL") fed minutes_prob=1.0
+        # for never-picked fringes and put them on top of the transfer
+        # list. cop=100 must be treated the same as cop=null: dampen.
+        p = _player(1, status="a", cop=100)
+        assert minutes_probability_with_selection(p, 0.018) == pytest.approx(0.018)
+        assert minutes_probability_with_selection(p, 0.9) == pytest.approx(0.9)
 
     def test_available_with_high_rate_near_no_op(self):
         # Genuine starter: cop=null, status='a', rate~0.9 → near 1.0.

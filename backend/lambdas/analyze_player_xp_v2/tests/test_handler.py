@@ -573,6 +573,19 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
                 "minutes": 50,  # ~0.09 of available — proper fringe
             },
             {
+                # Same fringe profile but with cop=100 — FPL's "explicit
+                # no concern" filler. About 60% of available players ship
+                # this way (including never-picked benches), and an earlier
+                # version of this fix wrongly treated cop=100 as "trust
+                # FPL", bypassing the dampener and putting players like
+                # Cardines and Nypan back at the top of the list.
+                "id": 802, "first_name": "FringeCop", "second_name": "FWD",
+                "web_name": "FringeCopFWD", "team": 1, "element_type": 4,
+                "total_points": 5, "form": "0.5", "now_cost": 45,
+                "status": "a", "chance_of_playing_next_round": 100,
+                "minutes": 50,
+            },
+            {
                 "id": 801, "first_name": "Starter", "second_name": "FWD",
                 "web_name": "StarterFWD", "team": 1, "element_type": 4,
                 "total_points": 100, "form": "5.0", "now_cost": 75,
@@ -595,6 +608,7 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
     lambda_handler({}, None)
     items = _items_by_player(writer)
     fringe = items[800]
+    fringe_cop100 = items[802]
     starter = items[801]
 
     # Both players hit the position prior for per-90 rates (no history),
@@ -606,6 +620,12 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
     # And concretely: a fringe FWD with rate ≈ 0.09 should land far
     # below the typical 4–6 xP range of a starter FWD — well under 1.0.
     assert fringe["xp"] < Decimal("1.0")
+
+    # cop=100 is FPL's "explicit no concern" filler — must NOT bypass
+    # the dampener. The cop=100 fringe should land near-identical to
+    # the cop=null fringe (both with the same minutes profile).
+    assert fringe_cop100["xp"] == pytest.approx(fringe["xp"])
+    assert fringe_cop100["xp"] < Decimal("1.0")
 
     # Sanity: the surfaced ``season_play_rate`` matches what we expect.
     # 50 / (90 · 6) ≈ 0.0926.

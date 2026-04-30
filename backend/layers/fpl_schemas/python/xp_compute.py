@@ -87,24 +87,32 @@ def minutes_probability_with_selection(
     Why: FPL surfaces injury / suspension / squad-status via ``status``
     + ``chance_of_playing_next_round`` (cop), but doesn't expose
     "rotation risk". A fringe bench player who's technically available
-    has ``status='a'`` and ``cop=null`` — the same signature as a
-    guaranteed starter — so plain ``minutes_probability`` returns 1.0
-    for both. Combined with position-prior fallback rates and a Double
-    Gameweek, that's enough to push them to the top of the transfer
-    suggestions despite never seeing the pitch.
+    has ``status='a'`` and either ``cop=null`` or — confusingly —
+    ``cop=100``: an FPL-shipped "explicit no concern" value that
+    covers about 60% of the available pool, never-picked fringes
+    included (sampled 2026-04-30: 319 ``a/100`` vs 209 ``a/null``).
+    So plain ``minutes_probability`` returns 1.0 for both genuine
+    starters and never-picked fringes, and a Double Gameweek pushes
+    the fringes to the top of the transfer list.
 
     Behaviour:
-    - ``cop`` set: trust FPL verbatim (returning-from-injury players
-      get cop=75 / 100; we don't want a long-absence ``season_play_rate``
-      to override "FPL says they're back").
-    - ``cop=null`` + ``status='a'``: dampen by ``season_play_rate``.
-      For a starter this is ~0.85+, near-no-op; for a fringe player
-      (50 mins after 30 GWs ≈ 0.018) the xP collapses appropriately.
-    - Anything else (status='i'/'s'/'u'/None): 0.0, as before.
+    - ``cop`` set AND ``cop < 100``: trust FPL verbatim — that's a real
+      doubt (cop=0 unavailable, 25/50/75 returning-from-doubt). We don't
+      want a long-absence ``season_play_rate`` to override "FPL says
+      they're returning at 75%".
+    - ``cop=null`` OR ``cop=100`` + ``status='a'``: dampen by
+      ``season_play_rate``. For a starter this is ~0.85+, near-no-op;
+      for a fringe player (50 mins after 30 GWs ≈ 0.018) the xP
+      collapses appropriately.
+    - Anything else (status='i'/'s'/'u'/None, or cop=0 explicitly):
+      returns 0.0.
     """
     cop = player.chance_of_playing_next_round
-    if cop is not None:
+    if cop is not None and cop < 100:
+        # Real availability flag — 0 (unavailable), 25/50/75 (doubt).
         return max(0.0, min(1.0, cop / 100.0))
+    # cop is None OR cop=100 (FPL's "no concern" filler) — both reduce
+    # to "no specific FPL signal". Dampen by season selection rate.
     if player.status == "a":
         return max(0.0, min(1.0, season_play_rate))
     return 0.0
