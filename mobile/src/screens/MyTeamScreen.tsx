@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -65,9 +65,22 @@ export default function MyTeamScreen({ navigation }: Props) {
 
   const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
 
-  useEffect(() => {
-    getFplTeamId().then(setTeamId);
-  }, []);
+  // Re-read the team id every time this screen gains focus, not just on
+  // first mount. The user can change their team id from Settings; without
+  // this, the new id wouldn't propagate until the app fully reloads.
+  // (The Friends tab already does this; My Team and Transfers were the
+  // outliers.)
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getFplTeamId().then((id) => {
+        if (alive) setTeamId(id);
+      });
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {

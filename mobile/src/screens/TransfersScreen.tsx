@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   LayoutAnimation,
@@ -10,6 +10,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Android needs LayoutAnimation explicitly enabled. Once-per-app call,
 // safe to leave at module scope — the runtime guards against re-enable.
@@ -69,9 +70,19 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => {
-    getFplTeamId().then(setTeamId);
-  }, []);
+  // Re-read on every focus so a team-id change in Settings propagates
+  // here without a full app reload (matches the My Team tab).
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getFplTeamId().then((id) => {
+        if (alive) setTeamId(id);
+      });
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
