@@ -185,7 +185,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         <PicksUnavailableNote message={myTeam.picksError} />
       ) : null}
       {myTeam.picks?.active_chip ? (
-        <ChipBanner chip={myTeam.picks.active_chip} />
+        <ChipBanner
+          chip={myTeam.picks.active_chip}
+          showingPersistentSquad={myTeam.showingPersistentSquad}
+        />
       ) : null}
       <ControlBar
         filterCount={activeFilterCount(filters)}
@@ -324,20 +327,29 @@ const CHIP_LABELS: Record<string, string> = {
   bboost: 'Bench Boost',
 };
 
-function ChipBanner({ chip }: { chip: string }) {
+function ChipBanner({
+  chip,
+  showingPersistentSquad,
+}: {
+  chip: string;
+  showingPersistentSquad: boolean;
+}) {
   const styles = useThemedStyles(makeStyles);
   const label = CHIP_LABELS[chip] ?? chip;
   const isFreeHit = chip === CHIP_FREE_HIT;
   // Free Hit gets a louder banner because it changes what the squad list
   // actually shows. Other chips get a passive single-line badge.
+  // Body copy depends on whether the FH-fallback successfully fetched
+  // the previous GW's persistent squad (the common case) or whether
+  // we're still showing the FH temporary eleven (fallback fetch failed).
   if (isFreeHit) {
+    const body = showingPersistentSquad
+      ? 'Free Hit is active this GW. Below is your team from last gameweek — your post-Free-Hit squad will reappear at the next deadline.'
+      : 'The squad below is your one-week Free Hit team. Your persistent squad reappears at the next GW deadline.';
     return (
       <View style={styles.chipBannerFreeHit}>
         <Text style={styles.chipBannerTitle}>{label} active</Text>
-        <Text style={styles.chipBannerBody}>
-          The squad below is your one-week Free Hit team. Your persistent
-          squad reappears at the next GW deadline.
-        </Text>
+        <Text style={styles.chipBannerBody}>{body}</Text>
       </View>
     );
   }
