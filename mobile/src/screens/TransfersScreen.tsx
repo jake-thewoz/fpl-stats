@@ -23,7 +23,8 @@ import {
   EntryNotFoundError,
   PicksNotFoundError,
   fetchTransferSuggestions,
-  type TransferSuggestion,
+  type TransferBundle,
+  type TransferMove,
   type TransferSuggestionsResponse,
 } from '../api/transferSuggestions';
 import { fetchPlayers, type Player } from '../api/players';
@@ -35,7 +36,7 @@ import {
   PositionFilterDialog,
   type Position,
 } from '../components/PositionFilterDialog';
-import type { AnalyticsScreenProps } from '../navigation/types';
+import type { TransfersScreenProps } from '../navigation/types';
 import { useTheme, useThemedStyles, type Colors } from '../theme';
 
 const HORIZONS = [1, 3, 5] as const;
@@ -51,7 +52,7 @@ const POSITIONS: readonly Position[] = [
 ] as const;
 
 type CombinedData = {
-  suggestions: TransferSuggestionsResponse;
+  response: TransferSuggestionsResponse;
   // player_id -> resolved metadata. The transfer endpoint returns
   // team_id/position_id, but /players is the canonical source of
   // resolved short names; joining keeps us decoupled from a per-season
@@ -59,7 +60,7 @@ type CombinedData = {
   playersById: Map<number, Player>;
 };
 
-export default function AnalyticsScreen({ navigation }: AnalyticsScreenProps) {
+export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -135,12 +136,12 @@ function SuggestionsView({
   );
   const fetcher = useCallback(
     async (signal: AbortSignal): Promise<CombinedData> => {
-      const [suggestions, playersResp] = await Promise.all([
+      const [response, playersResp] = await Promise.all([
         fetchTransferSuggestions(teamId, horizon, positionFilter, signal),
         fetchPlayers(signal),
       ]);
       const playersById = new Map(playersResp.players.map((p) => [p.id, p]));
-      return { suggestions, playersById };
+      return { response, playersById };
     },
     // filterKey is the canonical dep; positionFilter array reference itself
     // would re-run on every state setter call.
@@ -210,12 +211,12 @@ function Body({
     );
   }
 
-  const { suggestions, playersById } = state.data;
+  const { response, playersById } = state.data;
 
-  if (suggestions.season_over) {
+  if (response.season_over) {
     return <MessageState title="Season's over" body="No more transfers to plan." />;
   }
-  if (suggestions.preseason) {
+  if (response.preseason) {
     return (
       <MessageState
         title="Season hasn't started"
@@ -223,7 +224,7 @@ function Body({
       />
     );
   }
-  if (suggestions.suggestions.length === 0) {
+  if (response.bundles.length === 0) {
     if (filterActive) {
       return (
         <MessageState
@@ -242,7 +243,7 @@ function Body({
 
   return (
     <SuggestionsList
-      suggestions={suggestions}
+      response={response}
       playersById={playersById}
       refreshing={refreshing}
       onRefresh={onRefresh}
@@ -250,21 +251,27 @@ function Body({
   );
 }
 
+function bundleKey(bundle: TransferBundle): string {
+  return bundle.moves
+    .map((m) => `${m.out.player_id}-${m.in.player_id}`)
+    .join('|');
+}
+
 function SuggestionsList({
-  suggestions,
+  response,
   playersById,
   refreshing,
   onRefresh,
 }: {
-  suggestions: TransferSuggestionsResponse;
+  response: TransferSuggestionsResponse;
   playersById: Map<number, Player>;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const styles = useThemedStyles(makeStyles);
-  // One card expanded at a time. Stable per-suggestion key (`out-in`)
-  // survives data refreshes — if the same swap is still in the list
-  // after a refresh, it stays expanded.
+  // One card expanded at a time. Stable per-bundle key (joined out-in
+  // pairs) survives data refreshes — if the same bundle is still in
+  // the list after a refresh, it stays expanded.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const toggleExpand = useCallback((key: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -273,13 +280,13 @@ function SuggestionsList({
 
   return (
     <FlatList
-      data={suggestions.suggestions}
-      keyExtractor={(s) => `${s.out.player_id}-${s.in.player_id}`}
+      data={response.bundles}
+      keyExtractor={bundleKey}
       renderItem={({ item }) => {
-        const key = `${item.out.player_id}-${item.in.player_id}`;
+        const key = bundleKey(item);
         return (
-          <SuggestionCard
-            suggestion={item}
+          <BundleCard
+            bundle={item}
             playersById={playersById}
             isExpanded={expandedKey === key}
             onToggle={() => toggleExpand(key)}
@@ -288,8 +295,9 @@ function SuggestionsList({
       }}
       ListHeaderComponent={
         <Header
-          horizonGwIds={suggestions.horizon_gw_ids}
-          currentSquadXp={suggestions.current_squad_xp}
+          horizonGwIds={response.horizon_gw_ids}
+          currentSquadXp={response.current_squad_xp}
+          freeTransfers={response.free_transfers}
         />
       }
       contentContainerStyle={styles.listContent}
@@ -304,22 +312,19 @@ function SuggestionsList({
 // Card
 // ---------------------------------------------------------------------------
 
-function SuggestionCard({
-  suggestion,
+function BundleCard({
+  bundle,
   playersById,
   isExpanded,
   onToggle,
 }: {
-  suggestion: TransferSuggestion;
+  bundle: TransferBundle;
   playersById: Map<number, Player>;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-
-  const out = playersById.get(suggestion.out.player_id);
-  const inP = playersById.get(suggestion.in.player_id);
+  const isMulti = bundle.num_transfers > 1;
 
   return (
     <Pressable
@@ -328,30 +333,63 @@ function SuggestionCard({
       accessibilityRole="button"
       accessibilityState={{ expanded: isExpanded }}
       accessibilityLabel={
-        isExpanded ? 'Collapse suggestion details' : 'Expand suggestion details'
+        isExpanded ? 'Collapse bundle details' : 'Expand bundle details'
       }
     >
-      <View style={styles.cardRow}>
-        <PlayerBlock
-          align="left"
-          fallback={suggestion.out.web_name}
-          player={out}
-        />
-        <CenterBadge
-          deltaXp={suggestion.delta_xp}
-          costChange={suggestion.cost_change}
-        />
-        <PlayerBlock
-          align="right"
-          fallback={suggestion.in.web_name}
-          player={inP}
-        />
-      </View>
+      {isMulti ? <BundleSummary bundle={bundle} /> : null}
+      {bundle.moves.map((move, i) => (
+        <View key={`${move.out.player_id}-${move.in.player_id}`}>
+          {i > 0 ? <View style={styles.moveDivider} /> : null}
+          <View style={styles.cardRow}>
+            <PlayerBlock
+              align="left"
+              fallback={move.out.web_name}
+              player={playersById.get(move.out.player_id)}
+            />
+            <CenterBadge
+              deltaXp={move.delta_xp}
+              costChange={move.cost_change}
+            />
+            <PlayerBlock
+              align="right"
+              fallback={move.in.web_name}
+              player={playersById.get(move.in.player_id)}
+            />
+          </View>
+        </View>
+      ))}
       <View style={styles.chevronRow}>
         <Text style={styles.chevron}>{isExpanded ? '▴' : '▾'}</Text>
       </View>
-      {isExpanded ? <CompareTable suggestion={suggestion} /> : null}
+      {isExpanded
+        ? bundle.moves.map((move, i) => (
+            <View key={`compare-${move.out.player_id}-${move.in.player_id}`}>
+              {isMulti ? (
+                <Text style={styles.compareMoveLabel}>
+                  Move {i + 1}: {move.out.web_name} → {move.in.web_name}
+                </Text>
+              ) : null}
+              <CompareTable move={move} />
+            </View>
+          ))
+        : null}
     </Pressable>
+  );
+}
+
+function BundleSummary({ bundle }: { bundle: TransferBundle }) {
+  const styles = useThemedStyles(makeStyles);
+  // Net is the headline; gross + hit explain how we got there.
+  const netStr = `${bundle.delta_xp_net >= 0 ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
+  const detail =
+    bundle.hit_cost > 0
+      ? `${bundle.num_transfers} transfers · gross ${bundle.delta_xp_gross.toFixed(1)} − ${bundle.hit_cost} hit`
+      : `${bundle.num_transfers} transfers · no hit`;
+  return (
+    <View style={styles.bundleSummary}>
+      <Text style={styles.bundleSummaryNet}>{netStr}</Text>
+      <Text style={styles.bundleSummaryDetail}>{detail}</Text>
+    </View>
   );
 }
 
@@ -388,9 +426,9 @@ function fmt(value: number | null, digits: number): string {
   return value == null ? '—' : value.toFixed(digits);
 }
 
-function CompareTable({ suggestion }: { suggestion: TransferSuggestion }) {
+function CompareTable({ move }: { move: TransferMove }) {
   const styles = useThemedStyles(makeStyles);
-  const { out, in: inP } = suggestion;
+  const { out, in: inP } = move;
 
   return (
     <View style={styles.compareTable}>
@@ -552,11 +590,12 @@ function CenterBadge({
 function Header({
   horizonGwIds,
   currentSquadXp,
+  freeTransfers,
 }: {
   horizonGwIds: number[];
   currentSquadXp: number | undefined;
+  freeTransfers: number;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   if (horizonGwIds.length === 0) return null;
@@ -564,16 +603,19 @@ function Header({
     horizonGwIds.length === 1
       ? `GW ${horizonGwIds[0]}`
       : `GWs ${horizonGwIds[0]}–${horizonGwIds[horizonGwIds.length - 1]}`;
+  const ftLabel =
+    freeTransfers === 1 ? '1 free transfer' : `${freeTransfers} free transfers`;
   return (
     <View style={styles.header}>
       <Text style={styles.headerLine}>
         Top transfers across {range}
       </Text>
-      {typeof currentSquadXp === 'number' && (
-        <Text style={styles.headerSub}>
-          Current squad projected: {currentSquadXp.toFixed(1)} xP
-        </Text>
-      )}
+      <Text style={styles.headerSub}>
+        {ftLabel}
+        {typeof currentSquadXp === 'number'
+          ? ` · current squad projected ${currentSquadXp.toFixed(1)} xP`
+          : ''}
+      </Text>
     </View>
   );
 }
@@ -813,6 +855,39 @@ const makeStyles = (colors: Colors) =>
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // Multi-move bundles stack moves vertically; this divider separates them.
+  moveDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  // Bundle-level summary above the move stack: net delta xP + hit detail.
+  bundleSummary: {
+    paddingBottom: 8,
+    marginBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  bundleSummaryNet: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  bundleSummaryDetail: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  // Per-move heading inside the expanded compare section, only shown
+  // for multi-move bundles so the user knows which compare table goes
+  // with which move.
+  compareMoveLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginTop: 8,
+    marginBottom: 2,
   },
   chevronRow: {
     alignItems: 'center',
