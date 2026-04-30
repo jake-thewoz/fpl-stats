@@ -90,12 +90,12 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         fetchMyTeam(teamId, signal),
         fetchPlayersXp(signal),
       ]);
-      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p.xp]));
+      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
       const rows: MyTeamRow[] = myTeam.squad
         .filter((s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
           s.player != null,
         )
-        .map((s) => toMyTeamRow(s, xpById.get(s.player!.id) ?? null));
+        .map((s) => toMyTeamRow(s, xpById.get(s.player!.id)));
       return { myTeam, rows };
     },
     [teamId],
@@ -234,7 +234,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 // Subcomponents
 // ---------------------------------------------------------------------------
 
-function toMyTeamRow(s: SquadEntry, xp: number | null): MyTeamRow {
+function toMyTeamRow(
+  s: SquadEntry,
+  xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
+): MyTeamRow {
   const player = s.player!;
   const formNum = parseFloat(player.form);
   return {
@@ -245,7 +248,9 @@ function toMyTeamRow(s: SquadEntry, xp: number | null): MyTeamRow {
     price: player.price,
     total_points: player.total_points,
     form: Number.isNaN(formNum) ? 0 : formNum,
-    xp,
+    xp: xp?.xp ?? null,
+    xp_h3: xp?.xp_h3 ?? null,
+    xp_h5: xp?.xp_h5 ?? null,
     defcon: player.defcon,
     defcon_per_90: player.defcon_per_90,
     selected_by_percent: player.selected_by_percent,

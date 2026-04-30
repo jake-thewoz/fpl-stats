@@ -37,10 +37,26 @@ const fmtCostChange = (v: number | null): string => {
 export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
   xp: {
     key: 'xp',
-    label: 'Expected points',
+    label: 'Expected points (next GW)',
     shortLabel: 'xP',
     defaultSortDir: 'desc',
     accessor: (p) => p.xp,
+    format: fmtNumber,
+  },
+  xp_h3: {
+    key: 'xp_h3',
+    label: 'Expected points (next 3 GWs)',
+    shortLabel: 'xP·3',
+    defaultSortDir: 'desc',
+    accessor: (p) => p.xp_h3,
+    format: fmtNumber,
+  },
+  xp_h5: {
+    key: 'xp_h5',
+    label: 'Expected points (next 5 GWs)',
+    shortLabel: 'xP·5',
+    defaultSortDir: 'desc',
+    accessor: (p) => p.xp_h5,
     format: fmtNumber,
   },
   form: {
@@ -187,6 +203,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
  *  defensive → composite/expected → market). */
 export const FIELDS_IN_PICKER_ORDER: FieldDef[] = [
   FIELD_DEFS.xp,
+  FIELD_DEFS.xp_h3,
+  FIELD_DEFS.xp_h5,
   FIELD_DEFS.defcon,
   FIELD_DEFS.defcon_per_90,
   FIELD_DEFS.form,

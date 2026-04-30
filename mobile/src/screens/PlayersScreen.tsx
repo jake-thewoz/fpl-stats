@@ -62,9 +62,9 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         fetchPlayers(signal),
         fetchPlayersXp(signal),
       ]);
-      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p.xp]));
+      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
       const players: JoinedPlayer[] = playersResp.players.map((p) =>
-        toJoined(p, xpById.get(p.id) ?? null),
+        toJoined(p, xpById.get(p.id)),
       );
       return { players };
     },
@@ -259,7 +259,10 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
 // Subcomponents
 // ---------------------------------------------------------------------------
 
-function toJoined(p: Player, xp: number | null): JoinedPlayer {
+function toJoined(
+  p: Player,
+  xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
+): JoinedPlayer {
   // FPL ships `form` as a stringified decimal; coerce to number for sort.
   const formNum = parseFloat(p.form);
   return {
@@ -270,7 +273,9 @@ function toJoined(p: Player, xp: number | null): JoinedPlayer {
     price: p.price,
     total_points: p.total_points,
     form: Number.isNaN(formNum) ? 0 : formNum,
-    xp,
+    xp: xp?.xp ?? null,
+    xp_h3: xp?.xp_h3 ?? null,
+    xp_h5: xp?.xp_h5 ?? null,
     defcon: p.defcon,
     defcon_per_90: p.defcon_per_90,
     selected_by_percent: p.selected_by_percent,
