@@ -26,4 +26,4 @@ Hey, thanks for trying the beta. This is a Fantasy Premier League companion app 
 
 ## How to send feedback
 
-Anything broken, confusing, or just wrong — text/DM/email Jakob directly. Screenshots help a lot. The more boring-sounding the bug ("the back button on this screen does the wrong thing") the more useful it tends to be.
+Anything broken, confusing, or just wrong — WhatsApp/email Jakob directly. Screenshots help a lot. The more boring-sounding the bug ("the back button on this screen does the wrong thing") the more useful it tends to be.
