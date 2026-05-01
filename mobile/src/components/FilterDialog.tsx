@@ -16,6 +16,7 @@ import type {
 } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';
 import { useTheme, useThemedStyles, type Colors } from '../theme';
+import { WebShell } from './WebShell';
 
 /**
  * Field-aware filter dialog. Supports multi-select for position + team,
@@ -92,6 +93,7 @@ export function FilterDialog({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
           <Pressable
@@ -153,6 +155,7 @@ export function FilterDialog({
           />
         </ScrollView>
       </View>
+      </WebShell>
     </Modal>
   );
 }

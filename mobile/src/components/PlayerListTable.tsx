@@ -32,6 +32,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -55,6 +56,11 @@ const NAME_WIDTH = 168;
  *  even on first render before measurement. */
 const ROW_HEIGHT = 56;
 const HEADER_HEIGHT = 40;
+/** Empty space reserved at the right edge of each data/header row on web,
+ *  so the FlatList's vertical scrollbar (rendered by the browser at the
+ *  inner ScrollView's right edge) doesn't overlay the rightmost data cell.
+ *  Native scroll indicators auto-hide and don't need a reserve. */
+const WEB_SCROLLBAR_RESERVE = 16;
 
 type Props<T extends JoinedPlayer> = {
   data: readonly T[];
@@ -138,10 +144,18 @@ export function PlayerListTable<T extends JoinedPlayer>({
   const cellsTotalWidth = columns.length * CELL_WIDTH;
   const cellsFitInViewport =
     rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
-  /** When cells fit in the viewport with room to spare, stretch them
-   *  to fill (flex: 1, minWidth keeps short labels readable). When
-   *  they overflow, lock to fixed width so horizontal scroll works. */
-  const cellLayout = cellsFitInViewport
+  /** On native, when cells fit with room to spare, stretch them to fill
+   *  (flex: 1, minWidth keeps short labels readable) — without this a
+   *  2-column table on a 400px phone ends ~150px in and leaves the rest
+   *  blank. On web the WebShell already constrains the column width, so
+   *  stretching cells just produces awkward internal whitespace where
+   *  right-aligned values hug each cell's right edge with a big gap on
+   *  the left. Fixed-width cells with `justifyContent: space-evenly`
+   *  on the row distribute slack between and around the cells so each
+   *  reads as visually balanced instead. */
+  const stretchCellsToFill =
+    cellsFitInViewport && Platform.OS !== 'web';
+  const cellLayout = stretchCellsToFill
     ? { flex: 1, minWidth: CELL_WIDTH }
     : { width: CELL_WIDTH };
   const dataWidth = cellsFitInViewport ? rightAreaWidth : cellsTotalWidth;
@@ -322,16 +336,25 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       height: HEADER_HEIGHT,
       alignItems: 'center',
+      // Distributes slack evenly between and around the fixed-width
+      // cells when there's room to spare (web case — see
+      // `stretchCellsToFill` in the component) so each cell gets its
+      // own breathing room instead of clustering in the middle. No-op
+      // when cells fill or overflow the row.
+      justifyContent: 'space-evenly',
       backgroundColor: c.surface,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
+      paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
     },
     rightRow: {
       flexDirection: 'row',
       height: ROW_HEIGHT,
       alignItems: 'center',
+      justifyContent: 'space-evenly',
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
+      paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
     },
     headerCell: {
       width: CELL_WIDTH,

@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LoadingView } from './src/components/LoadingView';
+import { WebShell } from './src/components/WebShell';
 import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
 import { MainTabs } from './src/navigation/MainTabs';
 import type { RootStackParamList } from './src/navigation/types';
@@ -33,7 +34,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ThemedAppRoot />
+        <WebShell>
+          <ThemedAppRoot />
+        </WebShell>
       </ThemeProvider>
     </SafeAreaProvider>
   );
