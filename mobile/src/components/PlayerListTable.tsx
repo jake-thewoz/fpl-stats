@@ -144,10 +144,17 @@ export function PlayerListTable<T extends JoinedPlayer>({
   const cellsTotalWidth = columns.length * CELL_WIDTH;
   const cellsFitInViewport =
     rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
-  /** When cells fit in the viewport with room to spare, stretch them
-   *  to fill (flex: 1, minWidth keeps short labels readable). When
-   *  they overflow, lock to fixed width so horizontal scroll works. */
-  const cellLayout = cellsFitInViewport
+  /** On native, when cells fit with room to spare, stretch them to fill
+   *  (flex: 1, minWidth keeps short labels readable) — without this a
+   *  2-column table on a 400px phone ends ~150px in and leaves the rest
+   *  blank. On web the WebShell already constrains the column width, so
+   *  stretching cells just produces awkward internal whitespace where
+   *  right-aligned values hug each cell's right edge with a big gap on
+   *  the left. Fixed-width cells with a `justifyContent: center` row
+   *  let the cluster of values read as visually balanced instead. */
+  const stretchCellsToFill =
+    cellsFitInViewport && Platform.OS !== 'web';
+  const cellLayout = stretchCellsToFill
     ? { flex: 1, minWidth: CELL_WIDTH }
     : { width: CELL_WIDTH };
   const dataWidth = cellsFitInViewport ? rightAreaWidth : cellsTotalWidth;
@@ -328,6 +335,10 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       height: HEADER_HEIGHT,
       alignItems: 'center',
+      // Centers the cluster of fixed-width cells horizontally within
+      // the row when there's slack (web case — see `stretchCellsToFill`
+      // in the component). No-op when cells fill or overflow the row.
+      justifyContent: 'center',
       backgroundColor: c.surface,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
@@ -337,6 +348,7 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       height: ROW_HEIGHT,
       alignItems: 'center',
+      justifyContent: 'center',
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
       paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
