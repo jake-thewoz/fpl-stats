@@ -150,8 +150,9 @@ export function PlayerListTable<T extends JoinedPlayer>({
    *  blank. On web the WebShell already constrains the column width, so
    *  stretching cells just produces awkward internal whitespace where
    *  right-aligned values hug each cell's right edge with a big gap on
-   *  the left. Fixed-width cells with a `justifyContent: center` row
-   *  let the cluster of values read as visually balanced instead. */
+   *  the left. Fixed-width cells with `justifyContent: space-evenly`
+   *  on the row distribute slack between and around the cells so each
+   *  reads as visually balanced instead. */
   const stretchCellsToFill =
     cellsFitInViewport && Platform.OS !== 'web';
   const cellLayout = stretchCellsToFill
@@ -335,10 +336,12 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       height: HEADER_HEIGHT,
       alignItems: 'center',
-      // Centers the cluster of fixed-width cells horizontally within
-      // the row when there's slack (web case — see `stretchCellsToFill`
-      // in the component). No-op when cells fill or overflow the row.
-      justifyContent: 'center',
+      // Distributes slack evenly between and around the fixed-width
+      // cells when there's room to spare (web case — see
+      // `stretchCellsToFill` in the component) so each cell gets its
+      // own breathing room instead of clustering in the middle. No-op
+      // when cells fill or overflow the row.
+      justifyContent: 'space-evenly',
       backgroundColor: c.surface,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
@@ -348,7 +351,7 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       height: ROW_HEIGHT,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'space-evenly',
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
       paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
