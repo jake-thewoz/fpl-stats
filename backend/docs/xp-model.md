@@ -111,6 +111,71 @@ If `dc ≥ threshold` the player triggers the +2 defcon bonus that match.
 The `defcon_per_match_rate` rate stored per player is just the historical
 fraction of matches where they triggered.
 
+### Availability and minutes probability
+
+Every component formula above is gated on `p_any` (P(plays at all)) or
+`p60` (P(plays ≥60 min | plays at all)). The same `p_any` is reused
+across both fixtures of a DGW, which is why getting it right is
+load-bearing — a wrong `p_any=1.0` for a never-picked fringe player
+combined with a 2-fixture DGW produces the bug that drove issue #134
+(Crystal Palace bench warmers ranking above genuine starters).
+
+**Two-stage signal** (`layers/fpl_schemas/python/xp_compute.py:minutes_probability_with_selection`):
+
+1. **FPL signal first.** `chance_of_playing_next_round` (`cop`) when
+   it indicates a real doubt — `cop in {0, 25, 50, 75}` → return
+   `cop/100`. These are the curated values FPL ships when a player is
+   injured, suspended, or returning from a doubt.
+2. **Empirical dampener otherwise.** When FPL has no specific signal —
+   `cop is None` OR `cop == 100` — fall back to `season_play_rate`
+   (see below). `cop=100` is FPL's *default-fill* for "no concern",
+   not a positive "going to play" signal: it covers ~60% of available
+   players (319 of 528 sampled on 2026-04-30), including never-picked
+   fringes. Treating it the same as `cop=null` is correct and aligns
+   the dampener semantic across both buckets.
+3. **Status='a' required for the dampener path.** A player flagged
+   with `status='i'/'s'/'u'/'n'` returns 0.0 regardless of rate.
+
+**Season play rate** (`layers/fpl_schemas/python/xp_v2_features.py:season_play_rate`):
+
+```
+season_play_rate = min(1.0, season_minutes / (90 × gws_completed))
+```
+
+`season_minutes` is the bootstrap's cumulative `Player.minutes`;
+`gws_completed` is the count of `gameweeks[i].finished == True`. A
+guaranteed starter lands near 1.0 (no-op); a 4th-choice CB with 50
+minutes after 30 GWs lands near 0.018 (collapses xP appropriately).
+
+Two guards:
+
+- **Min-GWs threshold (`_SEASON_PLAY_RATE_MIN_GWS = 4`).** Below 4
+  completed GWs the rate is too noisy to trust; the helper returns
+  1.0 (no dampening, behaviour identical to pre-fix). The recommender
+  is constrained by lack of data in those GWs anyway.
+- **Returning-from-injury under-rating.** A starter who missed 4–6 GWs
+  has their season rate dragged down by the absence (e.g., 1500 mins
+  + a 4-GW absence ≈ 56% rate). Accepted as v1 trade-off; a recent-N-
+  GW window would address this and is tracked as a follow-up issue.
+
+**Horizon decay** (`layers/fpl_schemas/python/xp_v2.py:availability_curve`):
+
+`xp_for_horizon` interpolates `p_any` from the GW-0 base toward 1.0
+across the horizon (`AVAILABILITY_DECAY_CURVE = (0.0, 0.4, 0.7, 0.9, 1.0)`).
+A flagged-50% player gets 0.5 next GW, 0.7 the GW after, 1.0 by GW+4 —
+captures typical short-term injury recovery without modelling per-injury
+detail. `p60` for each horizon GW is `p_any × historical_p60`. This
+applies on top of the dampened base, so a fringe player with
+`p_any=0.018` decays toward 1.0 the same way; their xP rises across
+the horizon but stays low because the per-90 rates and `p60` also
+lift along with `p_any`. The dampener is doing the right thing across
+all horizon offsets.
+
+**Where the dampened value is surfaced.** `analyze_player_xp_v2`
+writes `season_play_rate` into the stored `components` map next to
+`minutes_prob`, so debug consumers can tell "low xP because injured
+(cop=0)" from "low xP because never picked (rate≈0)".
+
 ### DGW handling
 
 `xp_for_gameweek` sums components across however many fixtures the
@@ -338,7 +403,9 @@ that any sign flip surfaces in the reviewer's diff.
 - **Defcon**: defensive contributions — the +2 bonus for defenders/mids/fwds who clear a CBIT or CBITR threshold per match (25/26+ scoring rule).
 - **CBIT**: clearances + blocks + interceptions + tackles. The DEF defcon basis.
 - **CBIT+R**: CBIT + recoveries. The MID/FWD defcon basis.
-- **`p_any`**: P(player plays at all this match), in [0, 1].
-- **`p60`**: P(player plays ≥60 min | plays at all), in [0, 1].
+- **`p_any`** (a.k.a. `minutes_prob`): P(player plays at all this match), in [0, 1]. Computed by `minutes_probability_with_selection` — combines FPL's `cop` field (when it signals a real doubt, `0/25/50/75`) with `season_play_rate` (when FPL is silent, including the `cop=100` default-fill case).
+- **`p60`**: P(player plays ≥60 min | plays at all), in [0, 1]. `p_any × historical_p60`.
+- **`season_play_rate`**: empirical "the manager actually picks this player" signal — `season_minutes / (90 × gws_completed)`, clamped to [0, 1]. Returns 1.0 below `_SEASON_PLAY_RATE_MIN_GWS = 4` completed GWs (rate too noisy with a tiny denominator).
+- **`cop`**: FPL's `chance_of_playing_next_round` field, 0/25/50/75/100 or null. **Quirk**: `cop=100` is FPL's default-fill for "no concern" and covers ~60% of the available pool, including never-picked fringes. Only `cop in {0, 25, 50, 75}` carries a real availability signal — see issue #134's resolution.
 - **`opp_strength`**: continuous fixture-difficulty signal in [0, 1] derived from FPL's 1–5 difficulty rating. 0.5 = mid-tier opponent (factor unchanged).
 - **`team_xgc_p90`**: team-side expected goals conceded per 90 min — drives both clean-sheet probability (Poisson `P(0 conceded)`) and the concede penalty.
