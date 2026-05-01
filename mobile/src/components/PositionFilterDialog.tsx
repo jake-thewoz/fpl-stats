@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles, type Colors } from '../theme';
+import { WebShell } from './WebShell';
 
 /**
  * Slim single-section filter dialog used by the Transfers tab to narrow
@@ -38,6 +39,7 @@ export function PositionFilterDialog({
   const hasAny = selected.length > 0;
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
           <Pressable
@@ -93,6 +95,7 @@ export function PositionFilterDialog({
           </View>
         </View>
       </View>
+      </WebShell>
     </Modal>
   );
 }

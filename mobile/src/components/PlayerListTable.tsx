@@ -32,6 +32,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -55,6 +56,11 @@ const NAME_WIDTH = 168;
  *  even on first render before measurement. */
 const ROW_HEIGHT = 56;
 const HEADER_HEIGHT = 40;
+/** Empty space reserved at the right edge of each data/header row on web,
+ *  so the FlatList's vertical scrollbar (rendered by the browser at the
+ *  inner ScrollView's right edge) doesn't overlay the rightmost data cell.
+ *  Native scroll indicators auto-hide and don't need a reserve. */
+const WEB_SCROLLBAR_RESERVE = 16;
 
 type Props<T extends JoinedPlayer> = {
   data: readonly T[];
@@ -325,6 +331,7 @@ const makeStyles = (c: Colors) =>
       backgroundColor: c.surface,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
+      paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
     },
     rightRow: {
       flexDirection: 'row',
@@ -332,6 +339,7 @@ const makeStyles = (c: Colors) =>
       alignItems: 'center',
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
+      paddingRight: Platform.OS === 'web' ? WEB_SCROLLBAR_RESERVE : 0,
     },
     headerCell: {
       width: CELL_WIDTH,

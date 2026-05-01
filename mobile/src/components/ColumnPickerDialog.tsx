@@ -2,6 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
 import type { FieldKey } from '../players/types';
 import { useThemedStyles, type Colors } from '../theme';
+import { WebShell } from './WebShell';
 
 type Props = {
   visible: boolean;
@@ -14,6 +15,7 @@ export function ColumnPickerDialog({ visible, onClose, selected, onToggle }: Pro
   const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
           <View style={styles.topActionPlaceholder} />
@@ -52,6 +54,7 @@ export function ColumnPickerDialog({ visible, onClose, selected, onToggle }: Pro
           </View>
         </ScrollView>
       </View>
+      </WebShell>
     </Modal>
   );
 }

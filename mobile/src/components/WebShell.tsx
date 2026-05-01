@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme';
 
-const WEB_COLUMN_MAX_WIDTH = 480;
+const WEB_COLUMN_MAX_WIDTH = 640;
 
 export function WebShell({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
