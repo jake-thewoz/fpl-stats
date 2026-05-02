@@ -623,3 +623,64 @@ class TestSuggestTransferBundlesMultiMove:
         assert bundles[0].num_transfers == 3
         assert bundles[0].hit_cost == 2 * HIT_COST_POINTS
         assert bundles[0].delta_xp_net == pytest.approx(7.0)
+
+    def test_duplicate_out_in_set_collapsed_to_one_bundle(self):
+        """Regression for the 'Palmer, Dowman → Enzo, Rice' / 'Palmer,
+        Dowman → Rice, Enzo' bug: when two OUT slots share overlapping
+        top-K replacements, ``itertools.product`` emits both pairings.
+        Both have identical gross/net delta-xP and identical squad
+        effect (the set of OUT players sold and IN players bought is the
+        same), so only one should be returned."""
+        # Two same-position OUT slots; pool has two same-position IN
+        # players. Both INs rank in the top-K for both slots, so product
+        # generates ((1→10, 2→11)) AND ((1→11, 2→10)).
+        squad = [_player(1, team=1, cost=80), _player(2, team=2, cost=80)]
+        pool = [_player(10, team=3, cost=80), _player(11, team=4, cost=80)]
+        # Symmetric xPs so both pairings have identical net delta-xP.
+        horizon_xps = {1: 3.0, 2: 3.0, 10: 7.0, 11: 8.0}
+        result = suggest_transfer_bundles(
+            squad, bank=0, candidate_pool=pool,
+            horizon_xps=horizon_xps, free_transfers=2, max_transfers=2, top_n=10,
+        )
+        two_move_bundles = [b for b in result if b.num_transfers == 2]
+        # Exactly one 2-move bundle covering OUT={1,2} IN={10,11}.
+        matching = [
+            b for b in two_move_bundles
+            if {m.out_player_id for m in b.moves} == {1, 2}
+            and {m.in_player_id for m in b.moves} == {10, 11}
+        ]
+        assert len(matching) == 1, (
+            f"expected one bundle covering OUT=(1,2) IN=(10,11), got {len(matching)}: "
+            f"{[_bundle_pairs(b) for b in matching]}"
+        )
+
+    def test_three_move_permutations_collapsed_to_one_bundle(self):
+        """Size-3 case: three same-position OUT slots, three same-position
+        IN players, all symmetric — ``product`` emits 3! = 6 permutations
+        of (out_set={1,2,3}, in_set={10,11,12}). All have identical net
+        delta-xP. Only one should survive deduplication."""
+        squad = [
+            _player(1, team=1, cost=80),
+            _player(2, team=2, cost=80),
+            _player(3, team=3, cost=80),
+        ]
+        pool = [
+            _player(10, team=4, cost=80),
+            _player(11, team=5, cost=80),
+            _player(12, team=6, cost=80),
+        ]
+        horizon_xps = {1: 1.0, 2: 1.0, 3: 1.0, 10: 5.0, 11: 6.0, 12: 7.0}
+        result = suggest_transfer_bundles(
+            squad, bank=0, candidate_pool=pool,
+            horizon_xps=horizon_xps, free_transfers=3, max_transfers=3, top_n=20,
+        )
+        three_move_matching = [
+            b for b in result
+            if b.num_transfers == 3
+            and {m.out_player_id for m in b.moves} == {1, 2, 3}
+            and {m.in_player_id for m in b.moves} == {10, 11, 12}
+        ]
+        assert len(three_move_matching) == 1, (
+            f"expected one 3-move bundle covering OUT=(1,2,3) IN=(10,11,12), "
+            f"got {len(three_move_matching)}"
+        )

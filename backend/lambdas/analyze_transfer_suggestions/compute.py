@@ -307,6 +307,14 @@ def suggest_transfer_bundles(
     counter = 0
     threshold = float("-inf")
 
+    # Collapses permutations of the same effective transfer into one bundle.
+    # ``product(*slot_options)`` enumerates every IN→OUT pairing; when two
+    # slots share top-K candidates (common for same-position swaps), the
+    # cross product emits e.g. (1→10, 2→11) AND (1→11, 2→10) — same OUT
+    # set, same IN set, same gross/net delta-xP, indistinguishable to the
+    # user. Keying by (frozenset(out), frozenset(in)) collapses them.
+    seen_bundle_keys: set[tuple[frozenset[int], frozenset[int]]] = set()
+
     for size in range(1, capped_max + 1):
         hit_cost = max(0, size - free_transfers) * HIT_COST_POINTS
         for slot_indices in combinations(range(len(squad)), size):
@@ -324,6 +332,13 @@ def suggest_transfer_bundles(
             for move_combo in product(*slot_options):
                 if not is_valid_bundle(move_combo, counts, bank, player_by_id):
                     continue
+                bundle_key = (
+                    frozenset(m.out_player_id for m in move_combo),
+                    frozenset(m.in_player_id for m in move_combo),
+                )
+                if bundle_key in seen_bundle_keys:
+                    continue
+                seen_bundle_keys.add(bundle_key)
                 net = sum(m.delta_xp for m in move_combo) - hit_cost
                 bundle = TransferBundle(
                     moves=move_combo,
