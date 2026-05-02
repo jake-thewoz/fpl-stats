@@ -1,6 +1,6 @@
 # FPL Stats — friends beta
 
-Hey, thanks for trying the beta. This is a Fantasy Premier League companion app I've been building. It's a one-person side project, runs on AWS, and is wide open about its caveats — read on.
+Thanks for trying the beta. This is a Fantasy Premier League companion app I've been building. It's a one-person side project, runs on AWS, and is wide open about its caveats — read on.
 
 ## Getting in
 
