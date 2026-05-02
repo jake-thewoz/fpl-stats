@@ -5,3 +5,9 @@ dist/
 !.env*.example
 aws-exports.js
 amplify/#current-cloud-backend
+
+# Real npm lockfiles live in backend/ and mobile/. An accidental
+# `npm install` at the repo root creates a stray empty top-level
+# lockfile (no root package.json exists); ignore it so it doesn't
+# show up as an untracked file.
+/package-lock.json
