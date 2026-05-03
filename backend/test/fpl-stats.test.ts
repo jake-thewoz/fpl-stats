@@ -76,3 +76,29 @@ describe('Lambda log groups', () => {
     template.resourceCountIs('Custom::LogRetention', 0);
   });
 });
+
+describe('Ingestion alarms', () => {
+  // Recurring-trigger alarms must require two consecutive evaluation
+  // periods of errors before paging — a single transient FPL upstream
+  // 403 / Lambda blip should not wake anyone. See PR adding 403 retry
+  // for the noise pattern this guards against.
+  const DEBOUNCED_ALARMS = [
+    'IngestFplErrorsAlarm',
+    'IngestClubeloErrorsAlarm',
+    'AnalyzePlayerFormErrorsAlarm',
+    'AnalyzePlayerXpV2ErrorsAlarm',
+  ];
+
+  test.each(DEBOUNCED_ALARMS)(
+    '%s requires 2 consecutive periods to alarm',
+    (logicalIdPrefix) => {
+      const alarms = template.findResources('AWS::CloudWatch::Alarm', {
+        Properties: { EvaluationPeriods: 2, DatapointsToAlarm: 2 },
+      });
+      const matching = Object.keys(alarms).filter((id) =>
+        id.startsWith(logicalIdPrefix),
+      );
+      expect(matching.length).toBe(1);
+    },
+  );
+});

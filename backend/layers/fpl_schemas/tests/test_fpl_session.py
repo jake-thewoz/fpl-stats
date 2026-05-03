@@ -29,9 +29,11 @@ def test_session_mounts_retry_adapter_on_https():
     retry = adapter.max_retries
     assert isinstance(retry, Retry)
     assert retry.total == 3
-    # 429 (FPL rate-limit) must be in the retry list — the whole point of
-    # this helper is to avoid surfacing transient FPL noise to clients.
+    # 429 (FPL rate-limit) and 403 (transient bot-detection blips on
+    # AWS egress IPs) must be in the retry list — both produce noisy
+    # one-off failures the helper is meant to absorb.
     assert 429 in retry.status_forcelist
+    assert 403 in retry.status_forcelist
     # Plus the standard 5xx family.
     for status in (500, 502, 503, 504):
         assert status in retry.status_forcelist

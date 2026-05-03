@@ -29,11 +29,14 @@ DEFAULT_USER_AGENT = (
 )
 
 # Retry on transient upstream errors. 429 included — FPL occasionally
-# rate-limits; better to wait and retry than 502 our own client. Total=3
-# with backoff_factor=1 gives roughly 0s/2s/4s between attempts.
+# rate-limits; better to wait and retry than 502 our own client. 403
+# included because FPL's bot-detection layer intermittently flags AWS
+# Lambda egress IPs for a single request and clears within seconds; a
+# permanent ban would still surface after the retries are exhausted.
+# Total=3 with backoff_factor=1 gives roughly 0s/2s/4s between attempts.
 _RETRY_TOTAL = 3
 _RETRY_BACKOFF = 1
-_RETRY_STATUSES = (429, 500, 502, 503, 504)
+_RETRY_STATUSES = (403, 429, 500, 502, 503, 504)
 
 
 def make_fpl_session(user_agent: str = DEFAULT_USER_AGENT) -> requests.Session:
