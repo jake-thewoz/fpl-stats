@@ -367,6 +367,12 @@ export class FplStatsStack extends cdk.Stack {
     });
     alertsTopic.addSubscription(new EmailSubscription(ALERT_EMAIL));
 
+    // Two evaluation periods on the recurring-trigger alarms below: a
+    // single failed invocation (e.g. transient FPL 403) shouldn't page —
+    // we want to see the next scheduled run also fail before alerting.
+    // Skipped on IngestPlayerHistory (weekly cadence — 2 periods = 14d
+    // detection delay) and AnalyzeTransferSuggestions (already
+    // threshold 5 over a 30min API window).
     const ingestErrorsAlarm = ingestFn
       .metricErrors({
         period: cdk.Duration.minutes(30),
@@ -374,9 +380,10 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'IngestFplErrorsAlarm', {
         alarmDescription:
-          'FPL ingestion Lambda returned an error — cached data may be going stale.',
+          'FPL ingestion Lambda errored across two consecutive 30-minute windows — cached data may be going stale.',
         threshold: 1,
-        evaluationPeriods: 1,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
         comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
@@ -390,9 +397,10 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'IngestClubeloErrorsAlarm', {
         alarmDescription:
-          'ClubELO ingestion Lambda returned an error — clubelo#ratings may be stale and elo_expected_score will fall back to null on next form-analyzer run.',
+          'ClubELO ingestion Lambda errored on two consecutive daily runs — clubelo#ratings may be stale and elo_expected_score will fall back to null on next form-analyzer run.',
         threshold: 1,
-        evaluationPeriods: 1,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
         comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
@@ -422,9 +430,10 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'AnalyzePlayerFormErrorsAlarm', {
         alarmDescription:
-          'Player-form analyzer returned an error — analytics#player_form rows may be stale.',
+          'Player-form analyzer errored on two consecutive daily runs — analytics#player_form rows may be stale.',
         threshold: 1,
-        evaluationPeriods: 1,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
         comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
@@ -437,9 +446,10 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'AnalyzePlayerXpV2ErrorsAlarm', {
         alarmDescription:
-          'Player-xP-v2 analyzer returned an error — analytics#player_xp_v2 rows may be stale, which means transfer suggestions and the players-list xP column will degrade until the next successful run.',
+          'Player-xP-v2 analyzer errored on two consecutive daily runs — analytics#player_xp_v2 rows may be stale, which means transfer suggestions and the players-list xP column will degrade until the next successful run.',
         threshold: 1,
-        evaluationPeriods: 1,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
         comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         treatMissingData: TreatMissingData.NOT_BREACHING,
       });
