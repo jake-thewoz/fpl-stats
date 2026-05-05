@@ -1,5 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MyTeamScreen from '../../screens/MyTeamScreen';
+import MyTeamScreen from '../../screens/MyTeam';
 import GameweekScreen from '../../screens/GameweekScreen';
 import type { MyTeamStackParamList } from '../types';
 
