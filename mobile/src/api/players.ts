@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type Player = {
   id: number;
@@ -36,9 +36,5 @@ export type PlayersResponse = {
 };
 
 export async function fetchPlayers(signal?: AbortSignal): Promise<PlayersResponse> {
-  const res = await fetch(`${API_BASE_URL}/players`, { signal });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  return (await res.json()) as PlayersResponse;
+  return requestJson<PlayersResponse>('/players', { signal });
 }

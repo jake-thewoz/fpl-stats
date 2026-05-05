@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 /** One row from the player-xp analyzer's output. */
 export type PlayerXp = {
@@ -32,7 +32,5 @@ export type PlayersXpResponse = {
 export async function fetchPlayersXp(
   signal?: AbortSignal,
 ): Promise<PlayersXpResponse> {
-  const res = await fetch(`${API_BASE_URL}/analytics/players/xp`, { signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as PlayersXpResponse;
+  return requestJson<PlayersXpResponse>('/analytics/players/xp', { signal });
 }

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type LeagueInfo = {
   id: number;
@@ -33,8 +33,9 @@ export async function fetchLeagueMembers(
   leagueId: string,
   signal?: AbortSignal,
 ): Promise<LeagueMembersResponse> {
-  const res = await fetch(`${API_BASE_URL}/league/${leagueId}/members`, { signal });
-  if (res.status === 404) throw new LeagueNotFoundError(leagueId);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as LeagueMembersResponse;
+  return requestJson<LeagueMembersResponse>(`/league/${leagueId}/members`, {
+    signal,
+    mapStatus: (status) =>
+      status === 404 ? new LeagueNotFoundError(leagueId) : undefined,
+  });
 }
