@@ -10,7 +10,6 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 
 // Android needs LayoutAnimation explicitly enabled. Once-per-app call,
 // safe to leave at module scope — the runtime guards against re-enable.
@@ -29,8 +28,8 @@ import {
   type TransferSuggestionsResponse,
 } from '../api/transferSuggestions';
 import { fetchPlayers, type Player } from '../api/players';
-import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
@@ -38,6 +37,12 @@ import {
   PositionFilterDialog,
   type Position,
 } from '../components/PositionFilterDialog';
+import { POSITIONS_WITH_LABELS } from '../players/positions';
+import {
+  difficultyTone,
+  eloTone,
+  type ColorTone,
+} from '../transfers/scoring';
 import type { TransfersScreenProps } from '../navigation/types';
 import {
   effects,
@@ -53,13 +58,11 @@ const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
 const DEFAULT_HORIZON: Horizon = 3;
 
-// FPL element_type ids in display order. Stable across seasons.
-const POSITIONS: readonly Position[] = [
-  { id: 1, label: 'Goalkeepers' },
-  { id: 2, label: 'Defenders' },
-  { id: 3, label: 'Midfielders' },
-  { id: 4, label: 'Forwards' },
-] as const;
+// PositionFilterDialog wants the legacy `Position` shape (id + label),
+// derived from the canonical players/positions module.
+const POSITIONS: readonly Position[] = POSITIONS_WITH_LABELS.map(
+  ({ id, label }) => ({ id, label }),
+);
 
 type CombinedData = {
   response: TransferSuggestionsResponse;
@@ -71,27 +74,10 @@ type CombinedData = {
 };
 
 export default function TransfersScreen({ navigation }: TransfersScreenProps) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-
-  const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
+  const teamId = useFocusedTeamId();
   const [horizon, setHorizon] = useState<Horizon>(DEFAULT_HORIZON);
   const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
-
-  // Re-read on every focus so a team-id change in Settings propagates
-  // here without a full app reload (matches the My Team tab).
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      getFplTeamId().then((id) => {
-        if (alive) setTeamId(id);
-      });
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
 
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
@@ -498,31 +484,6 @@ function HitPill({ hitCost }: { hitCost: number }) {
 // ---------------------------------------------------------------------------
 // Expanded comparison table
 // ---------------------------------------------------------------------------
-
-/**
- * Color-codes a fixture-quality value on a three-stop scale:
- * sage (good) / warning (mid) / danger (bad). Used for both
- * `avg_upcoming_difficulty` (1–5, lower = easier) and
- * `avg_upcoming_elo_expected_score` (0–1, higher = better).
- *
- * Returns `null` for null inputs so the caller can render a neutral
- * cell — null doesn't mean "bad", it means "no data".
- */
-type ColorTone = 'good' | 'mid' | 'bad' | null;
-
-function difficultyTone(value: number | null): ColorTone {
-  if (value == null) return null;
-  if (value <= 2.5) return 'good';
-  if (value < 3.5) return 'mid';
-  return 'bad';
-}
-
-function eloTone(value: number | null): ColorTone {
-  if (value == null) return null;
-  if (value >= 0.55) return 'good';
-  if (value >= 0.45) return 'mid';
-  return 'bad';
-}
 
 function fmt(value: number | null, digits: number): string {
   return value == null ? '—' : value.toFixed(digits);
