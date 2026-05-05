@@ -19,7 +19,12 @@ export type PositionCode = keyof typeof POSITION_IDS;
 export type PositionId = (typeof POSITION_IDS)[PositionCode];
 
 /** Display order for player lists and group headers. */
-export const POSITION_CODES = ['GKP', 'DEF', 'MID', 'FWD'] as const satisfies readonly PositionCode[];
+export const POSITION_CODES = [
+  'GKP',
+  'DEF',
+  'MID',
+  'FWD',
+] as const satisfies readonly PositionCode[];
 
 export type PositionMeta = {
   id: PositionId;

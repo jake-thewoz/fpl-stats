@@ -8,8 +8,7 @@ export function NoTeamIdState({ onOpenSettings }: { onOpenSettings: () => void }
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No team ID set</Text>
       <Text style={styles.emptyBody}>
-        Add your Fantasy Premier League team ID in Settings to see transfer
-        suggestions.
+        Add your Fantasy Premier League team ID in Settings to see transfer suggestions.
       </Text>
       <Pressable
         onPress={onOpenSettings}
@@ -22,18 +21,14 @@ export function NoTeamIdState({ onOpenSettings }: { onOpenSettings: () => void }
   );
 }
 
-export function PicksNotFoundState({
-  onOpenMyTeam,
-}: {
-  onOpenMyTeam: () => void;
-}) {
+export function PicksNotFoundState({ onOpenMyTeam }: { onOpenMyTeam: () => void }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>Squad not loaded</Text>
       <Text style={styles.emptyBody}>
-        Open the My Team tab first to load your squad — suggestions need to
-        know which players you currently have.
+        Open the My Team tab first to load your squad — suggestions need to know which
+        players you currently have.
       </Text>
       <Pressable
         onPress={onOpenMyTeam}

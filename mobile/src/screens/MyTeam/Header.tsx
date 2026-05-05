@@ -4,9 +4,7 @@ import { useThemedStyles } from '../../theme';
 import { makeStyles } from './styles';
 
 /** Top-of-screen line: team name + GW + points + total + rank. */
-export function Header({
-  entry, gameweek,
-}: { entry: Entry; gameweek: number | null }) {
+export function Header({ entry, gameweek }: { entry: Entry; gameweek: number | null }) {
   const styles = useThemedStyles(makeStyles);
 
   const eventPts = entry.summary_event_points;
@@ -19,9 +17,7 @@ export function Header({
         {gameweek != null ? `GW ${gameweek}` : 'Pre-season'}
         {eventPts != null ? `  ·  ${eventPts} pts` : ''}
         {totalPts != null ? `  ·  Total ${totalPts}` : ''}
-        {overallRank != null
-          ? `  ·  Rank ${overallRank.toLocaleString()}`
-          : ''}
+        {overallRank != null ? `  ·  Rank ${overallRank.toLocaleString()}` : ''}
       </Text>
     </View>
   );

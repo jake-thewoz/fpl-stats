@@ -24,7 +24,12 @@ type Props = {
 };
 
 export function PositionFilterDialog({
-  visible, onClose, positions, selected, onToggle, onClearAll,
+  visible,
+  onClose,
+  positions,
+  selected,
+  onToggle,
+  onClearAll,
 }: Props) {
   const hasAny = selected.length > 0;
   return (

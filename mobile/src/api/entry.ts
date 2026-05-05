@@ -37,7 +37,6 @@ export async function fetchEntry(
 ): Promise<EntryResponse> {
   return requestJson<EntryResponse>(`/entry/${teamId}`, {
     signal,
-    mapStatus: (status) =>
-      status === 404 ? new EntryNotFoundError(teamId) : undefined,
+    mapStatus: (status) => (status === 404 ? new EntryNotFoundError(teamId) : undefined),
   });
 }

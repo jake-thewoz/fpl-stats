@@ -1,11 +1,7 @@
 import { Text, View } from 'react-native';
 import type { TransferMove } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
-import {
-  difficultyTone,
-  eloTone,
-  type ColorTone,
-} from '../../transfers/scoring';
+import { difficultyTone, eloTone, type ColorTone } from '../../transfers/scoring';
 import { makeStyles } from './styles';
 
 /**

@@ -10,10 +10,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
-import {
-  useParallelFetch,
-  type ParallelFetchRowState,
-} from '../hooks/useParallelFetch';
+import { useParallelFetch, type ParallelFetchRowState } from '../hooks/useParallelFetch';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
@@ -24,7 +21,6 @@ import {
   fontSize,
   radius,
   spacing,
-  useTheme,
   useThemedStyles,
   type Colors,
 } from '../theme';
@@ -51,10 +47,7 @@ const COLUMNS: { key: SortColumn; label: string; defaultDir: SortDir }[] = [
   { key: 'total', label: 'Total', defaultDir: 'desc' },
 ];
 
-const fetchEntryEntry = async (
-  id: string,
-  signal: AbortSignal,
-): Promise<Entry> => {
+const fetchEntryEntry = async (id: string, signal: AbortSignal): Promise<Entry> => {
   const resp = await fetchEntry(id, signal);
   return resp.entry;
 };
@@ -105,14 +98,12 @@ export default function FriendsScreen({ navigation }: Props) {
     return out;
   }, [teamId, friends]);
 
-  const targetIds = useMemo(
-    () => (targets ?? []).map((t) => t.id),
-    [targets],
-  );
-  const { rows: fetchedRows, refreshing, onRefresh } = useParallelFetch(
-    targetIds,
-    fetchEntryEntry,
-  );
+  const targetIds = useMemo(() => (targets ?? []).map((t) => t.id), [targets]);
+  const {
+    rows: fetchedRows,
+    refreshing,
+    onRefresh,
+  } = useParallelFetch(targetIds, fetchEntryEntry);
 
   // Join the per-key fetch state back to the target metadata. If the
   // hook hasn't caught up to a new targets array yet, fall back to a
@@ -169,9 +160,7 @@ export default function FriendsScreen({ navigation }: Props) {
       }
       contentContainerStyle={styles.listContent}
       stickyHeaderIndices={[0]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
@@ -213,15 +202,14 @@ function EmptyState({
   onAddFriend: () => void;
   onOpenSettings: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>Nothing to compare yet</Text>
       <Text style={styles.emptyBody}>
-        Add your FPL team ID in Settings, then add some friends to start
-        comparing scores and ranks.
+        Add your FPL team ID in Settings, then add some friends to start comparing scores
+        and ranks.
       </Text>
       <Pressable
         onPress={onAddFriend}
@@ -232,10 +220,7 @@ function EmptyState({
       </Pressable>
       <Pressable
         onPress={onOpenSettings}
-        style={({ pressed }) => [
-          styles.secondaryBtn,
-          pressed && styles.pressed,
-        ]}
+        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
         accessibilityRole="button"
       >
         <Text style={styles.secondaryBtnText}>Set your team ID</Text>
@@ -253,7 +238,6 @@ function TableHeader({
   sortDir: SortDir;
   onHeaderPress: (col: SortColumn) => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -283,7 +267,6 @@ function ColumnHeaderButton({
   direction: SortDir | null;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const arrow = direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '';
@@ -295,11 +278,7 @@ function ColumnHeaderButton({
       accessibilityLabel={`Sort by ${label}`}
     >
       <Text
-        style={[
-          styles.colHeader,
-          styles.colNumeric,
-          active && styles.colHeaderActive,
-        ]}
+        style={[styles.colHeader, styles.colNumeric, active && styles.colHeaderActive]}
       >
         {label}
         {arrow}
@@ -309,7 +288,6 @@ function ColumnHeaderButton({
 }
 
 function Row({ row }: { row: ComparisonRow }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const { target, state } = row;
@@ -359,9 +337,7 @@ function RowSubtext({
   if (state.status === 'error') {
     const notFound = state.error instanceof EntryNotFoundError;
     return (
-      <Text style={styles.rowError}>
-        {notFound ? 'Team not found' : "Couldn't load"}
-      </Text>
+      <Text style={styles.rowError}>{notFound ? 'Team not found' : "Couldn't load"}</Text>
     );
   }
   // Manager name as the secondary line — stable across the season even
@@ -394,8 +370,8 @@ function CellValue({
     field === 'rank'
       ? formatRank(d.summary_overall_rank)
       : field === 'gw'
-      ? formatInt(d.summary_event_points)
-      : formatInt(d.summary_overall_points);
+        ? formatInt(d.summary_event_points)
+        : formatInt(d.summary_overall_points);
   return <Text style={[styles.rowCell, styles.colNumeric]}>{value}</Text>;
 }
 
@@ -425,7 +401,11 @@ const makeStyles = (colors: Colors) =>
       borderRadius: radius.base,
       backgroundColor: colors.accent,
     },
-    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    primaryBtnText: {
+      color: colors.onAccent,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     secondaryBtn: {
       paddingHorizontal: spacing.xxl,
       paddingVertical: spacing.lg,
@@ -485,7 +465,11 @@ const makeStyles = (colors: Colors) =>
       fontSize: fontSize.sm,
       fontVariant: ['tabular-nums'],
     },
-    rowError: { marginTop: spacing.hairline, color: colors.danger, fontSize: fontSize.sm },
+    rowError: {
+      marginTop: spacing.hairline,
+      color: colors.danger,
+      fontSize: fontSize.sm,
+    },
     colNumeric: {
       width: COL_NUMERIC_WIDTH,
       textAlign: 'right',

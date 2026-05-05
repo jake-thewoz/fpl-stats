@@ -1,17 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
-import type {
-  FieldKey,
-  FilterState,
-  RangeFilter,
-} from '../players/types';
+import type { FieldKey, FilterState, RangeFilter } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';
 import {
   fontSize,
@@ -44,7 +34,12 @@ type Props = {
 };
 
 export function FilterDialog({
-  visible, onClose, filter, positions, teams, onApply,
+  visible,
+  onClose,
+  filter,
+  positions,
+  teams,
+  onApply,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Draft state lives only while the dialog is open. Re-seeded from the
@@ -68,9 +63,7 @@ export function FilterDialog({
   const toggleTeam = (t: string) => {
     setDraft((d) => ({
       ...d,
-      teams: d.teams.includes(t)
-        ? d.teams.filter((x) => x !== t)
-        : [...d.teams, t],
+      teams: d.teams.includes(t) ? d.teams.filter((x) => x !== t) : [...d.teams, t],
     }));
   };
   const setRange = (key: FieldKey, range: RangeFilter) => {
@@ -108,9 +101,7 @@ export function FilterDialog({
       >
         <Section title="Position">
           {positions.length === 0 ? (
-            <Text style={styles.emptyHint}>
-              Positions appear once players load.
-            </Text>
+            <Text style={styles.emptyHint}>Positions appear once players load.</Text>
           ) : (
             positions.map((opt) => (
               <CheckRow
@@ -155,9 +146,7 @@ export function FilterDialog({
             top so it doesn't push the more common ranges down. */}
         <Section title="Team">
           {teams.length === 0 ? (
-            <Text style={styles.emptyHint}>
-              Teams appear once players load.
-            </Text>
+            <Text style={styles.emptyHint}>Teams appear once players load.</Text>
           ) : (
             teams.map((opt) => (
               <CheckRow
@@ -175,7 +164,9 @@ export function FilterDialog({
 }
 
 function RangeInput({
-  label, value, onChangeNumber,
+  label,
+  value,
+  onChangeNumber,
 }: {
   label: string;
   value: number | null;

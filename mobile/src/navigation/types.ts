@@ -16,7 +16,10 @@
  *          └─ SettingsTab  -> SettingsStack  (Settings)
  */
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
+import type {
+  CompositeScreenProps,
+  NavigatorScreenParams,
+} from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type MyTeamStackParamList = {
@@ -68,11 +71,17 @@ export type MyTeamScreenProps = CompositeScreenProps<
   >
 >;
 
-export type GameweekScreenProps = NativeStackScreenProps<MyTeamStackParamList, 'Gameweek'>;
+export type GameweekScreenProps = NativeStackScreenProps<
+  MyTeamStackParamList,
+  'Gameweek'
+>;
 
 export type PlayersScreenProps = NativeStackScreenProps<PlayersStackParamList, 'Players'>;
 
-export type TransfersScreenProps = NativeStackScreenProps<TransfersStackParamList, 'Transfers'>;
+export type TransfersScreenProps = NativeStackScreenProps<
+  TransfersStackParamList,
+  'Transfers'
+>;
 
 export type FriendsScreenProps = CompositeScreenProps<
   NativeStackScreenProps<FriendsStackParamList, 'Friends'>,
@@ -82,8 +91,23 @@ export type FriendsScreenProps = CompositeScreenProps<
   >
 >;
 
-export type ManageFriendsScreenProps = NativeStackScreenProps<FriendsStackParamList, 'ManageFriends'>;
-export type AddFriendScreenProps = NativeStackScreenProps<FriendsStackParamList, 'AddFriend'>;
-export type ImportLeagueScreenProps = NativeStackScreenProps<FriendsStackParamList, 'ImportLeague'>;
-export type SettingsScreenProps = NativeStackScreenProps<SettingsStackParamList, 'Settings'>;
-export type OnboardingScreenProps = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
+export type ManageFriendsScreenProps = NativeStackScreenProps<
+  FriendsStackParamList,
+  'ManageFriends'
+>;
+export type AddFriendScreenProps = NativeStackScreenProps<
+  FriendsStackParamList,
+  'AddFriend'
+>;
+export type ImportLeagueScreenProps = NativeStackScreenProps<
+  FriendsStackParamList,
+  'ImportLeague'
+>;
+export type SettingsScreenProps = NativeStackScreenProps<
+  SettingsStackParamList,
+  'Settings'
+>;
+export type OnboardingScreenProps = NativeStackScreenProps<
+  RootStackParamList,
+  'Onboarding'
+>;

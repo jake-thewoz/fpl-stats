@@ -50,9 +50,7 @@ export async function loadFilters(): Promise<FilterState> {
       positions: Array.isArray(parsed.positions) ? parsed.positions : [],
       teams: Array.isArray(parsed.teams) ? parsed.teams : [],
       ranges:
-        typeof parsed.ranges === 'object' && parsed.ranges != null
-          ? parsed.ranges
-          : {},
+        typeof parsed.ranges === 'object' && parsed.ranges != null ? parsed.ranges : {},
     };
   } catch {
     return EMPTY_FILTER;

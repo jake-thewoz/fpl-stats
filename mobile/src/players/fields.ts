@@ -18,14 +18,10 @@ export type FieldDef = {
   format: (value: number | null) => string;
 };
 
-const fmtNumber = (v: number | null): string =>
-  v == null ? '—' : v.toFixed(1);
-const fmtPrice = (v: number | null): string =>
-  v == null ? '—' : `£${v.toFixed(1)}`;
-const fmtInt = (v: number | null): string =>
-  v == null ? '—' : String(v);
-const fmtPercent = (v: number | null): string =>
-  v == null ? '—' : `${v.toFixed(1)}%`;
+const fmtNumber = (v: number | null): string => (v == null ? '—' : v.toFixed(1));
+const fmtPrice = (v: number | null): string => (v == null ? '—' : `£${v.toFixed(1)}`);
+const fmtInt = (v: number | null): string => (v == null ? '—' : String(v));
+const fmtPercent = (v: number | null): string => (v == null ? '—' : `${v.toFixed(1)}%`);
 // Cost change: signed £m delta. +0.1 / -0.2 / 0.0
 const fmtCostChange = (v: number | null): string => {
   if (v == null) return '—';

@@ -1,23 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  Text,
-  UIManager,
-  View,
-} from 'react-native';
-
-// Android needs LayoutAnimation explicitly enabled. Once-per-app call,
-// safe to leave at module scope — the runtime guards against re-enable.
-// SuggestionsList uses LayoutAnimation.configureNext for card-expand
-// animations; this enables that on Android.
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
+import { Platform, Pressable, Text, UIManager, View } from 'react-native';
 import {
   fetchTransferSuggestions,
   type TransferSuggestionsResponse,
@@ -34,13 +16,17 @@ import {
 import { POSITIONS_WITH_LABELS } from '../../players/positions';
 import type { TransfersScreenProps } from '../../navigation/types';
 import { useThemedStyles } from '../../theme';
-import {
-  MessageState,
-  NoTeamIdState,
-  PicksNotFoundState,
-} from './EmptyStates';
+import { MessageState, NoTeamIdState, PicksNotFoundState } from './EmptyStates';
 import { SuggestionsList } from './SuggestionsList';
 import { makeStyles } from './styles';
+
+// Android needs LayoutAnimation explicitly enabled. Once-per-app call,
+// safe to leave at module scope — the runtime guards against re-enable.
+// SuggestionsList uses LayoutAnimation.configureNext for card-expand
+// animations; this enables that on Android.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
@@ -48,9 +34,10 @@ const DEFAULT_HORIZON: Horizon = 3;
 
 // PositionFilterDialog wants the legacy `Position` shape (id + label),
 // derived from the canonical players/positions module.
-const POSITIONS: readonly Position[] = POSITIONS_WITH_LABELS.map(
-  ({ id, label }) => ({ id, label }),
-);
+const POSITIONS: readonly Position[] = POSITIONS_WITH_LABELS.map(({ id, label }) => ({
+  id,
+  label,
+}));
 
 type CombinedData = {
   response: TransferSuggestionsResponse;
@@ -123,10 +110,7 @@ function SuggestionsView({
   // useCallback gives us one new ref per (teamId, horizon, filter) tuple,
   // not one per render. Sorting positionFilter inside the dep makes ordering
   // irrelevant — [2, 3] and [3, 2] should be the same fetch.
-  const filterKey = useMemo(
-    () => [...positionFilter].sort().join(','),
-    [positionFilter],
-  );
+  const filterKey = useMemo(() => [...positionFilter].sort().join(','), [positionFilter]);
   const fetcher = useCallback(
     async (signal: AbortSignal): Promise<CombinedData> => {
       const [response, playersResp] = await Promise.all([
@@ -272,10 +256,7 @@ function ControlsRow({
               accessibilityState={{ selected: active }}
             >
               <Text
-                style={[
-                  styles.horizonChipText,
-                  active && styles.horizonChipTextActive,
-                ]}
+                style={[styles.horizonChipText, active && styles.horizonChipTextActive]}
               >
                 {h} GW{h === 1 ? '' : 's'}
               </Text>
@@ -292,9 +273,7 @@ function ControlsRow({
         ]}
         accessibilityRole="button"
         accessibilityLabel={
-          filterCount > 0
-            ? `Filter (${filterCount} positions selected)`
-            : 'Filter'
+          filterCount > 0 ? `Filter (${filterCount} positions selected)` : 'Filter'
         }
       >
         <Text

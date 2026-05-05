@@ -1,12 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   fetchLeagueMembers,
   LeagueNotFoundError,
@@ -187,9 +180,7 @@ export default function ImportLeagueScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {step.status === 'error' && (
-        <Text style={styles.error}>{step.message}</Text>
-      )}
+      {step.status === 'error' && <Text style={styles.error}>{step.message}</Text>}
 
       {step.status === 'loaded' && (
         <LoadedBlock
@@ -237,7 +228,6 @@ function LoadedBlock({
   onImport: () => void;
   saving: boolean;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const count = selected.size;
@@ -304,8 +294,8 @@ function LoadedBlock({
           {saving
             ? 'Saving…'
             : count === 0
-            ? 'Select friends to import'
-            : `Import ${count} ${count === 1 ? 'friend' : 'friends'}`}
+              ? 'Select friends to import'
+              : `Import ${count} ${count === 1 ? 'friend' : 'friends'}`}
         </Text>
       </Pressable>
     </>
@@ -325,16 +315,12 @@ function MemberRow({
   disabledLabel: string | null;
   onToggle: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
     <Pressable
       onPress={disabled ? undefined : onToggle}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && !disabled && styles.rowPressed,
-      ]}
+      style={({ pressed }) => [styles.row, pressed && !disabled && styles.rowPressed]}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected, disabled }}
     >
@@ -345,9 +331,7 @@ function MemberRow({
           disabled && styles.checkboxDisabled,
         ]}
       >
-        {selected && !disabled ? (
-          <Text style={styles.checkboxMark}>✓</Text>
-        ) : null}
+        {selected && !disabled ? <Text style={styles.checkboxMark}>✓</Text> : null}
       </View>
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>

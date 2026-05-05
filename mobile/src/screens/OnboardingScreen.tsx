@@ -1,12 +1,5 @@
 import { useState } from 'react';
-import {
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
 import type { OnboardingScreenProps } from '../navigation/types';
 import {
@@ -42,7 +35,7 @@ export default function OnboardingScreen({ navigation }: Props) {
       await setFplTeamId(trimmed);
       await setOnboardingSeen();
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-    } catch (e) {
+    } catch {
       setSaving(false);
       setError("Couldn't save. Try again.");
     }
@@ -60,8 +53,8 @@ export default function OnboardingScreen({ navigation }: Props) {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to FPL Stats</Text>
       <Text style={styles.body}>
-        Enter your Fantasy Premier League team ID so we can pull your team and
-        compare with friends.
+        Enter your Fantasy Premier League team ID so we can pull your team and compare
+        with friends.
       </Text>
 
       <TextInput
@@ -115,8 +108,8 @@ export default function OnboardingScreen({ navigation }: Props) {
         </Pressable>
         <Text style={styles.helperHint}>
           Opens the FPL site. Sign in if prompted, then tap{' '}
-          <Text style={styles.helperEmphasis}>Points</Text> in the top nav.
-          Your team ID is the number in the URL:{' '}
+          <Text style={styles.helperEmphasis}>Points</Text> in the top nav. Your team ID
+          is the number in the URL:{' '}
           <Text style={styles.mono}>.../entry/YOUR_ID/event/...</Text>
         </Text>
       </View>
@@ -165,7 +158,11 @@ const makeStyles = (c: Colors) =>
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    secondaryBtnText: { color: c.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
+    secondaryBtnText: {
+      color: c.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     helperGroup: { marginTop: spacing.xl, gap: spacing.xs },
     helperLink: {
       color: c.accent,

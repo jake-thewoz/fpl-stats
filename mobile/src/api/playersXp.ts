@@ -29,8 +29,6 @@ export type PlayersXpResponse = {
   players: PlayerXp[];
 };
 
-export async function fetchPlayersXp(
-  signal?: AbortSignal,
-): Promise<PlayersXpResponse> {
+export async function fetchPlayersXp(signal?: AbortSignal): Promise<PlayersXpResponse> {
   return requestJson<PlayersXpResponse>('/analytics/players/xp', { signal });
 }

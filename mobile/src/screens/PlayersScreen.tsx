@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
@@ -22,10 +16,7 @@ import { PlayerListTable } from '../components/PlayerListTable';
 import { FIELD_DEFS } from '../players/fields';
 import { applyAll, activeFilterCount } from '../players/apply';
 import { POSITION_CODES } from '../players/positions';
-import type {
-  FieldKey,
-  JoinedPlayer,
-} from '../players/types';
+import type { FieldKey, JoinedPlayer } from '../players/types';
 import type { PlayersScreenProps } from '../navigation/types';
 import {
   effects,
@@ -44,24 +35,20 @@ type CombinedData = {
 };
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   // Combined fetch: /players + /analytics/players/xp joined by id.
-  const fetcher = useCallback(
-    async (signal: AbortSignal): Promise<CombinedData> => {
-      const [playersResp, xpResp] = await Promise.all([
-        fetchPlayers(signal),
-        fetchPlayersXp(signal),
-      ]);
-      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
-      const players: JoinedPlayer[] = playersResp.players.map((p) =>
-        toJoined(p, xpById.get(p.id)),
-      );
-      return { players };
-    },
-    [],
-  );
+  const fetcher = useCallback(async (signal: AbortSignal): Promise<CombinedData> => {
+    const [playersResp, xpResp] = await Promise.all([
+      fetchPlayers(signal),
+      fetchPlayersXp(signal),
+    ]);
+    const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
+    const players: JoinedPlayer[] = playersResp.players.map((p) =>
+      toJoined(p, xpById.get(p.id)),
+    );
+    return { players };
+  }, []);
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
   // Columns / filters / sort are shared with the My Team tab via a
@@ -118,7 +105,10 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const players = state.status === 'ok' ? state.data.players : [];
+  const players = useMemo<JoinedPlayer[]>(
+    () => (state.status === 'ok' ? state.data.players : []),
+    [state],
+  );
 
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
@@ -201,9 +191,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         selected={columns}
         onToggle={(key) =>
           setColumns(
-            columns.includes(key)
-              ? columns.filter((c) => c !== key)
-              : [...columns, key],
+            columns.includes(key) ? columns.filter((c) => c !== key) : [...columns, key],
           )
         }
         onClose={() => setColumnsOpen(false)}
@@ -259,8 +247,12 @@ function toJoined(
 }
 
 function SearchBar({
-  value, onChange,
-}: { value: string; onChange: (v: string) => void }) {
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -280,13 +272,14 @@ function SearchBar({
 }
 
 function ControlBar({
-  filterCount, onOpenFilter, onOpenColumns,
+  filterCount,
+  onOpenFilter,
+  onOpenColumns,
 }: {
   filterCount: number;
   onOpenFilter: () => void;
   onOpenColumns: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -302,9 +295,14 @@ function ControlBar({
 }
 
 function ControlButton({
-  label, active, onPress,
-}: { label: string; active?: boolean; onPress: () => void }) {
-  const { colors } = useTheme();
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -317,15 +315,12 @@ function ControlButton({
       ]}
       accessibilityRole="button"
     >
-      <Text
-        style={[styles.controlBtnText, active && styles.controlBtnTextActive]}
-      >
+      <Text style={[styles.controlBtnText, active && styles.controlBtnTextActive]}>
         {label}
       </Text>
     </Pressable>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -385,7 +380,11 @@ const makeStyles = (colors: Colors) =>
 
     // Used by renderNameCell passed to PlayerListTable.
     nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
-    subText: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.hairline },
+    subText: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      marginTop: spacing.hairline,
+    },
     // Surface-coloured backdrop sits behind the text so it stays legible
     // against the club gradient. Self-shrinks to the text width via
     // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the

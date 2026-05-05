@@ -53,10 +53,7 @@ export function MainTabs() {
   );
 
   return (
-    <Tab.Navigator
-      initialRouteName="MyTeamTab"
-      screenOptions={tabOptions}
-    >
+    <Tab.Navigator initialRouteName="MyTeamTab" screenOptions={tabOptions}>
       <Tab.Screen
         name="MyTeamTab"
         component={MyTeamStack}
