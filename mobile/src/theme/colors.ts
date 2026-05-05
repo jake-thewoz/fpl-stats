@@ -87,6 +87,10 @@ export type Colors = {
   /** Readable text/icon colors on top of warning/danger backgrounds. */
   onWarning: string;
   onDanger: string;
+  /** Modal-backdrop scrim. Currently the same value in both palettes —
+   *  a dim-the-world overlay reads more confidently than a theme-tinted
+   *  one. Tunable per-palette if a future design wants it. */
+  scrim: string;
 };
 
 export const lightColors: Colors = {
@@ -106,6 +110,7 @@ export const lightColors: Colors = {
   // Black on warning's amber ≈ 7:1; white on danger's brick ≈ 4.6:1.
   onWarning: lightPalette.black,
   onDanger: '#ffffff',
+  scrim: 'rgba(7, 7, 7, 0.45)',
 };
 
 export const darkColors: Colors = {
@@ -131,4 +136,7 @@ export const darkColors: Colors = {
   // (warning ~10:1 / danger ~6:1); white falls below 3:1 on warning.
   onWarning: darkPalette.black,
   onDanger: darkPalette.black,
+  // Same scrim as light — a dim-the-world overlay shouldn't shift hue
+  // between modes. Tunable separately if a future design wants it.
+  scrim: 'rgba(7, 7, 7, 0.45)',
 };

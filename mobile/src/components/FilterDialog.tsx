@@ -15,7 +15,15 @@ import type {
   RangeFilter,
 } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 import { WebShell } from './WebShell';
 
 /**
@@ -300,20 +308,20 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 48,
-      paddingBottom: 12,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.safeTop,
+      paddingBottom: spacing.lg,
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
-    title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
+    title: { fontSize: fontSize.lg2, fontWeight: '600', color: c.textPrimary },
     // Top-bar actions are filled buttons for clear visual weight — text-only
     // labels were too easy to miss in dark mode (#96 PR review).
     topActionBtn: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 8,
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
       minWidth: 64,
       alignItems: 'center',
     },
@@ -327,22 +335,24 @@ const makeStyles = (c: Colors) =>
     },
     topActionTextPrimary: {
       color: c.onAccent,
-      fontSize: 15,
+      fontSize: fontSize.base,
       fontWeight: '600',
     },
     topActionTextSecondary: {
       color: c.textPrimary,
-      fontSize: 15,
+      fontSize: fontSize.base,
       fontWeight: '500',
     },
-    pressed: { opacity: 0.5 },
+    pressed: effects.pressed,
+    // 64px keeps the last section clear of the bottom-of-screen gesture
+    // area on tall phones; not part of the standard scale.
     scrollBody: { paddingBottom: 64 },
-    section: { marginTop: 24 },
+    section: { marginTop: spacing.xxl },
     sectionTitle: {
-      paddingHorizontal: 16,
-      paddingBottom: 8,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
       color: c.textMuted,
-      fontSize: 13,
+      fontSize: fontSize.sm2,
       fontWeight: '600',
       letterSpacing: 0.5,
       textTransform: 'uppercase',
@@ -353,22 +363,22 @@ const makeStyles = (c: Colors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    emptyHint: { padding: 16, color: c.textMuted },
+    emptyHint: { padding: spacing.xl, color: c.textMuted },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg2,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
     rowPressed: { backgroundColor: c.background },
-    rowLabel: { fontSize: 16, color: c.textPrimary },
+    rowLabel: { fontSize: fontSize.lg, color: c.textPrimary },
     checkbox: {
       width: 22,
       height: 22,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1.5,
       borderColor: c.border,
       alignItems: 'center',
@@ -378,30 +388,32 @@ const makeStyles = (c: Colors) =>
       backgroundColor: c.accent,
       borderColor: c.accent,
     },
-    checkboxMark: { color: c.onAccent, fontSize: 14, fontWeight: '700' },
+    checkboxMark: { color: c.onAccent, fontSize: fontSize.md, fontWeight: '700' },
     rangeBody: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
     },
     rangeInput: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: spacing.md,
     },
-    rangeLabel: { fontSize: 14, color: c.textMuted, width: 30 },
+    // 30px width keeps "Min"/"Max" labels at a fixed column so the inputs
+    // line up; fontSize.md = 14 matches the surrounding form scale.
+    rangeLabel: { fontSize: fontSize.md, color: c.textMuted, width: 30 },
     rangeField: {
       flex: 1,
-      fontSize: 16,
+      fontSize: fontSize.lg,
       color: c.textPrimary,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
       backgroundColor: c.background,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1,
       borderColor: c.border,
     },
-    rangeSep: { width: 12 },
+    rangeSep: { width: spacing.lg },
   });

@@ -1,5 +1,5 @@
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import { fontSize, spacing, useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   title: string;
@@ -25,10 +25,10 @@ const makeStyles = (c: Colors) =>
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
-      gap: 12,
+      padding: spacing.xxl,
+      gap: spacing.lg,
       backgroundColor: c.background,
     },
-    title: { fontSize: 18, fontWeight: '600', color: c.textPrimary },
+    title: { fontSize: fontSize.xl, fontWeight: '600', color: c.textPrimary },
     body: { color: c.danger, textAlign: 'center' },
   });

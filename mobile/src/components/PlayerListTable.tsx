@@ -42,7 +42,7 @@ import {
 } from 'react-native';
 import { FIELD_DEFS } from '../players/fields';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
-import { useThemedStyles, type Colors } from '../theme';
+import { effects, fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
 /** Per-data-cell width. Wide enough for the longest short label
  *  (`Defcon/90 ↓`) plus comfortable padding on both sides. */
@@ -314,7 +314,7 @@ const makeStyles = (c: Colors) =>
     },
     leftHeaderCell: {
       height: HEADER_HEIGHT,
-      paddingHorizontal: 12,
+      paddingHorizontal: spacing.lg,
       justifyContent: 'center',
       backgroundColor: c.surface,
       borderBottomWidth: 1,
@@ -322,8 +322,8 @@ const makeStyles = (c: Colors) =>
     },
     leftRow: {
       height: ROW_HEIGHT,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
       justifyContent: 'center',
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
@@ -358,13 +358,13 @@ const makeStyles = (c: Colors) =>
     },
     headerCell: {
       width: CELL_WIDTH,
-      paddingHorizontal: 8,
+      paddingHorizontal: spacing.md,
       height: '100%',
       justifyContent: 'center',
       alignItems: 'flex-end',
     },
     headerCellText: {
-      fontSize: 11,
+      fontSize: fontSize.xs,
       color: c.textMuted,
       fontWeight: '600',
       letterSpacing: 0.4,
@@ -373,15 +373,15 @@ const makeStyles = (c: Colors) =>
     headerCellTextActive: { color: c.accent },
     dataCell: {
       width: CELL_WIDTH,
-      paddingHorizontal: 8,
-      fontSize: 14,
+      paddingHorizontal: spacing.md,
+      fontSize: fontSize.md,
       color: c.textPrimary,
       textAlign: 'right',
     },
-    pressed: { opacity: 0.6 },
+    pressed: effects.pressedSubtle,
 
     emptyText: {
-      padding: 24,
+      padding: spacing.xxl,
       color: c.textMuted,
       textAlign: 'center',
     },

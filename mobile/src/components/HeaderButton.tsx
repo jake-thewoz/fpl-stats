@@ -1,5 +1,12 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = {
   label: string;
@@ -25,11 +32,13 @@ export function HeaderButton({ label, onPress, accessibilityLabel }: Props) {
 const makeStyles = (c: Colors) =>
   StyleSheet.create({
     btn: {
-      paddingHorizontal: 10,
+      paddingHorizontal: spacing.base,
+      // 5px is a tight one-off vertical inset for header buttons; keeping
+      // it inline rather than promoting a near-spacing.xs token.
       paddingVertical: 5,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       backgroundColor: c.accent,
     },
-    label: { color: c.onAccent, fontSize: 13, fontWeight: '600' },
-    pressed: { opacity: 0.6 },
+    label: { color: c.onAccent, fontSize: fontSize.sm2, fontWeight: '600' },
+    pressed: effects.pressedSubtle,
   });
