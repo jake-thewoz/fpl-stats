@@ -43,7 +43,15 @@ import {
   type SortState,
 } from '../players/types';
 import type { PlayersScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
@@ -230,7 +238,11 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         getRowStyle={
           ownedIds == null
             ? undefined
-            : (p) => (ownedIds.has(p.id) ? { opacity: 0.5 } : undefined)
+            : // Dim rows for players already in the user's squad (#99).
+              // 0.5 matches the pressed-state dim by coincidence, but the
+              // semantics are different — keeping it literal so future
+              // tuning of one doesn't accidentally move the other.
+              (p) => (ownedIds.has(p.id) ? { opacity: 0.5 } : undefined)
         }
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -374,69 +386,70 @@ function ControlButton({
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
 
-  searchRow: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 6,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  searchInput: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.background,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+    searchRow: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.base,
+      paddingBottom: spacing.sm,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    searchInput: {
+      fontSize: fontSize.base,
+      color: colors.textPrimary,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.background,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  controlBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  controlBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  controlBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  controlBtnText: {
-    fontSize: 13,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
-  controlBtnTextActive: { color: colors.onAccent },
-  pressed: { opacity: 0.6 },
+    controlBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    controlBtn: {
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    controlBtnActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    controlBtnText: {
+      fontSize: fontSize.sm2,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
+    controlBtnTextActive: { color: colors.onAccent },
+    pressed: effects.pressedSubtle,
 
-  // Used by renderNameCell passed to PlayerListTable.
-  nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
-  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  // Surface-coloured backdrop sits behind the text so it stays legible
-  // against the club gradient. Self-shrinks to the text width via
-  // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the
-  // rounded chip-style halo the brief asked for. Where the gradient
-  // has already faded to surface, the backdrop is invisible (same
-  // colour as the row), so it only "appears" where contrast is needed.
-  textBackdrop: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 4,
-    borderRadius: 3,
-  },
-});
+    // Used by renderNameCell passed to PlayerListTable.
+    nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
+    subText: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.hairline },
+    // Surface-coloured backdrop sits behind the text so it stays legible
+    // against the club gradient. Self-shrinks to the text width via
+    // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the
+    // rounded chip-style halo the brief asked for. Where the gradient
+    // has already faded to surface, the backdrop is invisible (same
+    // colour as the row), so it only "appears" where contrast is needed.
+    textBackdrop: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.xs,
+      // 3px is a tight chip halo; below the named scale on purpose.
+      borderRadius: 3,
+    },
+  });

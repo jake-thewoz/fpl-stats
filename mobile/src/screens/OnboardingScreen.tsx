@@ -9,7 +9,15 @@ import {
 } from 'react-native';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
 import type { OnboardingScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = OnboardingScreenProps;
 
@@ -120,56 +128,58 @@ const makeStyles = (c: Colors) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      padding: 24,
-      paddingTop: 48,
+      padding: spacing.xxl,
+      paddingTop: spacing.safeTop,
       backgroundColor: c.background,
-      gap: 16,
+      gap: spacing.xl,
     },
+    // 28px is the welcome-screen hero title; one call site, above the
+    // shared type scale.
     title: { fontSize: 28, fontWeight: '700', color: c.textPrimary },
-    body: { fontSize: 15, color: c.textMuted, lineHeight: 22 },
+    body: { fontSize: fontSize.base, color: c.textMuted, lineHeight: 22 },
     input: {
-      marginTop: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderRadius: 8,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
       backgroundColor: c.surface,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       color: c.textPrimary,
-      fontSize: 17,
+      fontSize: fontSize.lg2,
     },
-    error: { color: c.danger, fontSize: 13 },
+    error: { color: c.danger, fontSize: fontSize.sm2 },
     primaryBtn: {
-      marginTop: 8,
+      marginTop: spacing.md,
       backgroundColor: c.accent,
-      paddingVertical: 14,
-      borderRadius: 10,
+      paddingVertical: spacing.lg2,
+      borderRadius: radius.base,
       alignItems: 'center',
     },
-    primaryBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '600' },
+    primaryBtnText: { color: c.onAccent, fontSize: fontSize.lg, fontWeight: '600' },
     secondaryBtn: {
-      paddingVertical: 12,
-      borderRadius: 10,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
       alignItems: 'center',
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    secondaryBtnText: { color: c.textPrimary, fontSize: 15, fontWeight: '600' },
-    helperGroup: { marginTop: 16, gap: 4 },
+    secondaryBtnText: { color: c.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
+    helperGroup: { marginTop: spacing.xl, gap: spacing.xs },
     helperLink: {
       color: c.accent,
-      fontSize: 15,
+      fontSize: fontSize.base,
       fontWeight: '600',
       textAlign: 'center',
     },
     helperHint: {
       color: c.textMuted,
-      fontSize: 12,
+      fontSize: fontSize.sm,
       lineHeight: 18,
       textAlign: 'center',
     },
     helperEmphasis: { color: c.textPrimary, fontWeight: '700' },
     mono: { fontVariant: ['tabular-nums'], fontWeight: '600' },
-    pressed: { opacity: 0.5 },
+    pressed: effects.pressed,
   });

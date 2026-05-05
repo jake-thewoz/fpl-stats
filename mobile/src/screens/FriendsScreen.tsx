@@ -14,7 +14,15 @@ import { getFplTeamId } from '../storage/user';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
 import type { FriendsScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = FriendsScreenProps;
 
@@ -422,106 +430,106 @@ const COL_NUMERIC_WIDTH = 62;
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  listContent: { paddingBottom: 32, backgroundColor: colors.background },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 12,
-    backgroundColor: colors.background,
-  },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
-  emptyBody: {
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  primaryBtn: {
-    marginTop: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  secondaryBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  secondaryBtnText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pressed: { opacity: 0.5 },
-  tableHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  colHeader: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  colHeaderActive: { color: colors.accent },
-  colHeaderBtn: { width: COL_NUMERIC_WIDTH, paddingVertical: 4 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  // Subtle tint on the 'You' row so it stands out even when it's pinned at
-  // the top and the user is tired of the badge.
-  rowMe: { backgroundColor: colors.background },
-  colAlias: { flex: 1, paddingRight: 8 },
-  aliasLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rowAlias: {
-    flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  rowMeta: {
-    marginTop: 2,
-    color: colors.textMuted,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-  },
-  rowError: { marginTop: 2, color: colors.danger, fontSize: 12 },
-  colNumeric: {
-    width: COL_NUMERIC_WIDTH,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
-  rowCell: { color: colors.textPrimary, fontSize: 14 },
-  youBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-  },
-  youBadgeText: {
-    color: colors.onAccent,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-});
+    listContent: { paddingBottom: spacing.xxxl, backgroundColor: colors.background },
+    emptyWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xxxl,
+      gap: spacing.lg,
+      backgroundColor: colors.background,
+    },
+    emptyTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
+    emptyBody: {
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    primaryBtn: {
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.xxl,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      backgroundColor: colors.accent,
+    },
+    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    secondaryBtn: {
+      paddingHorizontal: spacing.xxl,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    secondaryBtnText: {
+      color: colors.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
+    pressed: effects.pressed,
+    tableHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.base,
+      backgroundColor: colors.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    colHeader: {
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    colHeaderActive: { color: colors.accent },
+    colHeaderBtn: { width: COL_NUMERIC_WIDTH, paddingVertical: spacing.xs },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.xl,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    // Subtle tint on the 'You' row so it stands out even when it's pinned at
+    // the top and the user is tired of the badge.
+    rowMe: { backgroundColor: colors.background },
+    colAlias: { flex: 1, paddingRight: spacing.md },
+    aliasLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    rowAlias: {
+      flexShrink: 1,
+      fontSize: fontSize.lg,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    rowMeta: {
+      marginTop: spacing.hairline,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+      fontVariant: ['tabular-nums'],
+    },
+    rowError: { marginTop: spacing.hairline, color: colors.danger, fontSize: fontSize.sm },
+    colNumeric: {
+      width: COL_NUMERIC_WIDTH,
+      textAlign: 'right',
+      fontVariant: ['tabular-nums'],
+    },
+    rowCell: { color: colors.textPrimary, fontSize: fontSize.md },
+    youBadge: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.hairline,
+      borderRadius: radius.base,
+      backgroundColor: colors.accent,
+    },
+    youBadgeText: {
+      color: colors.onAccent,
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+  });

@@ -14,7 +14,16 @@ import {
 } from '../storage/user';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { SettingsScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors, type ThemeMode } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+  type ThemeMode,
+} from '../theme';
 
 type Props = SettingsScreenProps;
 
@@ -172,100 +181,104 @@ function ThemeRow({
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: colors.background },
-  sectionTitle: {
-    paddingHorizontal: 4,
-    paddingBottom: 8,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  currentValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    fontVariant: ['tabular-nums'],
-  },
-  input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    color: colors.textPrimary,
-    fontSize: 17,
-  },
-  error: { color: colors.danger, fontSize: 13 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: colors.accent,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  secondaryBtn: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  secondaryBtnText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  dangerBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.danger,
-    backgroundColor: colors.background,
-  },
-  dangerBtnText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
-  pressed: { opacity: 0.5 },
+    container: { flex: 1, padding: spacing.xl, backgroundColor: colors.background },
+    sectionTitle: {
+      paddingHorizontal: spacing.xs,
+      paddingBottom: spacing.md,
+      color: colors.textMuted,
+      fontSize: fontSize.sm2,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.base,
+      padding: spacing.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      gap: spacing.lg,
+    },
+    // 22px is the team-id current-value display, distinctively bigger
+    // than headings; one call site so it stays inline.
+    currentValue: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    input: {
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      backgroundColor: colors.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      color: colors.textPrimary,
+      fontSize: fontSize.lg2,
+    },
+    error: { color: colors.danger, fontSize: fontSize.sm2 },
+    actions: { flexDirection: 'row', gap: spacing.base, marginTop: spacing.xs },
+    primaryBtn: {
+      flex: 1,
+      backgroundColor: colors.accent,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      alignItems: 'center',
+    },
+    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    secondaryBtn: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    secondaryBtnText: { color: colors.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
+    dangerBtn: {
+      flex: 1,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.danger,
+      backgroundColor: colors.background,
+    },
+    dangerBtnText: { color: colors.danger, fontSize: fontSize.base, fontWeight: '600' },
+    pressed: effects.pressed,
 
-  // Appearance section
-  sectionTitleSpaced: { marginTop: 24 },
-  themeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    // Hairline divider between rows; the last row's bottom border is
-    // hidden by the card's own rounded edge, so leaving it on every row
-    // is fine and keeps the markup uniform.
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  themeRowPressed: { opacity: 0.6 },
-  themeRowLabel: { fontSize: 16, color: colors.textPrimary },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioSelected: { borderColor: colors.accent },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accent,
-  },
-});
+    // Appearance section
+    sectionTitleSpaced: { marginTop: spacing.xxl },
+    themeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.lg,
+      // Hairline divider between rows; the last row's bottom border is
+      // hidden by the card's own rounded edge, so leaving it on every row
+      // is fine and keeps the markup uniform.
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    themeRowPressed: effects.pressedSubtle,
+    themeRowLabel: { fontSize: fontSize.lg, color: colors.textPrimary },
+    radio: {
+      width: 22,
+      height: 22,
+      // 11px radius makes the 22px square a perfect circle — outside
+      // the named scale on purpose because it's geometry, not design.
+      borderRadius: 11,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioSelected: { borderColor: colors.accent },
+    radioInner: {
+      width: 12,
+      height: 12,
+      borderRadius: radius.sm,
+      backgroundColor: colors.accent,
+    },
+  });
