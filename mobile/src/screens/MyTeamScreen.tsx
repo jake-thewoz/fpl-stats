@@ -42,7 +42,15 @@ import {
   type SortState,
 } from '../players/types';
 import type { MyTeamScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = MyTeamScreenProps;
 
@@ -216,6 +224,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         onTapHeader={onTapColumnHeader}
         getId={(r) => r.id}
         renderNameCell={(row) => <MyTeamNameCell row={row} />}
+        // Bench rows dimmed to de-emphasise non-starters; matches the
+        // pressedSubtle dim by coincidence but the semantics are
+        // different — leaving inline so a tweak to one doesn't move the
+        // other.
         getRowStyle={(r) => (r.isStarter ? undefined : { opacity: 0.6 })}
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -488,141 +500,157 @@ function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  headerSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    header: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    headerTitle: { fontSize: fontSize.lg2, fontWeight: '600', color: colors.textPrimary },
+    headerSub: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      marginTop: spacing.hairline,
+    },
 
-  notice: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.background,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  noticeText: { color: colors.textMuted, fontSize: 13 },
+    notice: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      backgroundColor: colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    noticeText: { color: colors.textMuted, fontSize: fontSize.sm2 },
 
-  chipBannerFreeHit: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.warning,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  chipBannerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.onWarning,
-    marginBottom: 2,
-  },
-  chipBannerBody: {
-    fontSize: 12,
-    color: colors.onWarning,
-    lineHeight: 16,
-  },
-  chipBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: colors.accentSoft,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  chipBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.onAccentSoft,
-  },
+    chipBannerFreeHit: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      backgroundColor: colors.warning,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    chipBannerTitle: {
+      fontSize: fontSize.md,
+      fontWeight: '700',
+      color: colors.onWarning,
+      marginBottom: spacing.hairline,
+    },
+    chipBannerBody: {
+      fontSize: fontSize.sm,
+      color: colors.onWarning,
+      lineHeight: 16,
+    },
+    chipBadge: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.sm,
+      backgroundColor: colors.accentSoft,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    chipBadgeText: {
+      fontSize: fontSize.sm,
+      fontWeight: '600',
+      color: colors.onAccentSoft,
+    },
 
-  controlBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  controlBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  controlBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  controlBtnText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
-  controlBtnTextActive: { color: colors.onAccent },
-  pressed: { opacity: 0.6 },
+    controlBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    controlBtn: {
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    controlBtnActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    controlBtnText: {
+      fontSize: fontSize.sm2,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
+    controlBtnTextActive: { color: colors.onAccent },
+    pressed: effects.pressedSubtle,
 
-  // Used by renderMyTeamNameCell — the pinned-name column rendered
-  // by PlayerListTable.
-  nameLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  nameText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
-  subText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  // Surface-coloured halo behind name + subtitle so they remain legible
-  // against the club gradient. Invisible where the gradient has faded
-  // to surface (same colour); only appears in the coloured-band area
-  // where contrast is needed. ``alignSelf: 'flex-start'`` keeps the
-  // backdrop hugging the text width rather than spanning the row.
-  textBackdrop: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 4,
-    borderRadius: 3,
-  },
-  // Same accent-coloured pill for both captain (C) and vice (V) — only
-  // the letter differentiates. Matches FPL's own visual treatment.
-  playerBadge: {
-    fontSize: 11,
-    color: colors.onAccent,
-    backgroundColor: colors.accent,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    overflow: 'hidden',
-    fontWeight: '700',
-  },
+    // Used by renderMyTeamNameCell — the pinned-name column rendered
+    // by PlayerListTable.
+    nameLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
+    subText: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      marginTop: spacing.hairline,
+    },
+    // Surface-coloured halo behind name + subtitle so they remain legible
+    // against the club gradient. Invisible where the gradient has faded
+    // to surface (same colour); only appears in the coloured-band area
+    // where contrast is needed. ``alignSelf: 'flex-start'`` keeps the
+    // backdrop hugging the text width rather than spanning the row.
+    textBackdrop: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.xs,
+      // 3px is a tight chip halo; below the named scale on purpose.
+      borderRadius: 3,
+    },
+    // Same accent-coloured pill for both captain (C) and vice (V) — only
+    // the letter differentiates. Matches FPL's own visual treatment.
+    playerBadge: {
+      fontSize: fontSize.xs,
+      color: colors.onAccent,
+      backgroundColor: colors.accent,
+      // 5px / 1px are tight pill insets to keep the C/V badge compact;
+      // below the named scale.
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      // 4px is a tight badge corner; below the named radius scale.
+      borderRadius: 4,
+      overflow: 'hidden',
+      fontWeight: '700',
+    },
 
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    backgroundColor: colors.background,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  emptyBody: {
-    padding: 16,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  primaryBtn: {
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: colors.accent,
-    borderRadius: 6,
-  },
-  primaryBtnText: { color: colors.onAccent, fontWeight: '600' },
-});
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xxxl,
+      backgroundColor: colors.background,
+    },
+    emptyTitle: {
+      fontSize: fontSize.xl,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: spacing.md,
+    },
+    emptyBody: {
+      padding: spacing.xl,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    primaryBtn: {
+      marginTop: spacing.xl,
+      paddingHorizontal: spacing.xl2,
+      paddingVertical: spacing.base,
+      backgroundColor: colors.accent,
+      borderRadius: radius.sm,
+    },
+    primaryBtnText: { color: colors.onAccent, fontWeight: '600' },
+  });

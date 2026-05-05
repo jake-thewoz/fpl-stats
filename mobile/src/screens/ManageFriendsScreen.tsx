@@ -10,7 +10,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getFriends, removeFriend, type Friend } from '../storage/friends';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { ManageFriendsScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = ManageFriendsScreenProps;
 
@@ -180,88 +188,88 @@ function ListFooter({
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  listContent: { paddingVertical: 8 },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 12,
-  },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
-  emptyBody: {
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  primaryBtn: {
-    marginTop: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  secondaryBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  secondaryBtnText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pressed: { opacity: 0.5 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowLeft: { flex: 1, paddingRight: 12 },
-  rowAlias: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  rowId: {
-    marginTop: 2,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontVariant: ['tabular-nums'],
-  },
-  removeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    backgroundColor: 'transparent',
-  },
-  removeBtnText: { color: colors.danger, fontSize: 13, fontWeight: '600' },
-  footerWrap: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
-  addBtn: {
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-  },
-  addBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
-  importBtn: {
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  importBtnText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
+    container: { flex: 1, backgroundColor: colors.background },
+    listContent: { paddingVertical: spacing.md },
+    emptyWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xxxl,
+      gap: spacing.lg,
+    },
+    emptyTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
+    emptyBody: {
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    primaryBtn: {
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.xxl,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      backgroundColor: colors.accent,
+    },
+    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    secondaryBtn: {
+      paddingHorizontal: spacing.xxl,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    secondaryBtnText: {
+      color: colors.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
+    pressed: effects.pressed,
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg2,
+      paddingHorizontal: spacing.xl,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    rowLeft: { flex: 1, paddingRight: spacing.lg },
+    rowAlias: { fontSize: fontSize.lg, fontWeight: '600', color: colors.textPrimary },
+    rowId: {
+      marginTop: spacing.hairline,
+      color: colors.textMuted,
+      fontSize: fontSize.sm2,
+      fontVariant: ['tabular-nums'],
+    },
+    removeBtn: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      backgroundColor: 'transparent',
+    },
+    removeBtnText: { color: colors.danger, fontSize: fontSize.sm2, fontWeight: '600' },
+    footerWrap: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.base },
+    addBtn: {
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+    },
+    addBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    importBtn: {
+      paddingVertical: spacing.lg,
+      borderRadius: radius.base,
+      alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    importBtnText: {
+      color: colors.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
+  });

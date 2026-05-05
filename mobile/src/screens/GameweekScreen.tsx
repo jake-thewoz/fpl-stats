@@ -8,7 +8,7 @@ import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import type { GameweekScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import { fontSize, spacing, useTheme, useThemedStyles, type Colors } from '../theme';
 
 type Props = GameweekScreenProps;
 
@@ -109,30 +109,32 @@ function formatKickoff(iso: string | null): string {
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-  listContent: { paddingBottom: 32, backgroundColor: colors.background },
-  header: {
-    padding: 20,
-    backgroundColor: colors.background,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: { fontSize: 24, fontWeight: '600', color: colors.textPrimary },
-  headerSubtitle: { marginTop: 4, color: colors.textMuted },
-  fixtureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  fixtureTeam: { flex: 1, fontSize: 16, fontWeight: '500', color: colors.textPrimary },
-  fixtureTeamAway: { textAlign: 'right' },
-  fixtureScore: {
-    paddingHorizontal: 12,
-    color: colors.textPrimary,
-    fontVariant: ['tabular-nums'],
-  },
-  emptyBody: { padding: 20, color: colors.textMuted, textAlign: 'center' },
-});
+    listContent: { paddingBottom: spacing.xxxl, backgroundColor: colors.background },
+    header: {
+      padding: spacing.xl2,
+      backgroundColor: colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    // 24px is a hero gameweek title size, above the standard scale; one
+    // call site so it stays inline rather than promoted.
+    headerTitle: { fontSize: 24, fontWeight: '600', color: colors.textPrimary },
+    headerSubtitle: { marginTop: spacing.xs, color: colors.textMuted },
+    fixtureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg2,
+      paddingHorizontal: spacing.xl2,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    fixtureTeam: { flex: 1, fontSize: fontSize.lg, fontWeight: '500', color: colors.textPrimary },
+    fixtureTeamAway: { textAlign: 'right' },
+    fixtureScore: {
+      paddingHorizontal: spacing.lg,
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    emptyBody: { padding: spacing.xl2, color: colors.textMuted, textAlign: 'center' },
+  });

@@ -1,5 +1,12 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = {
   visible: boolean;
@@ -61,29 +68,31 @@ const makeStyles = (c: Colors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      // Backdrop stays a fixed dark scrim across both themes — a theme-
-      // tinted overlay would feel uncertain. Lower opacity reads as "dim
-      // the world" rather than "I have no idea what's behind me".
-      backgroundColor: 'rgba(7, 7, 7, 0.45)',
+      backgroundColor: c.scrim,
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
+      padding: spacing.xxl,
     },
     dialog: {
       width: '100%',
+      // 360px is the max-width cap for the centered dialog surface; the
+      // scale above (radius.lg = 16) is too round for a small dialog so
+      // 12 stays inline with the cap.
       maxWidth: 360,
       backgroundColor: c.surface,
       borderRadius: 12,
-      padding: 20,
-      gap: 12,
+      padding: spacing.xl2,
+      gap: spacing.lg,
     },
-    title: { fontSize: 17, fontWeight: '700', color: c.textPrimary },
-    message: { fontSize: 14, color: c.textMuted, lineHeight: 20 },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+    title: { fontSize: fontSize.lg2, fontWeight: '700', color: c.textPrimary },
+    message: { fontSize: fontSize.md, color: c.textMuted, lineHeight: 20 },
+    actions: { flexDirection: 'row', gap: spacing.base, marginTop: spacing.md },
     btn: {
       flex: 1,
+      // 11px is a tight one-off button height between spacing.base (10)
+      // and spacing.lg (12); leaving inline rather than promoting.
       paddingVertical: 11,
-      borderRadius: 8,
+      borderRadius: radius.md,
       alignItems: 'center',
     },
     btnSecondary: {
@@ -91,10 +100,10 @@ const makeStyles = (c: Colors) =>
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    btnSecondaryText: { color: c.textPrimary, fontSize: 15, fontWeight: '600' },
+    btnSecondaryText: { color: c.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
     btnPrimary: { backgroundColor: c.accent },
-    btnPrimaryText: { color: c.onAccent, fontSize: 15, fontWeight: '600' },
+    btnPrimaryText: { color: c.onAccent, fontSize: fontSize.base, fontWeight: '600' },
     btnDanger: { backgroundColor: c.danger },
-    btnDangerText: { color: c.onDanger, fontSize: 15, fontWeight: '600' },
-    pressed: { opacity: 0.6 },
+    btnDangerText: { color: c.onDanger, fontSize: fontSize.base, fontWeight: '600' },
+    pressed: effects.pressedSubtle,
   });

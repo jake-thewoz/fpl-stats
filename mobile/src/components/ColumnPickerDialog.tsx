@@ -1,7 +1,14 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
 import type { FieldKey } from '../players/types';
-import { useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 import { WebShell } from './WebShell';
 
 type Props = {
@@ -100,40 +107,44 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 48,
-      paddingBottom: 12,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.safeTop,
+      paddingBottom: spacing.lg,
       backgroundColor: c.surface,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
-    title: { fontSize: 17, fontWeight: '600', color: c.textPrimary },
+    title: { fontSize: fontSize.lg2, fontWeight: '600', color: c.textPrimary },
     // Filled-button actions in the top bar — text-only labels were
     // too easy to miss in dark mode (#96 PR review).
     topActionBtn: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 8,
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
       minWidth: 64,
       alignItems: 'center',
     },
     topActionBtnPrimary: { backgroundColor: c.accent },
     topActionTextPrimary: {
       color: c.onAccent,
-      fontSize: 15,
+      fontSize: fontSize.base,
       fontWeight: '600',
     },
     // Reserves space symmetrically opposite the Done button so the
     // "Columns" title stays centered in the top bar.
-    topActionPlaceholder: { minWidth: 64, paddingHorizontal: 14, paddingVertical: 8 },
-    pressed: { opacity: 0.5 },
-    scrollBody: { paddingBottom: 32 },
-    section: { marginTop: 24 },
+    topActionPlaceholder: {
+      minWidth: 64,
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.md,
+    },
+    pressed: effects.pressed,
+    scrollBody: { paddingBottom: spacing.xxxl },
+    section: { marginTop: spacing.xxl },
     sectionHint: {
-      paddingHorizontal: 16,
-      paddingBottom: 8,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
       color: c.textMuted,
-      fontSize: 12,
+      fontSize: fontSize.sm,
       lineHeight: 16,
     },
     sectionBody: {
@@ -146,18 +157,18 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg2,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
     rowPressed: { backgroundColor: c.background },
-    rowLabel: { fontSize: 16, color: c.textPrimary },
-    rowHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    rowLabel: { fontSize: fontSize.lg, color: c.textPrimary },
+    rowHint: { fontSize: fontSize.sm, color: c.textMuted, marginTop: spacing.hairline },
     checkbox: {
       width: 22,
       height: 22,
-      borderRadius: 6,
+      borderRadius: radius.sm,
       borderWidth: 1.5,
       borderColor: c.border,
       alignItems: 'center',
@@ -167,5 +178,5 @@ const makeStyles = (c: Colors) =>
       backgroundColor: c.accent,
       borderColor: c.accent,
     },
-    checkboxMark: { color: c.onAccent, fontSize: 14, fontWeight: '700' },
+    checkboxMark: { color: c.onAccent, fontSize: fontSize.md, fontWeight: '700' },
   });

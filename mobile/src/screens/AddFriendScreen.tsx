@@ -10,7 +10,15 @@ import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { addFriend } from '../storage/friends';
 import { isValidFplTeamId } from '../storage/user';
 import type { AddFriendScreenProps } from '../navigation/types';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 type Props = AddFriendScreenProps;
 
@@ -171,62 +179,65 @@ const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      padding: 16,
+      padding: spacing.xl,
       backgroundColor: colors.background,
-      gap: 12,
+      gap: spacing.lg,
     },
-  label: {
-    paddingHorizontal: 4,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    color: colors.textPrimary,
-    fontSize: 17,
-  },
-  primaryBtn: {
-    backgroundColor: colors.accent,
-    paddingVertical: 13,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: '600' },
-  pressed: { opacity: 0.5 },
-  validatedBlock: { gap: 12 },
-  previewCard: {
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  previewLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  previewName: {
-    marginTop: 4,
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  previewManager: { marginTop: 2, color: colors.textMuted, fontSize: 14 },
-  error: {
-    paddingHorizontal: 4,
-    color: colors.danger,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});
+    label: {
+      paddingHorizontal: spacing.xs,
+      color: colors.textMuted,
+      fontSize: fontSize.sm2,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    input: {
+      paddingHorizontal: spacing.lg2,
+      paddingVertical: spacing.lg,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      color: colors.textPrimary,
+      fontSize: fontSize.lg2,
+    },
+    primaryBtn: {
+      backgroundColor: colors.accent,
+      // 13px lifts the Find/Save button just enough that its label
+      // doesn't sit flush with the top/bottom edge — between
+      // spacing.lg (12) and spacing.lg2 (14).
+      paddingVertical: 13,
+      borderRadius: radius.base,
+      alignItems: 'center',
+    },
+    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.lg, fontWeight: '600' },
+    pressed: effects.pressed,
+    validatedBlock: { gap: spacing.lg },
+    previewCard: {
+      padding: spacing.lg2,
+      borderRadius: radius.base,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    previewLabel: {
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    previewName: {
+      marginTop: spacing.xs,
+      fontSize: fontSize.xl,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    previewManager: { marginTop: spacing.hairline, color: colors.textMuted, fontSize: fontSize.md },
+    error: {
+      paddingHorizontal: spacing.xs,
+      color: colors.danger,
+      fontSize: fontSize.sm2,
+      lineHeight: 18,
+    },
+  });

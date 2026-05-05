@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { useTheme, useThemedStyles, type Colors } from '../theme';
+import { spacing, useTheme, useThemedStyles, type Colors } from '../theme';
 
 export function LoadingView() {
   const { colors } = useTheme();
@@ -17,7 +17,7 @@ const makeStyles = (c: Colors) =>
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
+      padding: spacing.xxl,
       backgroundColor: c.background,
     },
   });
