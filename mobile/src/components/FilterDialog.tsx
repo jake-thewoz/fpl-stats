@@ -1,22 +1,9 @@
 import { useEffect, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
-import type {
-  FieldKey,
-  FilterState,
-  RangeFilter,
-} from '../players/types';
+import type { FieldKey, FilterState, RangeFilter } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';
 import {
-  effects,
   fontSize,
   radius,
   spacing,
@@ -24,17 +11,15 @@ import {
   useThemedStyles,
   type Colors,
 } from '../theme';
-import { WebShell } from './WebShell';
+import { CheckRow } from './dialog/CheckRow';
+import { DialogShell } from './dialog/DialogShell';
+import { Section } from './dialog/Section';
 
 /**
- * Field-aware filter dialog. Supports multi-select for position + team,
- * min/max ranges for every numeric field. Replaces the original
- * chip-based dialog from #68 — same UI vocabulary, much richer
- * field set.
- *
- * The dialog manages a draft filter state internally and only commits
- * to the parent on `Done`. That way mid-edit changes don't trigger
- * refetches per keystroke.
+ * Field-aware filter dialog. Multi-select for position + team, and a
+ * min/max range for every numeric field. The dialog manages a draft
+ * filter state internally and only commits on Done — mid-edit changes
+ * don't trigger refetches per keystroke.
  */
 type Props = {
   visible: boolean;
@@ -49,7 +34,12 @@ type Props = {
 };
 
 export function FilterDialog({
-  visible, onClose, filter, positions, teams, onApply,
+  visible,
+  onClose,
+  filter,
+  positions,
+  teams,
+  onApply,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Draft state lives only while the dialog is open. Re-seeded from the
@@ -73,9 +63,7 @@ export function FilterDialog({
   const toggleTeam = (t: string) => {
     setDraft((d) => ({
       ...d,
-      teams: d.teams.includes(t)
-        ? d.teams.filter((x) => x !== t)
-        : [...d.teams, t],
+      teams: d.teams.includes(t) ? d.teams.filter((x) => x !== t) : [...d.teams, t],
     }));
   };
   const setRange = (key: FieldKey, range: RangeFilter) => {
@@ -100,141 +88,85 @@ export function FilterDialog({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <WebShell>
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={onClear}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.topActionBtn,
-              styles.topActionBtnSecondary,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.topActionTextSecondary}>Clear</Text>
-          </Pressable>
-          <Text style={styles.title}>Filter</Text>
-          <Pressable
-            onPress={onDone}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.topActionBtn,
-              styles.topActionBtnPrimary,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.topActionTextPrimary}>Done</Text>
-          </Pressable>
-        </View>
+    <DialogShell
+      visible={visible}
+      onClose={onClose}
+      title="Filter"
+      leftAction={{ label: 'Clear', onPress: onClear }}
+      rightAction={{ label: 'Done', onPress: onDone }}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollBody}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Section title="Position">
+          {positions.length === 0 ? (
+            <Text style={styles.emptyHint}>Positions appear once players load.</Text>
+          ) : (
+            positions.map((opt) => (
+              <CheckRow
+                key={opt}
+                label={opt}
+                checked={draft.positions.includes(opt)}
+                onPress={() => togglePosition(opt)}
+              />
+            ))
+          )}
+        </Section>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollBody}
-          keyboardShouldPersistTaps="handled"
-        >
-          <CategoricalSection
-            title="Position"
-            options={positions}
-            selected={draft.positions}
-            onToggle={togglePosition}
-            emptyHint="Positions appear once players load."
-          />
+        {FIELDS_IN_PICKER_ORDER.map((f) => (
+          <Section key={f.key} title={f.label}>
+            <View style={styles.rangeBody}>
+              <RangeInput
+                label="Min"
+                value={draft.ranges[f.key]?.min ?? null}
+                onChangeNumber={(v) =>
+                  setRange(f.key, {
+                    min: v,
+                    max: draft.ranges[f.key]?.max ?? null,
+                  })
+                }
+              />
+              <View style={styles.rangeSep} />
+              <RangeInput
+                label="Max"
+                value={draft.ranges[f.key]?.max ?? null}
+                onChangeNumber={(v) =>
+                  setRange(f.key, {
+                    min: draft.ranges[f.key]?.min ?? null,
+                    max: v,
+                  })
+                }
+              />
+            </View>
+          </Section>
+        ))}
 
-          {FIELDS_IN_PICKER_ORDER.map((f) => (
-            <RangeSection
-              key={f.key}
-              title={f.label}
-              range={draft.ranges[f.key]}
-              onChange={(r) => setRange(f.key, r)}
-            />
-          ))}
-
-          {/* Team last — least-used filter in practice, kept off the
-              top so it doesn't push the more common ranges down. */}
-          <CategoricalSection
-            title="Team"
-            options={teams}
-            selected={draft.teams}
-            onToggle={toggleTeam}
-            emptyHint="Teams appear once players load."
-          />
-        </ScrollView>
-      </View>
-      </WebShell>
-    </Modal>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sections
-// ---------------------------------------------------------------------------
-
-function CategoricalSection({
-  title, options, selected, onToggle, emptyHint,
-}: {
-  title: string;
-  options: readonly string[];
-  selected: string[];
-  onToggle: (value: string) => void;
-  emptyHint: string;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionBody}>
-        {options.length === 0 ? (
-          <Text style={styles.emptyHint}>{emptyHint}</Text>
-        ) : (
-          options.map((opt) => (
-            <CheckRow
-              key={opt}
-              label={opt}
-              checked={selected.includes(opt)}
-              onPress={() => onToggle(opt)}
-            />
-          ))
-        )}
-      </View>
-    </View>
-  );
-}
-
-function RangeSection({
-  title, range, onChange,
-}: {
-  title: string;
-  range: RangeFilter | undefined;
-  onChange: (r: RangeFilter) => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const min = range?.min ?? null;
-  const max = range?.max ?? null;
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={[styles.sectionBody, styles.rangeBody]}>
-        <RangeInput
-          label="Min"
-          value={min}
-          onChangeNumber={(v) => onChange({ min: v, max })}
-        />
-        <View style={styles.rangeSep} />
-        <RangeInput
-          label="Max"
-          value={max}
-          onChangeNumber={(v) => onChange({ min, max: v })}
-        />
-      </View>
-    </View>
+        {/* Team last — least-used filter in practice, kept off the
+            top so it doesn't push the more common ranges down. */}
+        <Section title="Team">
+          {teams.length === 0 ? (
+            <Text style={styles.emptyHint}>Teams appear once players load.</Text>
+          ) : (
+            teams.map((opt) => (
+              <CheckRow
+                key={opt}
+                label={opt}
+                checked={draft.teams.includes(opt)}
+                onPress={() => toggleTeam(opt)}
+              />
+            ))
+          )}
+        </Section>
+      </ScrollView>
+    </DialogShell>
   );
 }
 
 function RangeInput({
-  label, value, onChangeNumber,
+  label,
+  value,
+  onChangeNumber,
 }: {
   label: string;
   value: number | null;
@@ -278,117 +210,12 @@ function RangeInput({
   );
 }
 
-function CheckRow({
-  label, checked, onPress,
-}: { label: string; checked: boolean; onPress: () => void }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-    >
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-        {checked ? <Text style={styles.checkboxMark}>✓</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
 const makeStyles = (c: Colors) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.safeTop,
-      paddingBottom: spacing.lg,
-      backgroundColor: c.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border,
-    },
-    title: { fontSize: fontSize.lg2, fontWeight: '600', color: c.textPrimary },
-    // Top-bar actions are filled buttons for clear visual weight — text-only
-    // labels were too easy to miss in dark mode (#96 PR review).
-    topActionBtn: {
-      paddingHorizontal: spacing.lg2,
-      paddingVertical: spacing.md,
-      borderRadius: radius.md,
-      minWidth: 64,
-      alignItems: 'center',
-    },
-    topActionBtnPrimary: {
-      backgroundColor: c.accent,
-    },
-    topActionBtnSecondary: {
-      backgroundColor: c.background,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
-    topActionTextPrimary: {
-      color: c.onAccent,
-      fontSize: fontSize.base,
-      fontWeight: '600',
-    },
-    topActionTextSecondary: {
-      color: c.textPrimary,
-      fontSize: fontSize.base,
-      fontWeight: '500',
-    },
-    pressed: effects.pressed,
     // 64px keeps the last section clear of the bottom-of-screen gesture
     // area on tall phones; not part of the standard scale.
     scrollBody: { paddingBottom: 64 },
-    section: { marginTop: spacing.xxl },
-    sectionTitle: {
-      paddingHorizontal: spacing.xl,
-      paddingBottom: spacing.md,
-      color: c.textMuted,
-      fontSize: fontSize.sm2,
-      fontWeight: '600',
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-    },
-    sectionBody: {
-      backgroundColor: c.surface,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
     emptyHint: { padding: spacing.xl, color: c.textMuted },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.lg2,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.border,
-    },
-    rowPressed: { backgroundColor: c.background },
-    rowLabel: { fontSize: fontSize.lg, color: c.textPrimary },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: radius.sm,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkboxChecked: {
-      backgroundColor: c.accent,
-      borderColor: c.accent,
-    },
-    checkboxMark: { color: c.onAccent, fontSize: fontSize.md, fontWeight: '700' },
     rangeBody: {
       flexDirection: 'row',
       alignItems: 'center',

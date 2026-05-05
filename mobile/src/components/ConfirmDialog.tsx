@@ -20,10 +20,14 @@ type Props = {
 };
 
 export function ConfirmDialog({
-  visible, title, message,
-  confirmLabel = 'OK', cancelLabel = 'Cancel',
+  visible,
+  title,
+  message,
+  confirmLabel = 'OK',
+  cancelLabel = 'Cancel',
   destructive = false,
-  onConfirm, onCancel,
+  onConfirm,
+  onCancel,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -38,7 +42,9 @@ export function ConfirmDialog({
             <Pressable
               onPress={onCancel}
               style={({ pressed }) => [
-                styles.btn, styles.btnSecondary, pressed && styles.pressed,
+                styles.btn,
+                styles.btnSecondary,
+                pressed && styles.pressed,
               ]}
               accessibilityRole="button"
             >
@@ -100,7 +106,11 @@ const makeStyles = (c: Colors) =>
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    btnSecondaryText: { color: c.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
+    btnSecondaryText: {
+      color: c.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     btnPrimary: { backgroundColor: c.accent },
     btnPrimaryText: { color: c.onAccent, fontSize: fontSize.base, fontWeight: '600' },
     btnDanger: { backgroundColor: c.danger },

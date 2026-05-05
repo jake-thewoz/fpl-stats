@@ -107,9 +107,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error(
-      'useTheme() must be called inside a <ThemeProvider>. Wrap App.tsx.',
-    );
+    throw new Error('useTheme() must be called inside a <ThemeProvider>. Wrap App.tsx.');
   }
   return ctx;
 }

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 /** One side of a transfer move (the out or in player). */
 export type SuggestionPlayer = {
@@ -111,16 +111,20 @@ export async function fetchTransferSuggestions(
   if (maxTransfers !== undefined) {
     params.set('max_transfers', String(maxTransfers));
   }
-  const url = `${API_BASE_URL}/analytics/squad/${teamId}/transfers?${params.toString()}`;
-  const res = await fetch(url, { signal });
-  if (res.status === 404) {
-    // Both entry-not-found and picks-not-found come back as 404 with
-    // distinguishing payload — use the body to pick the right error type.
-    const body = await res.json().catch(() => ({}));
-    if (body?.error === 'entry not found') throw new EntryNotFoundError(teamId);
-    if (body?.error === 'picks not found') throw new PicksNotFoundError(teamId);
-    throw new Error('Not found');
-  }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as TransferSuggestionsResponse;
+  return requestJson<TransferSuggestionsResponse>(
+    `/analytics/squad/${teamId}/transfers?${params.toString()}`,
+    {
+      signal,
+      mapStatus: (status, body) => {
+        if (status !== 404) return undefined;
+        // Both entry-not-found and picks-not-found come back as 404 with
+        // distinguishing payload — read the body to pick the right
+        // error type.
+        const errKey = (body as { error?: string } | undefined)?.error;
+        if (errKey === 'entry not found') return new EntryNotFoundError(teamId);
+        if (errKey === 'picks not found') return new PicksNotFoundError(teamId);
+        return new Error('Not found');
+      },
+    },
+  );
 }

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type Gameweek = {
   id: number;
@@ -34,9 +34,5 @@ export type GameweekCurrentResponse = {
 export async function fetchGameweekCurrent(
   signal?: AbortSignal,
 ): Promise<GameweekCurrentResponse> {
-  const res = await fetch(`${API_BASE_URL}/gameweek/current`, { signal });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  return (await res.json()) as GameweekCurrentResponse;
+  return requestJson<GameweekCurrentResponse>('/gameweek/current', { signal });
 }

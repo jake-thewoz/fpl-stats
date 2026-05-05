@@ -73,10 +73,7 @@ function ClubPattern({ club }: { club: ClubVisual }) {
   if (club.pattern === 'solid') {
     return (
       <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: club.colors[0] },
-        ]}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: club.colors[0] }]}
       />
     );
   }

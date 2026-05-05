@@ -1,5 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import TransfersScreen from '../../screens/TransfersScreen';
+import TransfersScreen from '../../screens/Transfers';
 import type { TransfersStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<TransfersStackParamList>();

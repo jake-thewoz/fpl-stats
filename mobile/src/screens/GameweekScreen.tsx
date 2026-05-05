@@ -8,12 +8,11 @@ import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import type { GameweekScreenProps } from '../navigation/types';
-import { fontSize, spacing, useTheme, useThemedStyles, type Colors } from '../theme';
+import { fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
 type Props = GameweekScreenProps;
 
 export default function GameweekScreen(_props: Props) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetchGameweekCurrent);
@@ -21,7 +20,11 @@ export default function GameweekScreen(_props: Props) {
   if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {
     return (
-      <ErrorView title="Couldn't load gameweek" message={state.message} onRetry={onRetry} />
+      <ErrorView
+        title="Couldn't load gameweek"
+        message={state.message}
+        onRetry={onRetry}
+      />
     );
   }
 
@@ -45,27 +48,29 @@ export default function GameweekScreen(_props: Props) {
 }
 
 function GameweekHeader({ gameweek }: { gameweek: GameweekCurrentResponse['gameweek'] }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   if (!gameweek) {
     return (
       <View style={styles.header}>
         <Text style={styles.headerTitle}>No active gameweek</Text>
-        <Text style={styles.headerSubtitle}>Pre-season or between seasons — check back soon.</Text>
+        <Text style={styles.headerSubtitle}>
+          Pre-season or between seasons — check back soon.
+        </Text>
       </View>
     );
   }
   return (
     <View style={styles.header}>
       <Text style={styles.headerTitle}>{gameweek.name}</Text>
-      <Text style={styles.headerSubtitle}>Deadline: {formatDeadline(gameweek.deadline_time)}</Text>
+      <Text style={styles.headerSubtitle}>
+        Deadline: {formatDeadline(gameweek.deadline_time)}
+      </Text>
     </View>
   );
 }
 
 function FixtureRow({ fixture }: { fixture: Fixture }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const { home, away, kickoff_time, finished, started } = fixture;
@@ -129,7 +134,12 @@ const makeStyles = (colors: Colors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    fixtureTeam: { flex: 1, fontSize: fontSize.lg, fontWeight: '500', color: colors.textPrimary },
+    fixtureTeam: {
+      flex: 1,
+      fontSize: fontSize.lg,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
     fixtureTeamAway: { textAlign: 'right' },
     fixtureScore: {
       paddingHorizontal: spacing.lg,

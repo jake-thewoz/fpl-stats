@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   clearFplTeamId,
   getFplTeamId,
@@ -62,97 +56,105 @@ export default function SettingsScreen(_props: Props) {
 
   return (
     <>
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>FPL TEAM ID</Text>
+      <View style={styles.container}>
+        <Text style={styles.sectionTitle}>FPL TEAM ID</Text>
 
-      {!editing ? (
-        <View style={styles.card}>
-          <Text style={styles.currentValue}>{currentId ?? 'Not set'}</Text>
-          <View style={styles.actions}>
-            <Pressable
-              onPress={() => {
-                setInput(currentId ?? '');
-                setError(null);
-                setEditing(true);
-              }}
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.secondaryBtnText}>Change</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setClearConfirmOpen(true)}
-              style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              disabled={currentId === null}
-            >
-              <Text style={styles.dangerBtnText}>Clear</Text>
-            </Pressable>
+        {!editing ? (
+          <View style={styles.card}>
+            <Text style={styles.currentValue}>{currentId ?? 'Not set'}</Text>
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() => {
+                  setInput(currentId ?? '');
+                  setError(null);
+                  setEditing(true);
+                }}
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryBtnText}>Change</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setClearConfirmOpen(true)}
+                style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+                disabled={currentId === null}
+              >
+                <Text style={styles.dangerBtnText}>Clear</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      ) : (
+        ) : (
+          <View style={styles.card}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={(v) => {
+                setInput(v);
+                if (error) setError(null);
+              }}
+              placeholder="Team ID"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              autoFocus
+              autoCorrect={false}
+              accessibilityLabel="FPL team ID"
+            />
+            {error && <Text style={styles.error}>{error}</Text>}
+            <View style={styles.actions}>
+              <Pressable
+                onPress={() => {
+                  setEditing(false);
+                  setError(null);
+                  setInput('');
+                }}
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={onSave}
+                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
         <View style={styles.card}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={(v) => {
-              setInput(v);
-              if (error) setError(null);
-            }}
-            placeholder="Team ID"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            autoFocus
-            autoCorrect={false}
-            accessibilityLabel="FPL team ID"
+          <ThemeRow label="Dark" value="dark" active={mode} onSelect={setMode} />
+          <ThemeRow label="Light" value="light" active={mode} onSelect={setMode} />
+          <ThemeRow
+            label="Follow system"
+            value="system"
+            active={mode}
+            onSelect={setMode}
           />
-          {error && <Text style={styles.error}>{error}</Text>}
-          <View style={styles.actions}>
-            <Pressable
-              onPress={() => {
-                setEditing(false);
-                setError(null);
-                setInput('');
-              }}
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={onSave}
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.primaryBtnText}>Save</Text>
-            </Pressable>
-          </View>
         </View>
-      )}
-
-      <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
-      <View style={styles.card}>
-        <ThemeRow label="Dark"          value="dark"   active={mode} onSelect={setMode} />
-        <ThemeRow label="Light"         value="light"  active={mode} onSelect={setMode} />
-        <ThemeRow label="Follow system" value="system" active={mode} onSelect={setMode} />
       </View>
-    </View>
-    <ConfirmDialog
-      visible={clearConfirmOpen}
-      title="Clear team ID?"
-      message="You can add it again any time from this screen."
-      confirmLabel="Clear"
-      cancelLabel="Cancel"
-      destructive
-      onConfirm={onConfirmClear}
-      onCancel={() => setClearConfirmOpen(false)}
-    />
+      <ConfirmDialog
+        visible={clearConfirmOpen}
+        title="Clear team ID?"
+        message="You can add it again any time from this screen."
+        confirmLabel="Clear"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={onConfirmClear}
+        onCancel={() => setClearConfirmOpen(false)}
+      />
     </>
   );
 }
 
 function ThemeRow({
-  label, value, active, onSelect,
+  label,
+  value,
+  active,
+  onSelect,
 }: {
   label: string;
   value: ThemeMode;
@@ -164,10 +166,7 @@ function ThemeRow({
   return (
     <Pressable
       onPress={() => onSelect(value)}
-      style={({ pressed }) => [
-        styles.themeRow,
-        pressed && styles.themeRowPressed,
-      ]}
+      style={({ pressed }) => [styles.themeRow, pressed && styles.themeRowPressed]}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
     >
@@ -225,7 +224,11 @@ const makeStyles = (colors: Colors) =>
       borderRadius: radius.md,
       alignItems: 'center',
     },
-    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    primaryBtnText: {
+      color: colors.onAccent,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     secondaryBtn: {
       flex: 1,
       backgroundColor: colors.background,
@@ -235,7 +238,11 @@ const makeStyles = (colors: Colors) =>
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
-    secondaryBtnText: { color: colors.textPrimary, fontSize: fontSize.base, fontWeight: '600' },
+    secondaryBtnText: {
+      color: colors.textPrimary,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     dangerBtn: {
       flex: 1,
       paddingVertical: spacing.lg,

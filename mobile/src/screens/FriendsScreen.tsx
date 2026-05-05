@@ -10,16 +10,17 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
-import { getFplTeamId } from '../storage/user';
+import { useParallelFetch, type ParallelFetchRowState } from '../hooks/useParallelFetch';
+import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
+import { formatInt, formatRank } from '../format/rank';
 import type { FriendsScreenProps } from '../navigation/types';
 import {
   effects,
   fontSize,
   radius,
   spacing,
-  useTheme,
   useThemedStyles,
   type Colors,
 } from '../theme';
@@ -32,14 +33,9 @@ type Target = {
   isMe: boolean;
 };
 
-type RowState =
-  | { status: 'loading' }
-  | { status: 'ok'; data: Entry }
-  | { status: 'error'; kind: 'not_found' | 'other' };
-
 type ComparisonRow = {
   target: Target;
-  state: RowState;
+  state: ParallelFetchRowState<Entry>;
 };
 
 type SortColumn = 'rank' | 'gw' | 'total';
@@ -51,14 +47,17 @@ const COLUMNS: { key: SortColumn; label: string; defaultDir: SortDir }[] = [
   { key: 'total', label: 'Total', defaultDir: 'desc' },
 ];
 
+const fetchEntryEntry = async (id: string, signal: AbortSignal): Promise<Entry> => {
+  const resp = await fetchEntry(id, signal);
+  return resp.entry;
+};
+
 export default function FriendsScreen({ navigation }: Props) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  // `null` = haven't finished reading storage yet.
-  const [targets, setTargets] = useState<Target[] | null>(null);
-  const [rows, setRows] = useState<ComparisonRow[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const teamId = useFocusedTeamId();
+  // `null` = haven't finished reading friends list yet.
+  const [friends, setFriends] = useState<Friend[] | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>('rank');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -73,78 +72,51 @@ export default function FriendsScreen({ navigation }: Props) {
     });
   }, [navigation]);
 
-  async function buildTargets(): Promise<Target[]> {
-    const [userId, friends] = await Promise.all([
-      getFplTeamId(),
-      getFriends(),
-    ]);
+  // Re-read the friends list every time the screen gains focus so a
+  // friend added on Manage shows up on return.
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getFriends().then((fs) => {
+        if (alive) setFriends(fs);
+      });
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  const targets = useMemo<Target[] | null>(() => {
+    if (teamId === undefined || friends === null) return null;
     const out: Target[] = [];
-    if (userId) {
-      out.push({ id: userId, alias: 'You', isMe: true });
-    }
+    if (teamId) out.push({ id: teamId, alias: 'You', isMe: true });
     for (const f of friends) {
       // Dedupe: if the user added their own team as a friend, skip the dup.
-      if (userId && f.id === userId) continue;
+      if (teamId && f.id === teamId) continue;
       out.push({ id: f.id, alias: f.alias, isMe: false });
     }
     return out;
-  }
+  }, [teamId, friends]);
 
-  const loadAll = useCallback(async () => {
-    const nextTargets = await buildTargets();
-    setTargets(nextTargets);
+  const targetIds = useMemo(() => (targets ?? []).map((t) => t.id), [targets]);
+  const {
+    rows: fetchedRows,
+    refreshing,
+    onRefresh,
+  } = useParallelFetch(targetIds, fetchEntryEntry);
 
-    if (nextTargets.length === 0) {
-      setRows([]);
-      return;
-    }
-
-    // Seed every row as loading so the table renders immediately with
-    // placeholders, then patch each row in place as its fetch resolves.
-    setRows(
-      nextTargets.map((t) => ({ target: t, state: { status: 'loading' } })),
-    );
-
-    await Promise.all(
-      nextTargets.map(async (t, i) => {
-        try {
-          const resp = await fetchEntry(t.id);
-          setRows((prev) => {
-            if (prev[i]?.target.id !== t.id) return prev; // stale update
-            const next = prev.slice();
-            next[i] = { target: t, state: { status: 'ok', data: resp.entry } };
-            return next;
-          });
-        } catch (err) {
-          const kind: 'not_found' | 'other' =
-            err instanceof EntryNotFoundError ? 'not_found' : 'other';
-          setRows((prev) => {
-            if (prev[i]?.target.id !== t.id) return prev;
-            const next = prev.slice();
-            next[i] = { target: t, state: { status: 'error', kind } };
-            return next;
-          });
-        }
-      }),
-    );
-  }, []);
-
-  // Refresh whenever the screen gains focus so adding/removing a friend
-  // from Manage is reflected immediately on return.
-  useFocusEffect(
-    useCallback(() => {
-      loadAll();
-    }, [loadAll]),
-  );
-
-  async function onRefresh() {
-    setRefreshing(true);
-    try {
-      await loadAll();
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  // Join the per-key fetch state back to the target metadata. If the
+  // hook hasn't caught up to a new targets array yet, fall back to a
+  // synthesized loading row so the table doesn't briefly render
+  // mismatched aliases/ids.
+  const rows = useMemo<ComparisonRow[]>(() => {
+    const t = targets ?? [];
+    const byId = new Map(fetchedRows.map((r) => [r.key, r.state] as const));
+    return t.map((target) => ({
+      target,
+      state: byId.get(target.id) ?? { status: 'loading' },
+    }));
+  }, [targets, fetchedRows]);
 
   function onHeaderPress(col: SortColumn) {
     if (col === sortColumn) {
@@ -188,9 +160,7 @@ export default function FriendsScreen({ navigation }: Props) {
       }
       contentContainerStyle={styles.listContent}
       stickyHeaderIndices={[0]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
@@ -232,15 +202,14 @@ function EmptyState({
   onAddFriend: () => void;
   onOpenSettings: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>Nothing to compare yet</Text>
       <Text style={styles.emptyBody}>
-        Add your FPL team ID in Settings, then add some friends to start
-        comparing scores and ranks.
+        Add your FPL team ID in Settings, then add some friends to start comparing scores
+        and ranks.
       </Text>
       <Pressable
         onPress={onAddFriend}
@@ -251,10 +220,7 @@ function EmptyState({
       </Pressable>
       <Pressable
         onPress={onOpenSettings}
-        style={({ pressed }) => [
-          styles.secondaryBtn,
-          pressed && styles.pressed,
-        ]}
+        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
         accessibilityRole="button"
       >
         <Text style={styles.secondaryBtnText}>Set your team ID</Text>
@@ -272,7 +238,6 @@ function TableHeader({
   sortDir: SortDir;
   onHeaderPress: (col: SortColumn) => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -302,7 +267,6 @@ function ColumnHeaderButton({
   direction: SortDir | null;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const arrow = direction === 'asc' ? ' ↑' : direction === 'desc' ? ' ↓' : '';
@@ -314,11 +278,7 @@ function ColumnHeaderButton({
       accessibilityLabel={`Sort by ${label}`}
     >
       <Text
-        style={[
-          styles.colHeader,
-          styles.colNumeric,
-          active && styles.colHeaderActive,
-        ]}
+        style={[styles.colHeader, styles.colNumeric, active && styles.colHeaderActive]}
       >
         {label}
         {arrow}
@@ -328,7 +288,6 @@ function ColumnHeaderButton({
 }
 
 function Row({ row }: { row: ComparisonRow }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const { target, state } = row;
@@ -366,15 +325,19 @@ function displayAlias(row: ComparisonRow): string {
   return row.target.alias;
 }
 
-function RowSubtext({ state, teamId }: { state: RowState; teamId: string }) {
-  const { colors } = useTheme();
+function RowSubtext({
+  state,
+  teamId,
+}: {
+  state: ParallelFetchRowState<Entry>;
+  teamId: string;
+}) {
   const styles = useThemedStyles(makeStyles);
 
   if (state.status === 'error') {
+    const notFound = state.error instanceof EntryNotFoundError;
     return (
-      <Text style={styles.rowError}>
-        {state.kind === 'not_found' ? 'Team not found' : "Couldn't load"}
-      </Text>
+      <Text style={styles.rowError}>{notFound ? 'Team not found' : "Couldn't load"}</Text>
     );
   }
   // Manager name as the secondary line — stable across the season even
@@ -394,10 +357,9 @@ function CellValue({
   state,
   field,
 }: {
-  state: RowState;
+  state: ParallelFetchRowState<Entry>;
   field: SortColumn;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   if (state.status !== 'ok') {
@@ -408,22 +370,9 @@ function CellValue({
     field === 'rank'
       ? formatRank(d.summary_overall_rank)
       : field === 'gw'
-      ? formatInt(d.summary_event_points)
-      : formatInt(d.summary_overall_points);
+        ? formatInt(d.summary_event_points)
+        : formatInt(d.summary_overall_points);
   return <Text style={[styles.rowCell, styles.colNumeric]}>{value}</Text>;
-}
-
-function formatRank(n: number | null): string {
-  if (n == null) return '—';
-  // Compact thousands for headroom on narrow screens.
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  return n.toLocaleString();
-}
-
-function formatInt(n: number | null): string {
-  if (n == null) return '—';
-  return n.toLocaleString();
 }
 
 const COL_NUMERIC_WIDTH = 62;
@@ -452,7 +401,11 @@ const makeStyles = (colors: Colors) =>
       borderRadius: radius.base,
       backgroundColor: colors.accent,
     },
-    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    primaryBtnText: {
+      color: colors.onAccent,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     secondaryBtn: {
       paddingHorizontal: spacing.xxl,
       paddingVertical: spacing.lg,
@@ -512,7 +465,11 @@ const makeStyles = (colors: Colors) =>
       fontSize: fontSize.sm,
       fontVariant: ['tabular-nums'],
     },
-    rowError: { marginTop: spacing.hairline, color: colors.danger, fontSize: fontSize.sm },
+    rowError: {
+      marginTop: spacing.hairline,
+      color: colors.danger,
+      fontSize: fontSize.sm,
+    },
     colNumeric: {
       width: COL_NUMERIC_WIDTH,
       textAlign: 'right',

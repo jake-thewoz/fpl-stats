@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type GameweekLiveElement = {
   id: number;
@@ -25,8 +25,9 @@ export async function fetchGameweekLive(
   gameweek: number,
   signal?: AbortSignal,
 ): Promise<GameweekLiveResponse> {
-  const res = await fetch(`${API_BASE_URL}/gameweek/${gameweek}/live`, { signal });
-  if (res.status === 404) throw new GameweekLiveNotFoundError(gameweek);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as GameweekLiveResponse;
+  return requestJson<GameweekLiveResponse>(`/gameweek/${gameweek}/live`, {
+    signal,
+    mapStatus: (status) =>
+      status === 404 ? new GameweekLiveNotFoundError(gameweek) : undefined,
+  });
 }

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type Pick = {
   element: number;
@@ -43,11 +43,9 @@ export async function fetchEntryGameweek(
   gameweek: number,
   signal?: AbortSignal,
 ): Promise<EntryGameweekResponse> {
-  const res = await fetch(
-    `${API_BASE_URL}/entry/${teamId}/gameweek/${gameweek}`,
-    { signal },
-  );
-  if (res.status === 404) throw new PicksNotFoundError(teamId, gameweek);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as EntryGameweekResponse;
+  return requestJson<EntryGameweekResponse>(`/entry/${teamId}/gameweek/${gameweek}`, {
+    signal,
+    mapStatus: (status) =>
+      status === 404 ? new PicksNotFoundError(teamId, gameweek) : undefined,
+  });
 }

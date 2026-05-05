@@ -1,47 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
 import { fetchMyTeam } from '../api/myTeam';
 import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
-import {
-  DEFAULT_COLUMNS,
-  DEFAULT_SORT,
-  FIELD_DEFS,
-} from '../players/fields';
-import {
-  loadColumns,
-  loadFilters,
-  loadSort,
-  saveColumns,
-  saveFilters,
-  saveSort,
-} from '../players/storage';
-import {
-  applyAll,
-  activeFilterCount,
-} from '../players/apply';
-import {
-  EMPTY_FILTER,
-  type FieldKey,
-  type FilterState,
-  type JoinedPlayer,
-  type SortState,
-} from '../players/types';
+import { FIELD_DEFS } from '../players/fields';
+import { applyAll, activeFilterCount } from '../players/apply';
+import { POSITION_CODES } from '../players/positions';
+import type { FieldKey, JoinedPlayer } from '../players/types';
 import type { PlayersScreenProps } from '../navigation/types';
 import {
   effects,
@@ -54,57 +29,32 @@ import {
 } from '../theme';
 
 const SEARCH_DEBOUNCE_MS = 300;
-const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
 
 type CombinedData = {
   players: JoinedPlayer[];
 };
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   // Combined fetch: /players + /analytics/players/xp joined by id.
-  const fetcher = useCallback(
-    async (signal: AbortSignal): Promise<CombinedData> => {
-      const [playersResp, xpResp] = await Promise.all([
-        fetchPlayers(signal),
-        fetchPlayersXp(signal),
-      ]);
-      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
-      const players: JoinedPlayer[] = playersResp.players.map((p) =>
-        toJoined(p, xpById.get(p.id)),
-      );
-      return { players };
-    },
-    [],
-  );
+  const fetcher = useCallback(async (signal: AbortSignal): Promise<CombinedData> => {
+    const [playersResp, xpResp] = await Promise.all([
+      fetchPlayers(signal),
+      fetchPlayersXp(signal),
+    ]);
+    const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
+    const players: JoinedPlayer[] = playersResp.players.map((p) =>
+      toJoined(p, xpById.get(p.id)),
+    );
+    return { players };
+  }, []);
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
-  // Columns / filters / sort are shared across screens via a single set
-  // of AsyncStorage keys. We re-read on every focus so changes made on
-  // the My Team tab are picked up when the user returns here. The
-  // re-read is cheap (microseconds) and avoids needing a global state
-  // context for what's effectively rarely-changing config.
-  const [columns, setColumns] = useState<FieldKey[]>(DEFAULT_COLUMNS);
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
-        ([c, f, s]) => {
-          if (!alive) return;
-          setColumns(c);
-          setFilters(f);
-          setSort(s);
-        },
-      );
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
+  // Columns / filters / sort are shared with the My Team tab via a
+  // single set of AsyncStorage keys; the hook re-reads on focus.
+  const { columns, filters, sort, setColumns, setFilters, setSort } =
+    useFocusedPlayersConfig();
 
   // Owned-player decoration (#99): players in the user's current squad
   // are dimmed on the Players list, mirroring FPL's own "this isn't a
@@ -155,7 +105,10 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const players = state.status === 'ok' ? state.data.players : [];
+  const players = useMemo<JoinedPlayer[]>(
+    () => (state.status === 'ok' ? state.data.players : []),
+    [state],
+  );
 
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
@@ -168,31 +121,15 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
     [players, searchQuery, filters, sort],
   );
 
-  // Persisters: any state change triggers an async save without blocking
-  // the UI. The screen-key argument keeps Players' choices separate from
-  // My Team's.
-  const onChangeColumns = useCallback((next: FieldKey[]) => {
-    setColumns(next);
-    saveColumns(next);
-  }, []);
-  const onChangeFilters = useCallback((next: FilterState) => {
-    setFilters(next);
-    saveFilters(next);
-  }, []);
-  const onChangeSort = useCallback((next: SortState) => {
-    setSort(next);
-    saveSort(next);
-  }, []);
-
   const onTapColumnHeader = useCallback(
     (key: FieldKey) => {
       if (sort.field === key) {
-        onChangeSort({ field: key, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
+        setSort({ field: key, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
       } else {
-        onChangeSort({ field: key, dir: FIELD_DEFS[key].defaultSortDir });
+        setSort({ field: key, dir: FIELD_DEFS[key].defaultSortDir });
       }
     },
-    [sort, onChangeSort],
+    [sort, setSort],
   );
 
   if (state.status === 'loading') return <LoadingView />;
@@ -253,10 +190,8 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         visible={columnsOpen}
         selected={columns}
         onToggle={(key) =>
-          onChangeColumns(
-            columns.includes(key)
-              ? columns.filter((c) => c !== key)
-              : [...columns, key],
+          setColumns(
+            columns.includes(key) ? columns.filter((c) => c !== key) : [...columns, key],
           )
         }
         onClose={() => setColumnsOpen(false)}
@@ -264,9 +199,9 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
       <FilterDialog
         visible={filtersOpen}
         filter={filters}
-        positions={[...POSITION_ORDER]}
+        positions={[...POSITION_CODES]}
         teams={availableTeams}
-        onApply={onChangeFilters}
+        onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
       />
     </View>
@@ -312,8 +247,12 @@ function toJoined(
 }
 
 function SearchBar({
-  value, onChange,
-}: { value: string; onChange: (v: string) => void }) {
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -333,13 +272,14 @@ function SearchBar({
 }
 
 function ControlBar({
-  filterCount, onOpenFilter, onOpenColumns,
+  filterCount,
+  onOpenFilter,
+  onOpenColumns,
 }: {
   filterCount: number;
   onOpenFilter: () => void;
   onOpenColumns: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -355,9 +295,14 @@ function ControlBar({
 }
 
 function ControlButton({
-  label, active, onPress,
-}: { label: string; active?: boolean; onPress: () => void }) {
-  const { colors } = useTheme();
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -370,15 +315,12 @@ function ControlButton({
       ]}
       accessibilityRole="button"
     >
-      <Text
-        style={[styles.controlBtnText, active && styles.controlBtnTextActive]}
-      >
+      <Text style={[styles.controlBtnText, active && styles.controlBtnTextActive]}>
         {label}
       </Text>
     </Pressable>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -438,7 +380,11 @@ const makeStyles = (colors: Colors) =>
 
     // Used by renderNameCell passed to PlayerListTable.
     nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
-    subText: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.hairline },
+    subText: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      marginTop: spacing.hairline,
+    },
     // Surface-coloured backdrop sits behind the text so it stays legible
     // against the club gradient. Self-shrinks to the text width via
     // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the
