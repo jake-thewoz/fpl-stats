@@ -5,41 +5,24 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeam, type SquadEntry } from '../api/myTeam';
 import { fetchPlayersXp } from '../api/playersXp';
 import type { Entry } from '../api/entry';
-import { getFplTeamId } from '../storage/user';
 import { useFetch } from '../hooks/useFetch';
+import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
+import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
-import {
-  DEFAULT_COLUMNS,
-  DEFAULT_SORT,
-  FIELD_DEFS,
-} from '../players/fields';
-import {
-  loadColumns,
-  loadFilters,
-  loadSort,
-  saveColumns,
-  saveFilters,
-  saveSort,
-} from '../players/storage';
-import {
-  applyAll,
-  activeFilterCount,
-} from '../players/apply';
-import {
-  EMPTY_FILTER,
-  type FieldKey,
-  type FilterState,
-  type JoinedPlayer,
-  type SortState,
+import { FIELD_DEFS } from '../players/fields';
+import { applyAll, activeFilterCount } from '../players/apply';
+import { POSITION_CODES } from '../players/positions';
+import type {
+  FieldKey,
+  JoinedPlayer,
 } from '../players/types';
 import type { MyTeamScreenProps } from '../navigation/types';
 import {
@@ -54,8 +37,6 @@ import {
 
 type Props = MyTeamScreenProps;
 
-const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'] as const;
-
 /** Per-row decoration data that's My-Team-specific (captain/bench/this
  *  GW points). Lives alongside the shared JoinedPlayer fields rather
  *  than baking them into the cross-screen type. */
@@ -69,28 +50,7 @@ type MyTeamRow = JoinedPlayer & {
 };
 
 export default function MyTeamScreen({ navigation }: Props) {
-  const { colors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-
-  const [teamId, setTeamId] = useState<string | null | undefined>(undefined);
-
-  // Re-read the team id every time this screen gains focus, not just on
-  // first mount. The user can change their team id from Settings; without
-  // this, the new id wouldn't propagate until the app fully reloads.
-  // (The Friends tab already does this; My Team and Transfers were the
-  // outliers.)
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      getFplTeamId().then((id) => {
-        if (alive) setTeamId(id);
-      });
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
-
+  const teamId = useFocusedTeamId();
   if (teamId === undefined) return <LoadingView />;
   if (teamId === null) {
     return (
@@ -124,27 +84,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   );
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
-  // Columns / filters / sort are shared with the Players tab via single
-  // global keys. Re-read on focus so changes made over there appear here.
-  const [columns, setColumns] = useState<FieldKey[]>(DEFAULT_COLUMNS);
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
-        ([c, f, s]) => {
-          if (!alive) return;
-          setColumns(c);
-          setFilters(f);
-          setSort(s);
-        },
-      );
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
+  // Columns / filters / sort are shared with the Players tab via a
+  // single set of AsyncStorage keys; the hook re-reads on focus.
+  const { columns, filters, sort, setColumns, setFilters, setSort } =
+    useFocusedPlayersConfig();
 
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -163,28 +106,15 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     [rows, filters, sort],
   );
 
-  const onChangeColumns = useCallback((next: FieldKey[]) => {
-    setColumns(next);
-    saveColumns(next);
-  }, []);
-  const onChangeFilters = useCallback((next: FilterState) => {
-    setFilters(next);
-    saveFilters(next);
-  }, []);
-  const onChangeSort = useCallback((next: SortState) => {
-    setSort(next);
-    saveSort(next);
-  }, []);
-
   const onTapColumnHeader = useCallback(
     (key: FieldKey) => {
       if (sort.field === key) {
-        onChangeSort({ field: key, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
+        setSort({ field: key, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
       } else {
-        onChangeSort({ field: key, dir: FIELD_DEFS[key].defaultSortDir });
+        setSort({ field: key, dir: FIELD_DEFS[key].defaultSortDir });
       }
     },
-    [sort, onChangeSort],
+    [sort, setSort],
   );
 
   if (state.status === 'loading') return <LoadingView />;
@@ -242,7 +172,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         visible={columnsOpen}
         selected={columns}
         onToggle={(key) =>
-          onChangeColumns(
+          setColumns(
             columns.includes(key)
               ? columns.filter((c) => c !== key)
               : [...columns, key],
@@ -253,9 +183,9 @@ function MyTeamContent({ teamId }: { teamId: string }) {
       <FilterDialog
         visible={filtersOpen}
         filter={filters}
-        positions={[...POSITION_ORDER]}
+        positions={[...POSITION_CODES]}
         teams={availableTeams}
-        onApply={onChangeFilters}
+        onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
       />
     </View>

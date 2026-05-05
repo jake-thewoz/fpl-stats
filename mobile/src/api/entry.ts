@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { requestJson } from './http';
 
 export type Entry = {
   id: number;
@@ -35,8 +35,9 @@ export async function fetchEntry(
   teamId: string,
   signal?: AbortSignal,
 ): Promise<EntryResponse> {
-  const res = await fetch(`${API_BASE_URL}/entry/${teamId}`, { signal });
-  if (res.status === 404) throw new EntryNotFoundError(teamId);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as EntryResponse;
+  return requestJson<EntryResponse>(`/entry/${teamId}`, {
+    signal,
+    mapStatus: (status) =>
+      status === 404 ? new EntryNotFoundError(teamId) : undefined,
+  });
 }
