@@ -26,7 +26,7 @@
  *   doesn't carry one — the spinner would render twice otherwise. Users
  *   will most often pull from the name column anyway.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   type LayoutChangeEvent,
@@ -101,34 +101,28 @@ export function PlayerListTable<T extends JoinedPlayer>({
   // loop. Cleared on the next driven onScroll event.
   const syncing = useRef<'left' | 'right' | null>(null);
 
-  const onLeftScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (syncing.current === 'left') {
-        syncing.current = null;
-        return;
-      }
-      syncing.current = 'right';
-      rightRef.current?.scrollToOffset({
-        offset: e.nativeEvent.contentOffset.y,
-        animated: false,
-      });
-    },
-    [],
-  );
-  const onRightScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (syncing.current === 'right') {
-        syncing.current = null;
-        return;
-      }
-      syncing.current = 'left';
-      leftRef.current?.scrollToOffset({
-        offset: e.nativeEvent.contentOffset.y,
-        animated: false,
-      });
-    },
-    [],
-  );
+  const onLeftScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (syncing.current === 'left') {
+      syncing.current = null;
+      return;
+    }
+    syncing.current = 'right';
+    rightRef.current?.scrollToOffset({
+      offset: e.nativeEvent.contentOffset.y,
+      animated: false,
+    });
+  }, []);
+  const onRightScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (syncing.current === 'right') {
+      syncing.current = null;
+      return;
+    }
+    syncing.current = 'left';
+    leftRef.current?.scrollToOffset({
+      offset: e.nativeEvent.contentOffset.y,
+      animated: false,
+    });
+  }, []);
 
   // Measure the right column's available width so we can stretch the
   // data cells to fill the viewport when there aren't enough active
@@ -142,8 +136,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
     setRightAreaWidth((prev) => (prev === w ? prev : w));
   }, []);
   const cellsTotalWidth = columns.length * CELL_WIDTH;
-  const cellsFitInViewport =
-    rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
+  const cellsFitInViewport = rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
   /** On native, when cells fit with room to spare, stretch them to fill
    *  (flex: 1, minWidth keeps short labels readable) — without this a
    *  2-column table on a 400px phone ends ~150px in and leaves the rest
@@ -153,11 +146,12 @@ export function PlayerListTable<T extends JoinedPlayer>({
    *  the left. Fixed-width cells with `justifyContent: space-evenly`
    *  on the row distribute slack between and around the cells so each
    *  reads as visually balanced instead. */
-  const stretchCellsToFill =
-    cellsFitInViewport && Platform.OS !== 'web';
-  const cellLayout = stretchCellsToFill
-    ? { flex: 1, minWidth: CELL_WIDTH }
-    : { width: CELL_WIDTH };
+  const stretchCellsToFill = cellsFitInViewport && Platform.OS !== 'web';
+  const cellLayout = useMemo(
+    () =>
+      stretchCellsToFill ? { flex: 1, minWidth: CELL_WIDTH } : { width: CELL_WIDTH },
+    [stretchCellsToFill],
+  );
   const dataWidth = cellsFitInViewport ? rightAreaWidth : cellsTotalWidth;
 
   const getItemLayout = useCallback(
@@ -178,11 +172,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
             const def = FIELD_DEFS[c];
             const value = def.accessor(item);
             return (
-              <Text
-                key={c}
-                style={[styles.dataCell, cellLayout]}
-                numberOfLines={1}
-              >
+              <Text key={c} style={[styles.dataCell, cellLayout]} numberOfLines={1}>
                 {def.format(value)}
               </Text>
             );
@@ -190,17 +180,15 @@ export function PlayerListTable<T extends JoinedPlayer>({
         </View>
       );
     },
-    [columns, dataWidth, getRowStyle, cellLayout],
+    [columns, dataWidth, getRowStyle, cellLayout, styles.rightRow, styles.dataCell],
   );
 
   const renderLeftRow = useCallback(
     ({ item }: { item: T }) => {
       const rowStyle = getRowStyle?.(item);
-      return (
-        <View style={[styles.leftRow, rowStyle]}>{renderNameCell(item)}</View>
-      );
+      return <View style={[styles.leftRow, rowStyle]}>{renderNameCell(item)}</View>;
     },
-    [renderNameCell, getRowStyle],
+    [renderNameCell, getRowStyle, styles.leftRow],
   );
 
   return (
@@ -220,15 +208,10 @@ export function PlayerListTable<T extends JoinedPlayer>({
           scrollEventThrottle={16}
           refreshControl={
             onRefresh != null ? (
-              <RefreshControl
-                refreshing={refreshing ?? false}
-                onRefresh={onRefresh}
-              />
+              <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} />
             ) : undefined
           }
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>{emptyMessage}</Text>
-          }
+          ListEmptyComponent={<Text style={styles.emptyText}>{emptyMessage}</Text>}
           showsVerticalScrollIndicator={false}
         />
       </View>

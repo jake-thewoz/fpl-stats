@@ -13,9 +13,7 @@ export function applySearch(
   const q = query.trim().toLowerCase();
   if (!q) return [...players];
   return players.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.team.toLowerCase().includes(q),
+    (p) => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q),
   );
 }
 

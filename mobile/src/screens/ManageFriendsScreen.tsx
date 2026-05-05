@@ -1,11 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getFriends, removeFriend, type Friend } from '../storage/friends';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -15,7 +9,6 @@ import {
   fontSize,
   radius,
   spacing,
-  useTheme,
   useThemedStyles,
   type Colors,
 } from '../theme';
@@ -23,7 +16,6 @@ import {
 type Props = ManageFriendsScreenProps;
 
 export default function ManageFriendsScreen({ navigation }: Props) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const [friends, setFriends] = useState<Friend[] | null>(null);
@@ -91,14 +83,7 @@ export default function ManageFriendsScreen({ navigation }: Props) {
   );
 }
 
-function EmptyState({
-  onAdd,
-  onImport,
-}: {
-  onAdd: () => void;
-  onImport: () => void;
-}) {
-  const { colors } = useTheme();
+function EmptyState({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -125,14 +110,7 @@ function EmptyState({
   );
 }
 
-function FriendRow({
-  friend,
-  onRemove,
-}: {
-  friend: Friend;
-  onRemove: () => void;
-}) {
-  const { colors } = useTheme();
+function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: () => void }) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -156,14 +134,7 @@ function FriendRow({
   );
 }
 
-function ListFooter({
-  onAdd,
-  onImport,
-}: {
-  onAdd: () => void;
-  onImport: () => void;
-}) {
-  const { colors } = useTheme();
+function ListFooter({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -210,7 +181,11 @@ const makeStyles = (colors: Colors) =>
       borderRadius: radius.base,
       backgroundColor: colors.accent,
     },
-    primaryBtnText: { color: colors.onAccent, fontSize: fontSize.base, fontWeight: '600' },
+    primaryBtnText: {
+      color: colors.onAccent,
+      fontSize: fontSize.base,
+      fontWeight: '600',
+    },
     secondaryBtn: {
       paddingHorizontal: spacing.xxl,
       paddingVertical: spacing.lg,
@@ -251,7 +226,11 @@ const makeStyles = (colors: Colors) =>
       backgroundColor: 'transparent',
     },
     removeBtnText: { color: colors.danger, fontSize: fontSize.sm2, fontWeight: '600' },
-    footerWrap: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.base },
+    footerWrap: {
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.xl,
+      gap: spacing.base,
+    },
     addBtn: {
       paddingVertical: spacing.lg,
       borderRadius: radius.base,

@@ -35,9 +35,7 @@ export function PlayerBlock({
         align === 'right' ? styles.playerBlockRight : styles.playerBlockLeft,
       ]}
     >
-      {team ? (
-        <ClubBackground teamShort={team} mirror={align === 'right'} />
-      ) : null}
+      {team ? <ClubBackground teamShort={team} mirror={align === 'right'} /> : null}
       <View style={styles.playerTextBackdrop}>
         <Text style={styles.playerName} numberOfLines={1}>
           {name}
@@ -84,9 +82,7 @@ export function CenterBadge({
         <Text
           style={[
             styles.deltaXpPillText,
-            positive
-              ? styles.deltaXpPillTextPositive
-              : styles.deltaXpPillTextNegative,
+            positive ? styles.deltaXpPillTextPositive : styles.deltaXpPillTextNegative,
           ]}
         >
           {xpStr}
@@ -129,9 +125,7 @@ export function BankDeltaPill({ costChange }: { costChange: number }) {
       <Text
         style={[
           styles.bankDeltaPillText,
-          positive
-            ? styles.bankDeltaPillTextPositive
-            : styles.bankDeltaPillTextNegative,
+          positive ? styles.bankDeltaPillTextPositive : styles.bankDeltaPillTextNegative,
         ]}
       >
         {text}

@@ -1,9 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import {
-  Pressable,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { fetchMyTeam, type SquadEntry } from '../../api/myTeam';
 import { fetchPlayersXp } from '../../api/playersXp';
 import { useFetch } from '../../hooks/useFetch';
@@ -51,10 +47,11 @@ function MyTeamContent({ teamId }: { teamId: string }) {
       ]);
       const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
       const rows: MyTeamRow[] = myTeam.squad
-        .filter((s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
-          s.player != null,
+        .filter(
+          (s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
+            s.player != null,
         )
-        .map((s) => toMyTeamRow(s, xpById.get(s.player!.id)));
+        .map((s) => toMyTeamRow(s, xpById.get(s.player.id)));
       return { myTeam, rows };
     },
     [teamId],
@@ -69,7 +66,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const rows = state.status === 'ok' ? state.data.rows : [];
+  const rows = useMemo<MyTeamRow[]>(
+    () => (state.status === 'ok' ? state.data.rows : []),
+    [state],
+  );
 
   const availableTeams = useMemo(() => {
     const set = new Set<string>();
@@ -110,9 +110,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   return (
     <View style={styles.container}>
       <Header entry={myTeam.entry} gameweek={myTeam.gameweek} />
-      {myTeam.picksError ? (
-        <PicksUnavailableNote message={myTeam.picksError} />
-      ) : null}
+      {myTeam.picksError ? <PicksUnavailableNote message={myTeam.picksError} /> : null}
       {myTeam.picks?.active_chip ? (
         <ChipBanner
           chip={myTeam.picks.active_chip}
@@ -150,9 +148,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         selected={columns}
         onToggle={(key) =>
           setColumns(
-            columns.includes(key)
-              ? columns.filter((c) => c !== key)
-              : [...columns, key],
+            columns.includes(key) ? columns.filter((c) => c !== key) : [...columns, key],
           )
         }
         onClose={() => setColumnsOpen(false)}
@@ -170,10 +166,10 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 }
 
 function toMyTeamRow(
-  s: SquadEntry,
+  s: SquadEntry & { player: NonNullable<SquadEntry['player']> },
   xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
 ): MyTeamRow {
-  const player = s.player!;
+  const { player } = s;
   const formNum = parseFloat(player.form);
   return {
     id: player.id,
@@ -208,7 +204,9 @@ function toMyTeamRow(
 }
 
 function ControlBar({
-  filterCount, onOpenFilter, onOpenColumns,
+  filterCount,
+  onOpenFilter,
+  onOpenColumns,
 }: {
   filterCount: number;
   onOpenFilter: () => void;
@@ -229,8 +227,14 @@ function ControlBar({
 }
 
 function ControlButton({
-  label, active, onPress,
-}: { label: string; active?: boolean; onPress: () => void }) {
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -243,9 +247,7 @@ function ControlButton({
       ]}
       accessibilityRole="button"
     >
-      <Text
-        style={[styles.controlBtnText, active && styles.controlBtnTextActive]}
-      >
+      <Text style={[styles.controlBtnText, active && styles.controlBtnTextActive]}>
         {label}
       </Text>
     </Pressable>
@@ -259,8 +261,7 @@ function NoTeamIdView({ onOpenSettings }: { onOpenSettings: () => void }) {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No team ID set</Text>
       <Text style={styles.emptyBody}>
-        Add your Fantasy Premier League team ID in Settings to see your squad
-        here.
+        Add your Fantasy Premier League team ID in Settings to see your squad here.
       </Text>
       <Pressable
         onPress={onOpenSettings}

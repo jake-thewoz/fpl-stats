@@ -43,14 +43,12 @@ export function useFocusedPlayersConfig(): FocusedPlayersConfig {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(
-        ([c, f, s]) => {
-          if (!alive) return;
-          setColumnsState(c);
-          setFiltersState(f);
-          setSortState(s);
-        },
-      );
+      Promise.all([loadColumns(), loadFilters(), loadSort()]).then(([c, f, s]) => {
+        if (!alive) return;
+        setColumnsState(c);
+        setFiltersState(f);
+        setSortState(s);
+      });
       return () => {
         alive = false;
       };

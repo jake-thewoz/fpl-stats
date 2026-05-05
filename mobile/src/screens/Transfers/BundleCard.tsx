@@ -10,9 +10,7 @@ import { makeStyles } from './styles';
  *  refreshes so an expanded card stays expanded if the same bundle is
  *  still in the list. */
 export function bundleKey(bundle: TransferBundle): string {
-  return bundle.moves
-    .map((m) => `${m.out.player_id}-${m.in.player_id}`)
-    .join('|');
+  return bundle.moves.map((m) => `${m.out.player_id}-${m.in.player_id}`).join('|');
 }
 
 export function BundleCard({
@@ -49,10 +47,7 @@ export function BundleCard({
               fallback={move.out.web_name}
               player={playersById.get(move.out.player_id)}
             />
-            <CenterBadge
-              deltaXp={move.delta_xp}
-              costChange={move.cost_change}
-            />
+            <CenterBadge deltaXp={move.delta_xp} costChange={move.cost_change} />
             <PlayerBlock
               align="right"
               fallback={move.in.web_name}

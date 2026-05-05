@@ -1,11 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import {
-  fontSize,
-  radius,
-  spacing,
-  useThemedStyles,
-  type Colors,
-} from '../../theme';
+import { fontSize, radius, spacing, useThemedStyles, type Colors } from '../../theme';
 
 type Props = {
   label: string;

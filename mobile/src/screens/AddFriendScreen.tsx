@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { addFriend } from '../storage/friends';
 import { isValidFplTeamId } from '../storage/user';
@@ -163,9 +157,7 @@ export default function AddFriendScreen({ navigation }: Props) {
             ]}
             accessibilityRole="button"
           >
-            <Text style={styles.primaryBtnText}>
-              {saving ? 'Saving…' : 'Add friend'}
-            </Text>
+            <Text style={styles.primaryBtnText}>{saving ? 'Saving…' : 'Add friend'}</Text>
           </Pressable>
         </View>
       )}
@@ -233,7 +225,11 @@ const makeStyles = (colors: Colors) =>
       fontWeight: '700',
       color: colors.textPrimary,
     },
-    previewManager: { marginTop: spacing.hairline, color: colors.textMuted, fontSize: fontSize.md },
+    previewManager: {
+      marginTop: spacing.hairline,
+      color: colors.textMuted,
+      fontSize: fontSize.md,
+    },
     error: {
       paddingHorizontal: spacing.xs,
       color: colors.danger,

@@ -43,12 +43,9 @@ export async function fetchEntryGameweek(
   gameweek: number,
   signal?: AbortSignal,
 ): Promise<EntryGameweekResponse> {
-  return requestJson<EntryGameweekResponse>(
-    `/entry/${teamId}/gameweek/${gameweek}`,
-    {
-      signal,
-      mapStatus: (status) =>
-        status === 404 ? new PicksNotFoundError(teamId, gameweek) : undefined,
-    },
-  );
+  return requestJson<EntryGameweekResponse>(`/entry/${teamId}/gameweek/${gameweek}`, {
+    signal,
+    mapStatus: (status) =>
+      status === 404 ? new PicksNotFoundError(teamId, gameweek) : undefined,
+  });
 }

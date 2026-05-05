@@ -1,11 +1,5 @@
 import { StyleSheet } from 'react-native';
-import {
-  effects,
-  fontSize,
-  radius,
-  spacing,
-  type Colors,
-} from '../../theme';
+import { effects, fontSize, radius, spacing, type Colors } from '../../theme';
 
 /**
  * Shared makeStyles for every component in the MyTeam folder.

@@ -1,11 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  FlatList,
-  LayoutAnimation,
-  RefreshControl,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, LayoutAnimation, RefreshControl, Text, View } from 'react-native';
 import type { Player } from '../../api/players';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
@@ -62,9 +56,7 @@ export function SuggestionsList({
         />
       }
       contentContainerStyle={styles.listContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
@@ -91,9 +83,7 @@ function Header({
     freeTransfers === 1 ? '1 free transfer' : `${freeTransfers} free transfers`;
   return (
     <View style={styles.header}>
-      <Text style={styles.headerLine}>
-        Top transfers across {range}
-      </Text>
+      <Text style={styles.headerLine}>Top transfers across {range}</Text>
       <Text style={styles.headerSub}>
         {ftLabel}
         {typeof currentSquadXp === 'number'
@@ -102,9 +92,8 @@ function Header({
       </Text>
       {freehitActive ? (
         <Text style={styles.headerFreehitNote}>
-          Free Hit active — suggestions are for your persistent squad (not the
-          temporary FH eleven), so they apply once your real team reappears
-          at the next deadline.
+          Free Hit active — suggestions are for your persistent squad (not the temporary
+          FH eleven), so they apply once your real team reappears at the next deadline.
         </Text>
       ) : null}
     </View>

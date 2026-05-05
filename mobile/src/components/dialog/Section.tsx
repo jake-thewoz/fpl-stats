@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import {
-  fontSize,
-  spacing,
-  useThemedStyles,
-  type Colors,
-} from '../../theme';
+import { fontSize, spacing, useThemedStyles, type Colors } from '../../theme';
 
 type Props = {
   /** Uppercase muted heading. Optional — ColumnPicker has hint-only
@@ -29,9 +24,7 @@ export function Section({ title, hint, children }: Props) {
   return (
     <View style={styles.section}>
       {title ? (
-        <Text style={[styles.title, hint && styles.titleWithHint]}>
-          {title}
-        </Text>
+        <Text style={[styles.title, hint && styles.titleWithHint]}>{title}</Text>
       ) : null}
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       <View style={styles.body}>{children}</View>

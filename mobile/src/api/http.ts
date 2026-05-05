@@ -30,10 +30,7 @@ export type RequestJsonInit = RequestInit & {
  * disambiguate same-status errors via body shape can read it.
  * Endpoints that don't need it can ignore the second argument.
  */
-export async function requestJson<T>(
-  path: string,
-  init?: RequestJsonInit,
-): Promise<T> {
+export async function requestJson<T>(path: string, init?: RequestJsonInit): Promise<T> {
   const { mapStatus, ...fetchInit } = init ?? {};
   const res = await fetch(`${API_BASE_URL}${path}`, fetchInit);
   if (!res.ok) {
