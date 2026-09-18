@@ -35,8 +35,8 @@ A `shared/` package for cross-boundary types will be introduced the first time a
 ### Backend infra (`cd backend`)
 - `npm install` — first-time setup
 - `npm run build` — compile CDK TS → JS
-- `npm run test` — jest unit tests (for stacks)
-- `npx cdk synth` — render CloudFormation without deploying
+- `npm run test` — jest unit tests (for stacks). Skips `PythonFunction` bundling, so it needs no Docker and runs in ~30s rather than ~5min.
+- `npx cdk synth` — render CloudFormation without deploying (bundles for real, so Docker is required)
 - `npx cdk diff` — diff deployed stack vs local
 - `npx cdk deploy` — deploy (requires `cdk bootstrap` once per account/region, and Docker running locally for `PythonFunction` bundling)
 
@@ -44,6 +44,14 @@ A `shared/` package for cross-boundary types will be introduced the first time a
 - `python -m venv .venv && source .venv/bin/activate` — first-time setup
 - `pip install -r requirements.txt -r requirements-dev.txt`
 - `pytest` — unit tests
+
+## Working from a cloud sandbox (no AWS access)
+
+Sessions started from claude.ai/code run in a sandbox holding **only this repo**. There are no AWS credentials, so `cdk deploy`, `cdk diff`, and anything reading the live DynamoDB tables or S3 buckets are out of reach. Failures there are the expected state, not a fault to debug.
+
+What runs clean from a fresh clone, all verified: `backend` — `npm ci`, `npm run build`, `npm test`; each handler in `backend/lambdas/<name>` — venv, `pip install`, `pytest`; `mobile` — `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npm run format:check`.
+
+What does not: `cdk synth` and `cdk deploy`, which bundle Lambdas through Docker. CI covers the rest on every PR, so push the branch and read the checks.
 
 ## Conventions
 
@@ -66,3 +74,4 @@ A `shared/` package for cross-boundary types will be introduced the first time a
 - CDK infra (TS): jest.
 - Lambda handlers (Python): pytest.
 - Mobile: test setup TBD — will add when the first component justifies it.
+- CI (`.github/workflows/ci.yml`) runs all three on every PR and on pushes to `main`.

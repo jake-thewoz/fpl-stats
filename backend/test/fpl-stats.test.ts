@@ -1,13 +1,21 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { BUNDLING_STACKS } from 'aws-cdk-lib/cx-api';
 import { FplStatsStack } from '../lib/fpl-stats-stack';
 
-// Instantiating FplStatsStack triggers Docker-based PythonFunction
-// bundling for every Lambda — roughly 30 seconds. Do it once per file.
+// Instantiating FplStatsStack would trigger Docker-based PythonFunction
+// bundling for every Lambda — minutes of work, and impossible in any
+// environment without a Docker daemon. An empty bundling-stacks list
+// matches no stack, so the assets stage as placeholders instead. These
+// tests assert on stack structure, never on bundled asset contents, so
+// the placeholder is enough. `cdk synth` and `cdk deploy` still bundle
+// for real.
+const BUNDLE_NO_STACKS: string[] = [];
+
 let template: Template;
 
 beforeAll(() => {
-  const app = new cdk.App();
+  const app = new cdk.App({ context: { [BUNDLING_STACKS]: BUNDLE_NO_STACKS } });
   const stack = new FplStatsStack(app, 'TestStack');
   template = Template.fromStack(stack);
 });

@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  backend-infra:
+    name: Backend infra (build + jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  lambda-handlers:
+    name: Lambda handlers (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/lambdas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/lambdas/*/requirements*.txt
+      # Each handler owns its dependency boundary, so each gets its own
+      # virtualenv rather than one shared environment that would let a
+      # missing requirement pass unnoticed.
+      - name: Test every handler in its own virtualenv
+        run: |
+          set -euo pipefail
+          failed=()
+          for handler in */; do
+            name=${handler%/}
+            echo "::group::${name}"
+            python -m venv "${handler}.venv"
+            source "${handler}.venv/bin/activate"
+            pip install --quiet \
+              --requirement "${handler}requirements.txt" \
+              --requirement "${handler}requirements-dev.txt"
+            (cd "${handler}" && python -m pytest --quiet) || failed+=("${name}")
+            deactivate
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Handlers with failing tests: ${failed[*]}"
+            exit 1
+          fi
+
+  mobile:
+    name: Mobile (types + lint + format)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run format:check
