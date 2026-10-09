@@ -63,7 +63,7 @@ was deferred to ~GW10. Treat the GW5 run as a check, not a commitment.
 - **Re-fit `home_advantage` or `opp_strength_w_*`.** History rows don't
   carry an `opponent_strength` signal yet, so any "fit" of those slopes
   would be uninformed. Phase 3.x augments the training data with fixture
-  difficulty (or ClubELO win-prob) and refits these.
+  difficulty (or an Elo win-prob, #166) and refits these.
 - **Re-fit `overall_scale[pos]`.** Per-component mean-matching already
   calibrates absolute level. If Phase 4 backtest reveals residual bias
   at the position level, `overall_scale` becomes the right knob.

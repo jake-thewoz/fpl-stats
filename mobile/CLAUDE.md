@@ -40,7 +40,7 @@ If you need team-id + a follow-on fetch (like Players' `ownedIds` re-resolve), i
 ## Domain modules — single sources of truth
 
 - **`src/players/positions.ts`** — FPL element_type metadata. `POSITION_CODES` (string codes), `POSITION_IDS` (numeric ids), `POSITIONS_WITH_LABELS` (id + code + display label). **Don't redefine** the position list in screen files.
-- **`src/transfers/scoring.ts`** — `difficultyTone` / `eloTone` with named threshold constants (`DIFFICULTY_GOOD_MAX`, `ELO_GOOD_MIN`, etc.). Threshold tweaks happen here, not at call sites.
+- **`src/transfers/scoring.ts`** — `difficultyTone` with named threshold constants (`DIFFICULTY_GOOD_MAX`, `DIFFICULTY_MID_MAX`). Threshold tweaks happen here, not at call sites.
 - **`src/format/rank.ts`** — `formatRank` / `formatInt` with named threshold constants for the M/k compaction logic.
 
 ## Dialogs — `src/components/dialog/`

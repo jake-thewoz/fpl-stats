@@ -74,7 +74,7 @@ describe('SnapshotsBucket', () => {
 describe('Lambda log groups', () => {
   // Count has to match the number of FplPythonFunction instances declared in
   // FplStatsStack. Bump this when adding or removing a Lambda.
-  const EXPECTED_FUNCTION_COUNT = 15;
+  const EXPECTED_FUNCTION_COUNT = 14;
 
   test('every FplPythonFunction has an explicit LogGroup with 1-week retention', () => {
     template.resourceCountIs('AWS::Logs::LogGroup', EXPECTED_FUNCTION_COUNT);
@@ -96,7 +96,6 @@ describe('Ingestion alarms', () => {
   // for the noise pattern this guards against.
   const DEBOUNCED_ALARMS = [
     'IngestFplErrorsAlarm',
-    'IngestClubeloErrorsAlarm',
     'AnalyzePlayerFormErrorsAlarm',
     'AnalyzePlayerXpV2ErrorsAlarm',
   ];

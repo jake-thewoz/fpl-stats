@@ -304,17 +304,14 @@ def _read_player_forms(table: Any) -> dict[int, dict[str, float | None]]:
     """Per-player snapshot of the form analyzer's output, keyed by id.
 
     Each snapshot carries the fields the suggestions screen surfaces:
-    `form_score` (always populated by the analyzer), plus the two
-    fixture-quality signals which can be ``None`` when the upcoming
-    fixtures are missing FPL difficulty values or ClubELO ratings.
+    `form_score` (always populated by the analyzer), plus the
+    fixture-quality signal, which is ``None`` when the upcoming fixtures
+    are missing FPL difficulty values.
     """
     snapshots: dict[int, dict[str, float | None]] = {}
     kwargs: dict[str, Any] = {
         "KeyConditionExpression": Key("pk").eq("analytics#player_form"),
-        "ProjectionExpression": (
-            "sk, form_score, avg_upcoming_difficulty, "
-            "avg_upcoming_elo_expected_score"
-        ),
+        "ProjectionExpression": "sk, form_score, avg_upcoming_difficulty",
     }
     while True:
         resp = table.query(**kwargs)
@@ -325,9 +322,6 @@ def _read_player_forms(table: Any) -> dict[int, dict[str, float | None]]:
                     "form_score": float(item["form_score"]),
                     "avg_upcoming_difficulty": _opt_float(
                         item.get("avg_upcoming_difficulty")
-                    ),
-                    "avg_upcoming_elo_expected_score": _opt_float(
-                        item.get("avg_upcoming_elo_expected_score")
                     ),
                 }
             except (KeyError, ValueError, TypeError):
@@ -358,7 +352,6 @@ def _enriched_player(
     p = by_id[player_id]
     snap = snapshots.get(player_id, {})
     avg_diff = snap.get("avg_upcoming_difficulty")
-    avg_elo = snap.get("avg_upcoming_elo_expected_score")
     form = snap.get("form_score")
     return {
         "player_id": player_id,
@@ -368,16 +361,13 @@ def _enriched_player(
         "now_cost": p.now_cost,
         "horizon_xp": round(horizon_xps.get(player_id, 0.0), 4),
         # Fixture-quality signals surfaced for the expand-on-tap card
-        # (#97). All three are nullable: a player whose form analyzer
+        # (#97). Both are nullable: a player whose form analyzer
         # row is missing (new arrival, ingest race) gets ``None`` here
         # rather than zeroing out the value, so the UI can render "—"
         # instead of misleading numbers.
         "form_score": None if form is None else round(form, 4),
         "avg_upcoming_difficulty": (
             None if avg_diff is None else round(avg_diff, 4)
-        ),
-        "avg_upcoming_elo_expected_score": (
-            None if avg_elo is None else round(avg_elo, 4)
         ),
     }
 
@@ -549,7 +539,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
 
     # player_form rows drive the per-card UI fields (form_score,
-    # avg_upcoming_difficulty, avg_upcoming_elo_expected_score). Mobile's
+    # avg_upcoming_difficulty). Mobile's
     # expand-on-tap card relies on these even though horizon_xp is now
     # sourced from the v2 analytics rows.
     snapshots = _read_player_forms(table)

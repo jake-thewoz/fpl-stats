@@ -137,15 +137,14 @@ class FixtureContext:
     easier for the opponent's defenders). Centered at 0.5 — a mid-tier
     opponent leaves all fixture factors at 1.0.
 
-    ``elo_expected_score`` and ``fpl_difficulty`` are kept for diagnostic
-    output only; v2 does not multiplex on them. The Phase 2 pipeline
-    derives ``opponent_strength`` from whichever upstream signal is
-    cleanest (likely a normalized ClubELO win-prob).
+    ``fpl_difficulty`` is kept for diagnostic output only; v2 does not
+    multiplex on it. The Phase 2 pipeline derives ``opponent_strength``
+    from whichever upstream signal is cleanest (an Elo win-prob once
+    #166 lands).
     """
 
     home: bool
     opponent_strength: float
-    elo_expected_score: float | None = None
     fpl_difficulty: int | None = None
 
 
