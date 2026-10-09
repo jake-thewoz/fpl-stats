@@ -6,6 +6,7 @@ import pytest
 from fit import (
     FIT_COMPONENTS,
     FitPair,
+    capped_holdout_rounds,
     coefficient_diffs,
     decompose_actual_xp,
     fit_per_component_weights,
@@ -218,6 +219,19 @@ def test_fit_zero_predicted_keeps_prior() -> None:
     assert fitted.saves_w[DEF] == 0.5  # unchanged
 
 
+def test_fit_zero_actual_keeps_prior() -> None:
+    """No events in the sample: keep the weight rather than zeroing it.
+    A zeroed weight predicts 0 forever, so later fits could never
+    move it again."""
+    coefs = _coefs()
+    pairs = [
+        _pair(position=FWD, predicted=_components(defcon_xp=0.3),
+              actual=_components(defcon_xp=0.0)),
+    ]
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    assert fitted.defcon_w[FWD] == pytest.approx(1.0)
+
+
 def test_fit_per_position_independent() -> None:
     """A goals shift in MID doesn't affect the FWD weight."""
     coefs = _coefs()
@@ -267,6 +281,29 @@ def test_time_series_split_holdout_larger_than_data() -> None:
     train, val = time_series_split(pairs, holdout_last_n_rounds=10)
     assert train == []
     assert {p.round for p in val} == {5, 6, 7}
+
+
+def test_capped_holdout_keeps_requested_when_data_is_long_enough() -> None:
+    pairs = [_pair(round_=r) for r in range(1, 11)]
+    assert capped_holdout_rounds(pairs, 5) == 5
+
+
+def test_capped_holdout_leaves_one_training_round_early_season() -> None:
+    """GW1–5 with the default holdout of 5 would leave nothing to train
+    on; cap at 4 so GW1 trains and GW2–5 validate."""
+    pairs = [_pair(round_=r) for r in range(1, 6)]
+    holdout = capped_holdout_rounds(pairs, 5)
+    assert holdout == 4
+    train, _ = time_series_split(pairs, holdout_last_n_rounds=holdout)
+    assert {p.round for p in train} == {1}
+
+
+def test_capped_holdout_single_round_is_zero() -> None:
+    assert capped_holdout_rounds([_pair(round_=3)], 5) == 0
+
+
+def test_capped_holdout_empty_input_is_zero() -> None:
+    assert capped_holdout_rounds([], 5) == 0
 
 
 # ---------------------------------------------------------------------------
