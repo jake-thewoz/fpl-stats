@@ -49,7 +49,7 @@ A `shared/` package for cross-boundary types will be introduced the first time a
 
 Sessions started from claude.ai/code run in a sandbox holding **only this repo**. There are no AWS credentials, so `cdk deploy`, `cdk diff`, and anything reading the live DynamoDB tables or S3 buckets are out of reach. Failures there are the expected state, not a fault to debug.
 
-What runs clean from a fresh clone, all verified: `backend` — `npm ci`, `npm run build`, `npm test`; each handler in `backend/lambdas/<name>` — venv, `pip install`, `pytest`; `mobile` — `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npm run format:check`.
+What runs clean from a fresh clone, all verified: `backend` — `npm ci`, `npm run build`, `npm test`; each handler in `backend/lambdas/<name>` — venv, `pip install`, `pytest`; the shared layer in `backend/layers/fpl_schemas` — venv, `pip install -r requirements-dev.txt`, `pytest`; `mobile` — `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npm run format:check`.
 
 What does not: `cdk synth` and `cdk deploy`, which bundle Lambdas through Docker. CI covers the rest on every PR, so push the branch and read the checks.
 
@@ -72,6 +72,6 @@ What does not: `cdk synth` and `cdk deploy`, which bundle Lambdas through Docker
 
 ### Testing
 - CDK infra (TS): jest.
-- Lambda handlers (Python): pytest.
+- Lambda handlers and the shared `fpl_schemas` layer (Python): pytest.
 - Mobile: test setup TBD — will add when the first component justifies it.
-- CI (`.github/workflows/ci.yml`) runs all three on every PR and on pushes to `main`.
+- CI (`.github/workflows/ci.yml`) runs all of these on every PR and on pushes to `main`.
