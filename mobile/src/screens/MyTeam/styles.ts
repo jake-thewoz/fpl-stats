@@ -1,6 +1,13 @@
 import { StyleSheet } from 'react-native';
 import { effects, fontSize, radius, spacing, type Colors } from '../../theme';
 
+// Tiles share a row's width up to a cap, so a five-man midfield still
+// fits a 360px phone while a two-man front line doesn't sprawl.
+const TILE_MAX_WIDTH = 88;
+const SHIRT_SIZE = 40;
+// Keeps the pitch from stretching into a letterbox on wide web layouts.
+const PITCH_MAX_WIDTH = 520;
+
 /**
  * Shared makeStyles for every component in the MyTeam folder.
  * Co-located rather than split per-component because cross-references
@@ -132,6 +139,97 @@ export const makeStyles = (colors: Colors) =>
       borderRadius: 4,
       overflow: 'hidden',
       fontWeight: '700',
+    },
+
+    controlGroup: { flexDirection: 'row', gap: spacing.md },
+
+    pitchScrollBody: {
+      padding: spacing.lg,
+      gap: spacing.lg,
+      width: '100%',
+      maxWidth: PITCH_MAX_WIDTH,
+      alignSelf: 'center',
+    },
+    pitch: {
+      borderRadius: radius.base,
+      borderWidth: 2,
+      borderColor: colors.pitchLine,
+      overflow: 'hidden',
+    },
+    formationLabel: {
+      position: 'absolute',
+      top: spacing.sm,
+      left: spacing.md,
+      zIndex: 1,
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+      color: colors.pitchLine,
+    },
+    pitchBand: {
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.lg,
+    },
+    bench: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.base,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      paddingVertical: spacing.md,
+    },
+    benchLabel: {
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      marginLeft: spacing.md,
+      marginBottom: spacing.xs,
+    },
+    benchRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.xs,
+    },
+    tile: { flex: 1, maxWidth: TILE_MAX_WIDTH, alignItems: 'center' },
+    shirt: {
+      width: SHIRT_SIZE,
+      height: SHIRT_SIZE,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+    },
+    shirtBadge: { position: 'absolute', top: spacing.hairline, right: spacing.hairline },
+    tileName: {
+      alignSelf: 'stretch',
+      marginTop: spacing.xs,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.hairline,
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radius.sm,
+      borderTopRightRadius: radius.sm,
+      overflow: 'hidden',
+      textAlign: 'center',
+      fontSize: fontSize.sm,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    tileStat: {
+      alignSelf: 'stretch',
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.hairline,
+      backgroundColor: colors.accent,
+      borderBottomLeftRadius: radius.sm,
+      borderBottomRightRadius: radius.sm,
+      overflow: 'hidden',
+      textAlign: 'center',
+      fontSize: fontSize.xs,
+      fontWeight: '600',
+      color: colors.onAccent,
     },
 
     emptyContainer: {

@@ -91,6 +91,11 @@ export type Colors = {
    *  a dim-the-world overlay reads more confidently than a theme-tinted
    *  one. Tunable per-palette if a future design wants it. */
   scrim: string;
+  /** My Team pitch view: grass, the alternate mowing-stripe band, and
+   *  the white-ish touchline/halfway markings. */
+  pitch: string;
+  pitchStripe: string;
+  pitchLine: string;
 };
 
 export const lightColors: Colors = {
@@ -111,6 +116,9 @@ export const lightColors: Colors = {
   onWarning: lightPalette.black,
   onDanger: '#ffffff',
   scrim: 'rgba(7, 7, 7, 0.45)',
+  pitch: '#3f8a57',
+  pitchStripe: '#46935e',
+  pitchLine: 'rgba(255, 255, 255, 0.45)',
 };
 
 export const darkColors: Colors = {
@@ -139,4 +147,9 @@ export const darkColors: Colors = {
   // Same scrim as light — a dim-the-world overlay shouldn't shift hue
   // between modes. Tunable separately if a future design wants it.
   scrim: 'rgba(7, 7, 7, 0.45)',
+  // Deeper, desaturated grass so the pitch doesn't glow against the
+  // near-black page; lines dimmed to match.
+  pitch: '#1f4a31',
+  pitchStripe: '#235237',
+  pitchLine: 'rgba(255, 255, 255, 0.25)',
 };

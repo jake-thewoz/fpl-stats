@@ -4,6 +4,9 @@ import type { JoinedPlayer } from '../../players/types';
  *  GW points). Lives alongside the shared JoinedPlayer fields rather
  *  than baking them into the cross-screen type. */
 export type MyTeamRow = JoinedPlayer & {
+  /** FPL pick slot, 1–15: 1–11 are starters, 12–15 the bench in
+   *  substitution order. */
+  squadSlot: number;
   isStarter: boolean;
   isCaptain: boolean;
   isViceCaptain: boolean;

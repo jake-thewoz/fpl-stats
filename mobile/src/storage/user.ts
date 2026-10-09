@@ -37,3 +37,26 @@ export function isValidFplTeamId(raw: string): boolean {
   const n = Number(trimmed);
   return Number.isFinite(n) && n > 0;
 }
+
+const MY_TEAM_VIEW_KEY = 'user.myTeamView';
+
+export const MY_TEAM_VIEWS = ['pitch', 'list'] as const;
+export type MyTeamView = (typeof MY_TEAM_VIEWS)[number];
+export const DEFAULT_MY_TEAM_VIEW: MyTeamView = 'pitch';
+
+function isMyTeamView(raw: string | null): raw is MyTeamView {
+  return MY_TEAM_VIEWS.some((view) => view === raw);
+}
+
+export async function getMyTeamView(): Promise<MyTeamView> {
+  try {
+    const raw = await AsyncStorage.getItem(MY_TEAM_VIEW_KEY);
+    return isMyTeamView(raw) ? raw : DEFAULT_MY_TEAM_VIEW;
+  } catch {
+    return DEFAULT_MY_TEAM_VIEW;
+  }
+}
+
+export async function setMyTeamView(view: MyTeamView): Promise<void> {
+  await AsyncStorage.setItem(MY_TEAM_VIEW_KEY, view);
+}
