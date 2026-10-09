@@ -64,6 +64,24 @@ jobs:
             exit 1
           fi
 
+  lambda-layer:
+    name: Lambda layer (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/layers/fpl_schemas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/layers/fpl_schemas/requirements-dev.txt
+      # The layer ships only python/ to Lambda and has no requirements.txt,
+      # so it can't join the per-handler loop above.
+      - run: pip install --requirement requirements-dev.txt
+      - run: python -m pytest --quiet
+
   mobile:
     name: Mobile (types + lint + format)
     runs-on: ubuntu-latest
