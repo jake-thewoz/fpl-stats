@@ -29,7 +29,6 @@ from compute import (
     weighted_form_score,
 )
 from ddb_prune import prune_partition, sort_keys_in_partition
-from elo_compute import DEFAULT_HOME_ADVANTAGE_ELO, expected_score
 from match_window import get_match_window
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture
 
@@ -45,12 +44,6 @@ RECENT_GW_COUNT = int(os.environ.get("RECENT_GW_COUNT", "5"))
 UPCOMING_FIXTURES_COUNT = int(os.environ.get("UPCOMING_FIXTURES_COUNT", "5"))
 # Linear decay, most recent heavy. len must be >= RECENT_GW_COUNT.
 FORM_WEIGHTS = [5.0, 4.0, 3.0, 2.0, 1.0]
-
-# Tunable so we can adjust without redeploying if the constant turns out
-# to over- or under-state real PL home advantage.
-HOME_ADVANTAGE_ELO = float(
-    os.environ.get("HOME_ADVANTAGE_ELO", str(DEFAULT_HOME_ADVANTAGE_ELO))
-)
 
 
 def _fetch_gw_live(session: requests.Session, gw: int) -> dict[int, int]:
@@ -72,68 +65,16 @@ def _to_ddb_number(value: float) -> Decimal:
     return Decimal(str(round(value, 4)))
 
 
-def _read_elo_ratings(table: Any) -> dict[int, float]:
-    """Return ``{fpl_team_id: elo}`` from the clubelo cache.
-
-    Empty dict if the cache row is missing — analyzer carries on, every
-    ``elo_expected_score`` ends up ``None``. This is the path taken on a
-    fresh deploy before ``ingest_clubelo`` has run for the first time, or
-    if ClubELO has been down for the duration of our 30-min cache
-    freshness on retries (rare but worth degrading gracefully for).
-    """
-    item = table.get_item(
-        Key={"pk": "clubelo#ratings", "sk": "latest"}
-    ).get("Item")
-    if not item:
-        log.info("clubelo#ratings missing — elo_expected_score will be null")
-        return {}
-    raw = item.get("ratings", {})
-    out: dict[int, float] = {}
-    for team_id_str, elo in raw.items():
-        try:
-            out[int(team_id_str)] = float(elo)
-        except (ValueError, TypeError):
-            log.warning(
-                "Unparseable clubelo entry, skipping: %r=%r", team_id_str, elo
-            )
-    return out
-
-
-def _upcoming_with_elo(
-    upcoming: list[UpcomingFixture],
-    my_elo: float | None,
-    elo_ratings: dict[int, float],
-    home_advantage_elo: float,
-) -> tuple[list[dict[str, Any]], float | None]:
-    """Build the next_fixtures DDB rows + their average elo_expected_score.
-
-    Each row gets ``elo_expected_score`` populated where both teams have
-    a known ELO; ``None`` otherwise. The average ignores ``None``s
-    (matching how ``avg_upcoming_difficulty`` ignores missing FPL
-    difficulties) and returns ``None`` if every fixture was missing data.
-    """
-    rows: list[dict[str, Any]] = []
-    scores: list[float] = []
-    for u in upcoming:
-        opp_elo = elo_ratings.get(u.opponent_team_id)
-        es = expected_score(
-            my_elo, opp_elo,
-            home=u.home,
-            home_advantage_elo=home_advantage_elo,
-        )
-        rows.append({
+def _next_fixtures_rows(upcoming: list[UpcomingFixture]) -> list[dict[str, Any]]:
+    return [
+        {
             "gw": u.gw,
             "opponent_team_id": u.opponent_team_id,
             "home": u.home,
             "difficulty": u.difficulty,
-            "elo_expected_score": (
-                None if es is None else _to_ddb_number(es)
-            ),
-        })
-        if es is not None:
-            scores.append(es)
-    avg = sum(scores) / len(scores) if scores else None
-    return rows, avg
+        }
+        for u in upcoming
+    ]
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -170,8 +111,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         gw: _fetch_gw_live(session, gw) for gw in recent_gws
     }
 
-    elo_ratings = _read_elo_ratings(table)
-
     computed_at = datetime.now(timezone.utc).isoformat()
     written = 0
     stored_sort_keys = sort_keys_in_partition(table, PLAYER_FORM_PK)
@@ -187,12 +126,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 player.team, fixtures, UPCOMING_FIXTURES_COUNT
             )
             avg_diff = average_difficulty(upcoming)
-            next_fixtures_ddb, avg_elo = _upcoming_with_elo(
-                upcoming,
-                elo_ratings.get(player.team),
-                elo_ratings,
-                HOME_ADVANTAGE_ELO,
-            )
 
             batch.put_item(
                 Item={
@@ -208,12 +141,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     "recent_points": recent_points,
                     "recent_gameweeks": recent_gws,
                     "sample_size": len(recent_points),
-                    "next_fixtures": next_fixtures_ddb,
+                    "next_fixtures": _next_fixtures_rows(upcoming),
                     "avg_upcoming_difficulty": (
                         None if avg_diff is None else _to_ddb_number(avg_diff)
-                    ),
-                    "avg_upcoming_elo_expected_score": (
-                        None if avg_elo is None else _to_ddb_number(avg_elo)
                     ),
                 }
             )

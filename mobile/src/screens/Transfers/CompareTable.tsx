@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native';
 import type { TransferMove } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
-import { difficultyTone, eloTone, type ColorTone } from '../../transfers/scoring';
+import { difficultyTone, type ColorTone } from '../../transfers/scoring';
 import { makeStyles } from './styles';
 
 /**
@@ -27,13 +27,6 @@ export function CompareTable({ move }: { move: TransferMove }) {
         inText={fmt(inP.avg_upcoming_difficulty, 1)}
         outTone={difficultyTone(out.avg_upcoming_difficulty)}
         inTone={difficultyTone(inP.avg_upcoming_difficulty)}
-      />
-      <Row
-        label="Avg ELO win prob"
-        outText={fmt(out.avg_upcoming_elo_expected_score, 2)}
-        inText={fmt(inP.avg_upcoming_elo_expected_score, 2)}
-        outTone={eloTone(out.avg_upcoming_elo_expected_score)}
-        inTone={eloTone(inP.avg_upcoming_elo_expected_score)}
       />
       <Row
         label="Horizon xP"

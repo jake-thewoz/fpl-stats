@@ -18,10 +18,6 @@ export type SuggestionPlayer = {
    *  Lower is easier. Null when none of the upcoming fixtures had a
    *  difficulty value. */
   avg_upcoming_difficulty: number | null;
-  /** Mean ClubELO-derived expected score (~win probability + half draw)
-   *  across the next ~5 fixtures, on 0–1. Higher is more favourable.
-   *  Null when no fixtures had ClubELO ratings on both sides. */
-  avg_upcoming_elo_expected_score: number | null;
 };
 
 /** A single move within a bundle: out -> in. */

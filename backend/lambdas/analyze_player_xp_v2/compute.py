@@ -42,7 +42,7 @@ def opp_strength_from_difficulty(difficulty: Optional[int]) -> float:
     (a home fixture against the same opponent is rated easier than
     away). xp_v2 also applies its own ``home_advantage`` coefficient,
     so there's a small double-count here. Acceptable for v2.0; Phase 7
-    can replace with a cleaner signal (e.g. ClubELO win-prob with
+    can replace with a cleaner signal (e.g. an Elo win-prob from #166, with
     home advantage stripped).
     """
     if difficulty is None:
