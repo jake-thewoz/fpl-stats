@@ -135,6 +135,8 @@ def mock_table():
     """Patch boto3.resource so the handler writes/reads a MagicMock DDB."""
     table = MagicMock()
     table.get_item.side_effect = lambda Key: _ddb_table_get_item(Key)
+    # Stored analytics keys, read before writing so stale rows can be pruned.
+    table.query.return_value = {"Items": []}
 
     # batch_writer() is used as a context manager returning a writer with
     # put_item — mirror that shape so we can count writes.
@@ -399,3 +401,18 @@ def test_partial_clubelo_coverage(mock_table, no_retry_session):
         assert fx["elo_expected_score"] is None
     assert saka["avg_upcoming_elo_expected_score"] is None
     assert palmer["avg_upcoming_elo_expected_score"] is None
+
+
+@responses.activate
+def test_rows_for_players_no_longer_in_bootstrap_are_deleted(mock_table, no_retry_session):
+    """Last season left rows under ids that are gone (or reassigned) now.
+    Anything not written this run is deleted; current players are not."""
+    table, writer = mock_table
+    table.query.return_value = {"Items": [{"sk": "101"}, {"sk": "841"}]}
+    _register_gw_live_mocks()
+
+    result = lambda_handler({}, None)
+
+    deleted = [call.kwargs["Key"] for call in writer.delete_item.call_args_list]
+    assert deleted == [{"pk": "analytics#player_form", "sk": "841"}]
+    assert result["stale_rows_deleted"] == 1

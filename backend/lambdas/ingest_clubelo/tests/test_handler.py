@@ -22,7 +22,8 @@ from handler import CLUBELO_BASE_URL, lambda_handler  # noqa: E402
 #   - clubs in the mapping AND in the CSV (should land in DDB)
 #   - clubs in the mapping but NOT in the CSV (should land in `missing`)
 #   - CSV rows for non-PL clubs (Real Madrid etc.) — must be ignored
-#   - bootstrap teams not in the mapping (should land in `missing`)
+#   - bootstrap teams not in the mapping (written for the rest, then raise;
+#     see UNMAPPED_TEAM)
 # ---------------------------------------------------------------------------
 
 # Real format from ClubELO's date endpoint. Some plausible 2026 numbers.
@@ -47,8 +48,6 @@ BOOTSTRAP_DATA = {
         {"id": 16, "name": "Tottenham", "short_name": "TOT", "code": 6, "strength": 4},
         # In the CSV but with a club ClubELO doesn't have rated yet:
         {"id": 18, "name": "Wolves", "short_name": "WOL", "code": 39, "strength": 3},
-        # NOT in our mapping at all (a fictional next-season promoted side):
-        {"id": 99, "name": "MadeUp FC", "short_name": "MFC", "code": 999, "strength": 2},
     ],
     "positions": [
         {"id": 1, "singular_name": "Goalkeeper", "singular_name_short": "GKP"},
@@ -114,15 +113,15 @@ def _csv_url_for_today():
 def test_happy_path_writes_filtered_ratings_to_ddb(
     s3_bucket, mock_ddb, no_retry_session,
 ):
-    """5 teams in bootstrap; 4 in CSV; 1 in mapping but not CSV; 1 not in
-    mapping. Expect 4 entries in DDB ratings, 2 in missing."""
+    """5 teams in bootstrap; 4 in CSV; 1 in mapping but not CSV.
+    Expect 4 entries in DDB ratings, 1 in missing."""
     responses.get(_csv_url_for_today(), body=SAMPLE_CSV)
 
     result = lambda_handler({}, None)
 
     assert result["ok"] is True
     assert result["teams_with_elo"] == 4
-    assert len(result["missing"]) == 2
+    assert len(result["missing"]) == 1
 
     ddb_call = mock_ddb.put_item.call_args
     assert ddb_call is not None
@@ -137,8 +136,6 @@ def test_happy_path_writes_filtered_ratings_to_ddb(
     assert ratings["16"] == Decimal("1830.7")  # Tottenham
     # Wolves: in mapping but no CSV row -> not in ratings.
     assert "18" not in ratings
-    # MadeUp FC: not in mapping -> not in ratings.
-    assert "99" not in ratings
 
 
 @responses.activate
@@ -183,19 +180,43 @@ def test_writes_decimal_not_float(
 
 
 @responses.activate
-def test_missing_list_includes_unmapped_short_names(
+def test_missing_list_includes_clubs_absent_from_csv(
     s3_bucket, mock_ddb, no_retry_session,
 ):
-    """The MadeUp FC entry isn't in our static mapping — surface it in
-    the response so future runs of this Lambda + log inspection make it
-    obvious that the mapping needs updating (e.g. promoted club)."""
+    """Wolves is mapped but ClubELO has no row today. That's ClubELO's
+    gap, not ours, so it's reported without failing the run."""
     responses.get(_csv_url_for_today(), body=SAMPLE_CSV)
 
     result = lambda_handler({}, None)
 
-    missing_str = " ".join(result["missing"])
-    assert "MFC" in missing_str
-    assert "WOL" in missing_str  # in mapping, but no CSV row
+    assert any("WOL" in entry for entry in result["missing"])
+
+
+# A fictional promoted side with no team_mapping.json entry.
+UNMAPPED_TEAM = {"id": 99, "name": "MadeUp FC", "short_name": "MFC", "code": 999, "strength": 2}
+
+
+@responses.activate
+def test_unmapped_team_writes_other_ratings_then_raises(
+    s3_bucket, mock_ddb, no_retry_session,
+):
+    """A bootstrap team with no mapping entry needs a code change, so the
+    run must fail and trip the alarm. The resolved clubs are still
+    written first so the form analyzer keeps working meanwhile."""
+    mock_ddb.get_item.return_value = {
+        "Item": {
+            "pk": "fpl#bootstrap",
+            "sk": "latest",
+            "data": {**BOOTSTRAP_DATA, "teams": BOOTSTRAP_DATA["teams"] + [UNMAPPED_TEAM]},
+        }
+    }
+    responses.get(_csv_url_for_today(), body=SAMPLE_CSV)
+
+    with pytest.raises(RuntimeError, match=r"MFC \(MadeUp FC\)"):
+        lambda_handler({}, None)
+
+    ratings = mock_ddb.put_item.call_args.kwargs["Item"]["ratings"]
+    assert set(ratings) == {"1", "2", "13", "16"}
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +260,7 @@ def test_empty_csv_writes_empty_ratings_with_all_missing(
     result = lambda_handler({}, None)
     assert result["ok"] is True
     assert result["teams_with_elo"] == 0
-    assert len(result["missing"]) == 6  # all six bootstrap teams
+    assert len(result["missing"]) == 5  # all five bootstrap teams
 
     item = mock_ddb.put_item.call_args.kwargs["Item"]
     assert item["ratings"] == {}

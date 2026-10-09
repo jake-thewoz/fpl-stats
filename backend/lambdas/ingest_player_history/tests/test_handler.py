@@ -69,8 +69,10 @@ def sample_payload() -> dict:
 @pytest.fixture
 def mock_table():
     """boto3.resource → MagicMock; expose the batch_writer's put_item
-    for assertion."""
+    for assertion. The stored-keys scan defaults to an empty table;
+    pruning tests override it via ``_stored_rows``."""
     table = MagicMock()
+    table.scan.return_value = {"Items": []}
 
     writer = MagicMock()
     table.batch_writer.return_value.__enter__.return_value = writer
@@ -262,3 +264,111 @@ def test_bootstrap_missing_raises(mock_table, fast_sleep):
 
     with pytest.raises(RuntimeError, match="fpl#bootstrap"):
         lambda_handler({}, None)
+
+
+# ---------------------------------------------------------------------------
+# Pruning: each run replaces what's stored for a player
+# ---------------------------------------------------------------------------
+
+# Matches gw#001#fixture#9 in element_summary_sample.json.
+SAMPLE_CURRENT_SK = "gw#001#fixture#9"
+
+
+def _stored_rows(table, rows_by_pk: dict[str, list[str]]) -> None:
+    table.scan.return_value = {
+        "Items": [
+            {"pk": pk, "sk": sk} for pk, sort_keys in rows_by_pk.items() for sk in sort_keys
+        ]
+    }
+
+
+def _deleted_keys(writer) -> set[tuple[str, str]]:
+    return {
+        (call.kwargs["Key"]["pk"], call.kwargs["Key"]["sk"])
+        for call in writer.delete_item.call_args_list
+    }
+
+
+@responses.activate
+def test_rows_from_previous_season_are_deleted(
+    stub_bootstrap, fast_sleep, sample_payload
+):
+    """FPL reuses player and fixture ids each season. A row stored under
+    this id that FPL no longer returns (last season's gw#030) must go,
+    while rows FPL still returns are kept."""
+    table, writer = stub_bootstrap
+    _stored_rows(table, {
+        "fpl#player_history#1": [SAMPLE_CURRENT_SK, "gw#030#fixture#300", "gw#038#fixture#371"],
+    })
+    for pid in (1, 2):
+        responses.get(f"{FPL_BASE_URL}/element-summary/{pid}/", json=sample_payload)
+
+    result = lambda_handler({}, None)
+
+    assert _deleted_keys(writer) == {
+        ("fpl#player_history#1", "gw#030#fixture#300"),
+        ("fpl#player_history#1", "gw#038#fixture#371"),
+    }
+    assert result["counts"]["stale_rows_deleted"] == 2
+
+
+@responses.activate
+def test_players_no_longer_in_bootstrap_are_deleted(
+    stub_bootstrap, fast_sleep, sample_payload
+):
+    """Last season had more player ids than this one. Partitions for ids
+    missing from the bootstrap are removed entirely."""
+    table, writer = stub_bootstrap
+    _stored_rows(table, {
+        "fpl#player_history#841": ["gw#001#fixture#4", "season_summary#2024/25"],
+    })
+    for pid in (1, 2):
+        responses.get(f"{FPL_BASE_URL}/element-summary/{pid}/", json=sample_payload)
+
+    result = lambda_handler({}, None)
+
+    assert _deleted_keys(writer) == {
+        ("fpl#player_history#841", "gw#001#fixture#4"),
+        ("fpl#player_history#841", "season_summary#2024/25"),
+    }
+    assert result["counts"]["departed_players_deleted"] == 1
+
+
+@responses.activate
+def test_failed_player_keeps_stored_rows(
+    mock_table, fast_sleep, no_retry_session, sample_payload
+):
+    """A fetch failure says nothing about what the player's history is,
+    so their stored rows must survive until a successful run."""
+    table, writer = mock_table
+    table.get_item.return_value = {
+        "Item": {
+            "pk": "fpl#bootstrap",
+            "sk": "latest",
+            "data": _bootstrap_payload(list(range(1, 13))),
+        }
+    }
+    _stored_rows(table, {"fpl#player_history#2": ["gw#030#fixture#300"]})
+    for pid in range(1, 13):
+        if pid == 2:
+            responses.get(f"{FPL_BASE_URL}/element-summary/{pid}/", status=500)
+        else:
+            responses.get(f"{FPL_BASE_URL}/element-summary/{pid}/", json=sample_payload)
+
+    lambda_handler({}, None)
+
+    assert ("fpl#player_history#2", "gw#030#fixture#300") not in _deleted_keys(writer)
+
+
+def test_empty_bootstrap_deletes_nothing(mock_table, fast_sleep):
+    """With no players to compare against, every stored partition would
+    look departed. Nothing may be deleted."""
+    table, writer = mock_table
+    table.get_item.return_value = {
+        "Item": {"pk": "fpl#bootstrap", "sk": "latest", "data": _bootstrap_payload([])}
+    }
+    _stored_rows(table, {"fpl#player_history#1": [SAMPLE_CURRENT_SK]})
+
+    lambda_handler({}, None)
+
+    writer.delete_item.assert_not_called()
