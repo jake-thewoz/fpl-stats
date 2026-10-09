@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { fetchMyTeam, type SquadEntry } from '../../api/myTeam';
 import { fetchPlayersXp } from '../../api/playersXp';
@@ -10,18 +10,42 @@ import { ErrorView } from '../../components/ErrorView';
 import { ColumnPickerDialog } from '../../components/ColumnPickerDialog';
 import { FilterDialog } from '../../components/FilterDialog';
 import { PlayerListTable } from '../../components/PlayerListTable';
+import { SegmentedControl, type SegmentOption } from '../../components/SegmentedControl';
 import { FIELD_DEFS } from '../../players/fields';
 import { applyAll, activeFilterCount } from '../../players/apply';
 import { POSITION_CODES } from '../../players/positions';
 import type { FieldKey } from '../../players/types';
 import type { MyTeamScreenProps } from '../../navigation/types';
+import {
+  DEFAULT_MY_TEAM_VIEW,
+  getMyTeamView,
+  setMyTeamView,
+  type MyTeamView,
+} from '../../storage/user';
 import { useThemedStyles } from '../../theme';
 import { ChipBanner, Header, PicksUnavailableNote } from './Header';
+import { lineupFromPicks, type LineupSlot } from './lineup';
 import { MyTeamNameCell } from './NameCell';
+import { PitchView } from './PitchView';
 import { makeStyles } from './styles';
 import type { MyTeamRow } from './types';
 
 type Props = MyTeamScreenProps;
+
+const VIEW_OPTIONS: readonly SegmentOption<MyTeamView>[] = [
+  { value: 'pitch', label: 'Pitch' },
+  { value: 'list', label: 'List' },
+];
+
+const EMPTY_SQUAD_MESSAGE = 'No squad data available yet for this gameweek.';
+
+/** Pitch tiles show this gameweek's points, captain multiplier included,
+ *  matching the GW total in the header. */
+function gameweekPointsText(slot: LineupSlot): string {
+  const points = slot.row.gwPoints;
+  if (points == null) return '– pts';
+  return points === 1 ? '1 pt' : `${points} pts`;
+}
 
 export default function MyTeamScreen({ navigation }: Props) {
   const teamId = useFocusedTeamId();
@@ -63,6 +87,21 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   const { columns, filters, sort, setColumns, setFilters, setSort } =
     useFocusedPlayersConfig();
 
+  const [view, setView] = useState<MyTeamView>(DEFAULT_MY_TEAM_VIEW);
+  useEffect(() => {
+    let alive = true;
+    getMyTeamView().then((stored) => {
+      if (alive) setView(stored);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const onChangeView = useCallback((next: MyTeamView) => {
+    setView(next);
+    setMyTeamView(next);
+  }, []);
+
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -76,6 +115,8 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     for (const r of rows) set.add(r.team);
     return [...set].sort();
   }, [rows]);
+
+  const lineup = useMemo(() => lineupFromPicks(rows), [rows]);
 
   const filteredSorted = useMemo(
     // Empty search: rely only on filters + sort.
@@ -118,30 +159,47 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         />
       ) : null}
       <ControlBar
+        view={view}
+        onChangeView={onChangeView}
         filterCount={activeFilterCount(filters)}
         onOpenFilter={() => setFiltersOpen(true)}
         onOpenColumns={() => setColumnsOpen(true)}
       />
-      <PlayerListTable
-        data={filteredSorted}
-        columns={columns}
-        sort={sort}
-        onTapHeader={onTapColumnHeader}
-        getId={(r) => r.id}
-        renderNameCell={(row) => <MyTeamNameCell row={row} />}
-        // Bench rows dimmed to de-emphasise non-starters; matches the
-        // pressedSubtle dim by coincidence but the semantics are
-        // different — leaving inline so a tweak to one doesn't move the
-        // other.
-        getRowStyle={(r) => (r.isStarter ? undefined : { opacity: 0.6 })}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        emptyMessage={
-          rows.length === 0
-            ? 'No squad data available yet for this gameweek.'
-            : 'No players match your filter. Try widening it.'
-        }
-      />
+      {view === 'pitch' ? (
+        rows.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyBody}>{EMPTY_SQUAD_MESSAGE}</Text>
+          </View>
+        ) : (
+          <PitchView
+            lineup={lineup}
+            getStatText={gameweekPointsText}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        )
+      ) : (
+        <PlayerListTable
+          data={filteredSorted}
+          columns={columns}
+          sort={sort}
+          onTapHeader={onTapColumnHeader}
+          getId={(r) => r.id}
+          renderNameCell={(row) => <MyTeamNameCell row={row} />}
+          // Bench rows dimmed to de-emphasise non-starters; matches the
+          // pressedSubtle dim by coincidence but the semantics are
+          // different — leaving inline so a tweak to one doesn't move the
+          // other.
+          getRowStyle={(r) => (r.isStarter ? undefined : { opacity: 0.6 })}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          emptyMessage={
+            rows.length === 0
+              ? EMPTY_SQUAD_MESSAGE
+              : 'No players match your filter. Try widening it.'
+          }
+        />
+      )}
 
       <ColumnPickerDialog
         visible={columnsOpen}
@@ -196,6 +254,7 @@ function toMyTeamRow(
     expected_goals: player.expected_goals,
     expected_assists: player.expected_assists,
     cost_change_event: player.cost_change_event,
+    squadSlot: s.pick.position,
     isStarter: s.isStarter,
     isCaptain: s.pick.is_captain,
     isViceCaptain: s.pick.is_vice_captain,
@@ -204,10 +263,14 @@ function toMyTeamRow(
 }
 
 function ControlBar({
+  view,
+  onChangeView,
   filterCount,
   onOpenFilter,
   onOpenColumns,
 }: {
+  view: MyTeamView;
+  onChangeView: (next: MyTeamView) => void;
   filterCount: number;
   onOpenFilter: () => void;
   onOpenColumns: () => void;
@@ -216,12 +279,19 @@ function ControlBar({
 
   return (
     <View style={styles.controlBar}>
-      <ControlButton
-        label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
-        active={filterCount > 0}
-        onPress={onOpenFilter}
-      />
-      <ControlButton label="Columns" onPress={onOpenColumns} />
+      <SegmentedControl options={VIEW_OPTIONS} value={view} onChange={onChangeView} />
+      {/* Filters and columns shape the list only; the pitch always shows
+          the full fifteen. */}
+      {view === 'list' ? (
+        <View style={styles.controlGroup}>
+          <ControlButton
+            label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
+            active={filterCount > 0}
+            onPress={onOpenFilter}
+          />
+          <ControlButton label="Columns" onPress={onOpenColumns} />
+        </View>
+      ) : null}
     </View>
   );
 }

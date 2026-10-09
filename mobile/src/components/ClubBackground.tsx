@@ -39,11 +39,14 @@ type Props = {
    *  on the Transfers card so both halves of the row fade toward the
    *  middle. Default ``false`` matches the list-screen behaviour. */
   mirror?: boolean;
+  /** Skip the fade overlay and render the kit pattern edge to edge.
+   *  Used by the pitch-view shirt tiles. Default ``true``. */
+  fade?: boolean;
 };
 
 const STRIPE_COUNT = 6;
 
-export function ClubBackground({ teamShort, mirror = false }: Props) {
+export function ClubBackground({ teamShort, mirror = false, fade = true }: Props) {
   const { colors } = useTheme();
   const club = CLUB_VISUALS[teamShort];
   if (!club) return null;
@@ -58,13 +61,15 @@ export function ClubBackground({ teamShort, mirror = false }: Props) {
           xP / data column. Flipping ``start``/``end`` reverses the
           axis without touching the locations or colours, which is
           how mirror works. */}
-      <LinearGradient
-        colors={['transparent', colors.surface]}
-        locations={[0.6, 1]}
-        start={mirror ? { x: 1, y: 0 } : { x: 0, y: 0 }}
-        end={mirror ? { x: 0, y: 0 } : { x: 1, y: 0 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {fade ? (
+        <LinearGradient
+          colors={['transparent', colors.surface]}
+          locations={[0.6, 1]}
+          start={mirror ? { x: 1, y: 0 } : { x: 0, y: 0 }}
+          end={mirror ? { x: 0, y: 0 } : { x: 1, y: 0 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      ) : null}
     </View>
   );
 }
