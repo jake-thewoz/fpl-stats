@@ -1,7 +1,11 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { BUNDLING_STACKS } from 'aws-cdk-lib/cx-api';
-import { FplStatsStack } from '../lib/fpl-stats-stack';
+import {
+  API_THROTTLE_BURST_LIMIT,
+  API_THROTTLE_RATE_LIMIT,
+  FplStatsStack,
+} from '../lib/fpl-stats-stack';
 
 // Instantiating FplStatsStack would trigger Docker-based PythonFunction
 // bundling for every Lambda — minutes of work, and impossible in any
@@ -109,4 +113,16 @@ describe('Ingestion alarms', () => {
       expect(matching.length).toBe(1);
     },
   );
+});
+
+describe('HttpApi', () => {
+  test('throttles every route on the default stage', () => {
+    template.hasResourceProperties('AWS::ApiGatewayV2::Stage', {
+      StageName: '$default',
+      DefaultRouteSettings: {
+        ThrottlingRateLimit: API_THROTTLE_RATE_LIMIT,
+        ThrottlingBurstLimit: API_THROTTLE_BURST_LIMIT,
+      },
+    });
+  });
 });

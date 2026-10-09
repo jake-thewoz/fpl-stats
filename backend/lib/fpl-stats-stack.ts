@@ -7,6 +7,7 @@ import {
   TableEncryption,
 } from 'aws-cdk-lib/aws-dynamodb';
 import {
+  CfnStage,
   CorsHttpMethod,
   HttpApi,
   HttpMethod,
@@ -29,6 +30,13 @@ import { Construct } from 'constructs';
 import { FplPythonFunction } from './fpl-python-function';
 
 const ALERT_EMAIL = 'jake.thewoz@gmail.com';
+
+// Applies to every route on the public API (requests per second, steady
+// and burst). Far above friends-and-family traffic, low enough that a
+// scraper hammering the 1024 MB transfers Lambda can't run up the bill.
+// Excess requests get HTTP 429 without invoking any Lambda.
+export const API_THROTTLE_RATE_LIMIT = 20;
+export const API_THROTTLE_BURST_LIMIT = 40;
 
 export class FplStatsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -483,6 +491,16 @@ export class FplStatsStack extends cdk.Stack {
         allowHeaders: ['*'],
       },
     });
+
+    // HttpApi exposes `throttle` only on stages added via addStage(), not on
+    // the auto-created $default stage. Replacing that stage would make
+    // CloudFormation create a second `$default` before deleting the first,
+    // so set the limits on the underlying CfnStage instead (in-place update).
+    const defaultStage = httpApi.defaultStage?.node.defaultChild as CfnStage;
+    defaultStage.defaultRouteSettings = {
+      throttlingRateLimit: API_THROTTLE_RATE_LIMIT,
+      throttlingBurstLimit: API_THROTTLE_BURST_LIMIT,
+    };
 
     httpApi.addRoutes({
       path: '/health',
