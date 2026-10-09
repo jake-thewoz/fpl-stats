@@ -48,8 +48,11 @@ def parse_element_summary(payload: dict[str, Any]) -> PlayerHistory:
     return PlayerHistory.model_validate(payload)
 
 
+PLAYER_HISTORY_PK_PREFIX = "fpl#player_history#"
+
+
 def player_history_pk(player_id: int) -> str:
-    return f"fpl#player_history#{player_id}"
+    return f"{PLAYER_HISTORY_PK_PREFIX}{player_id}"
 
 
 def history_row_sk(row: PlayerHistoryRow) -> str:

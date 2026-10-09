@@ -17,6 +17,12 @@ For each player ``id``, writes:
 - One DDB row per prior season at
   ``pk = fpl#player_history#{id}, sk = season_summary#{season_name}``.
 
+Each run replaces what's stored rather than adding to it: rows FPL no
+longer returns for a player are deleted, and so is the whole history of
+any id that has left the bootstrap. FPL reassigns player and fixture ids
+every season, so without this last season's matches stay attached to
+whichever player inherits the id (see ``ddb_prune``).
+
 Schedule
 --------
 Runs weekly. FPL's per-player stats stabilize after the matchday is fully
@@ -44,10 +50,13 @@ import boto3
 import requests
 
 from compute import (
+    PLAYER_HISTORY_PK_PREFIX,
     history_past_to_ddb_item,
     history_row_to_ddb_item,
     parse_element_summary,
+    player_history_pk,
 )
+from ddb_prune import prune_partition, sort_keys_by_partition
 from fpl_session import make_fpl_session
 from schemas import SCHEMA_VERSION, Bootstrap
 
@@ -91,12 +100,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     player_ids = _read_player_ids(table)
     fetched_at = datetime.now(timezone.utc).isoformat()
+    stored_sort_keys = sort_keys_by_partition(table, PLAYER_HISTORY_PK_PREFIX)
 
     counts = {
         "players_attempted": len(player_ids),
         "players_succeeded": 0,
         "history_rows": 0,
         "season_summary_rows": 0,
+        "stale_rows_deleted": 0,
+        "departed_players_deleted": 0,
         "errors": 0,
     }
     failed_ids: list[int] = []
@@ -106,26 +118,33 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             try:
                 payload = _fetch_element_summary(session, player_id)
                 parsed = parse_element_summary(payload)
+                written_sort_keys: set[str] = set()
                 for row in parsed.history:
-                    batch.put_item(
-                        Item=history_row_to_ddb_item(
-                            player_id=player_id,
-                            row=row,
-                            schema_version=SCHEMA_VERSION,
-                            fetched_at=fetched_at,
-                        )
+                    item = history_row_to_ddb_item(
+                        player_id=player_id,
+                        row=row,
+                        schema_version=SCHEMA_VERSION,
+                        fetched_at=fetched_at,
                     )
+                    batch.put_item(Item=item)
+                    written_sort_keys.add(item["sk"])
                     counts["history_rows"] += 1
                 for past in parsed.history_past:
-                    batch.put_item(
-                        Item=history_past_to_ddb_item(
-                            player_id=player_id,
-                            row=past,
-                            schema_version=SCHEMA_VERSION,
-                            fetched_at=fetched_at,
-                        )
+                    item = history_past_to_ddb_item(
+                        player_id=player_id,
+                        row=past,
+                        schema_version=SCHEMA_VERSION,
+                        fetched_at=fetched_at,
                     )
+                    batch.put_item(Item=item)
+                    written_sort_keys.add(item["sk"])
                     counts["season_summary_rows"] += 1
+                # Only reached when the fetch and parse succeeded, so a
+                # failed player keeps its previous rows rather than losing them.
+                pk = player_history_pk(player_id)
+                counts["stale_rows_deleted"] += prune_partition(
+                    batch, pk, stored_sort_keys.get(pk, set()), written_sort_keys
+                )
                 counts["players_succeeded"] += 1
             except Exception:
                 # Log the offender + continue. Failed_ids is reported in
@@ -134,6 +153,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 counts["errors"] += 1
                 failed_ids.append(player_id)
             time.sleep(INTER_CALL_DELAY_SECONDS)
+
+        # An empty bootstrap would make every stored player look departed.
+        if player_ids:
+            current_pks = {player_history_pk(player_id) for player_id in player_ids}
+            for pk, sort_keys in stored_sort_keys.items():
+                if pk not in current_pks:
+                    prune_partition(batch, pk, sort_keys, set())
+                    counts["departed_players_deleted"] += 1
 
     error_fraction = (
         counts["errors"] / counts["players_attempted"]
@@ -150,11 +177,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
 
     log.info(
-        "Player-history ingestion complete: succeeded=%d/%d history_rows=%d season_rows=%d errors=%d",
+        "Player-history ingestion complete: succeeded=%d/%d history_rows=%d "
+        "season_rows=%d stale_rows_deleted=%d departed_players_deleted=%d errors=%d",
         counts["players_succeeded"],
         counts["players_attempted"],
         counts["history_rows"],
         counts["season_summary_rows"],
+        counts["stale_rows_deleted"],
+        counts["departed_players_deleted"],
         counts["errors"],
     )
     return {

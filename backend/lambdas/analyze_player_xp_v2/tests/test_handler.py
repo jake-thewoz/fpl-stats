@@ -171,6 +171,8 @@ def mock_table():
     table = MagicMock()
     table.get_item.side_effect = lambda Key: _ddb_get_item(Key)
     table.scan.side_effect = _ddb_scan(_build_history_scan_items())
+    # Stored analytics keys, read before writing so stale rows can be pruned.
+    table.query.return_value = {"Items": []}
 
     writer = MagicMock()
     table.batch_writer.return_value.__enter__.return_value = writer
@@ -635,3 +637,31 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
     )
     starter_components = starter["components"]
     assert float(starter_components["season_play_rate"]) == pytest.approx(1.0)
+
+
+def test_stale_rows_are_deleted(mock_table) -> None:
+    """A departed player's row (841) and last run's row for a player now
+    blanking this GW (Palmer, 201) must both go: a missing row is how
+    readers learn "no fixture"."""
+    table, writer = mock_table
+    table.query.return_value = {"Items": [{"sk": "101"}, {"sk": "201"}, {"sk": "841"}]}
+    arsenal_only_fixtures = [
+        {
+            "id": 301, "event": 33, "kickoff_time": "2025-08-15T17:30:00Z",
+            "team_h": 1, "team_a": 99, "finished": False, "started": False,
+            "team_h_difficulty": 3, "team_a_difficulty": 4,
+        },
+    ]
+
+    def get_item(Key):
+        if (Key["pk"], Key["sk"]) == ("fpl#fixtures", "latest"):
+            return {"Item": {"pk": Key["pk"], "sk": Key["sk"], "data": arsenal_only_fixtures}}
+        return _ddb_get_item(Key)
+
+    table.get_item.side_effect = get_item
+
+    result = lambda_handler({}, None)
+
+    deleted = {call.kwargs["Key"]["sk"] for call in writer.delete_item.call_args_list}
+    assert deleted == {"201", "841"}
+    assert result["stale_rows_deleted"] == 2

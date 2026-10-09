@@ -5,6 +5,11 @@ ELO for that date), archives the raw CSV to S3, filters to PL clubs via
 the static ``team_mapping.json``, and caches a parsed map keyed by FPL
 team id at ``clubelo#ratings, sk=latest``.
 
+Promoted clubs need a new ``team_mapping.json`` entry every summer.
+A bootstrap team without one fails the run (after the other clubs'
+ratings are written), so the alarm flags it instead of the club quietly
+going without Elo all season, which is what happened in 2026/27.
+
 ClubELO publishes ratings recomputed daily; we fetch in the early-morning
 quiet window (03:00 UTC) so the form analyzer's 04:00 run has fresh
 data. Reuses ``make_fpl_session`` for the User-Agent + retry policy
@@ -132,9 +137,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     elo_by_fpl_id: dict[str, Decimal] = {}
     missing: list[str] = []
+    unmapped: list[str] = []
     for team in teams:
         clubelo_name = mapping.get(team.short_name)
         if clubelo_name is None:
+            unmapped.append(f"{team.short_name} ({team.name})")
             missing.append(f"no mapping for {team.short_name} ({team.name})")
             continue
         elo = elo_by_clubelo_name.get(clubelo_name)
@@ -167,6 +174,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         len(elo_by_fpl_id),
         len(missing),
     )
+    if unmapped:
+        raise RuntimeError(
+            f"No team_mapping.json entry for {', '.join(unmapped)}. Add the "
+            "ClubELO name for each (see the archived CSV in S3) and redeploy."
+        )
     return {
         "ok": True,
         "schema_version": SCHEMA_VERSION,

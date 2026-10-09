@@ -17,9 +17,9 @@ from schemas import EntryChip, EntryHistory, Player
 # FPL squad rule: max 3 players from any one Premier League team.
 MAX_PLAYERS_PER_TEAM = 3
 
-# 25/26 banked-FT cap. Rule change from prior seasons (was 2). Source: FPL
-# rules update for 2025/26. If FPL changes the cap again, this constant is
-# the only place to update.
+# Banked-FT cap, raised from 2 to 5 in 2025/26 and unchanged for 2026/27
+# (checked Oct 2026). If FPL changes the cap again, this constant is the
+# only place to update.
 MAX_BANKED_FREE_TRANSFERS = 5
 
 # Hit cost per extra transfer (FPL: −4 points per transfer beyond your free count).

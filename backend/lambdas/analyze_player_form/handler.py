@@ -28,6 +28,7 @@ from compute import (
     upcoming_fixtures_for_team,
     weighted_form_score,
 )
+from ddb_prune import prune_partition, sort_keys_in_partition
 from elo_compute import DEFAULT_HOME_ADVANTAGE_ELO, expected_score
 from match_window import get_match_window
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture
@@ -36,6 +37,7 @@ log = logging.getLogger()
 log.setLevel(logging.INFO)
 
 FPL_BASE_URL = "https://fantasy.premierleague.com/api"
+PLAYER_FORM_PK = "analytics#player_form"
 HTTP_TIMEOUT_SECONDS = 10
 
 # Tunable via env var so we can dial in the analytic window without a deploy.
@@ -172,6 +174,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     computed_at = datetime.now(timezone.utc).isoformat()
     written = 0
+    stored_sort_keys = sort_keys_in_partition(table, PLAYER_FORM_PK)
+    written_sort_keys: set[str] = set()
 
     with table.batch_writer() as batch:
         for player in bootstrap.players:
@@ -192,7 +196,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
             batch.put_item(
                 Item={
-                    "pk": "analytics#player_form",
+                    "pk": PLAYER_FORM_PK,
                     "sk": str(player.id),
                     "schema_version": SCHEMA_VERSION,
                     "computed_at": computed_at,
@@ -214,10 +218,20 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 }
             )
             written += 1
+            written_sort_keys.add(str(player.id))
+
+        # Rows for players who left the league (or whose id FPL reassigned
+        # at the season rollover) would otherwise be served forever.
+        stale_rows_deleted = (
+            prune_partition(batch, PLAYER_FORM_PK, stored_sort_keys, written_sort_keys)
+            if written_sort_keys
+            else 0
+        )
 
     log.info(
-        "Player-form analysis complete: players=%d gw_range=%s",
+        "Player-form analysis complete: players=%d stale_rows_deleted=%d gw_range=%s",
         written,
+        stale_rows_deleted,
         recent_gws,
     )
     return {
@@ -225,5 +239,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "computed_at": computed_at,
         "players_scored": written,
+        "stale_rows_deleted": stale_rows_deleted,
         "recent_gameweeks": recent_gws,
     }

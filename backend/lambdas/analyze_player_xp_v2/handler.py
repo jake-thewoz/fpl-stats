@@ -59,6 +59,7 @@ from compute import (
     opponent_team_id,
     player_difficulty,
 )
+from ddb_prune import prune_partition, sort_keys_in_partition
 from match_window import get_match_window
 from schemas import SCHEMA_VERSION, Bootstrap, Fixture, PlayerHistoryRow
 from xp_compute import (
@@ -90,6 +91,7 @@ log.setLevel(logging.INFO)
 # them. After Phase 3 fits a new coefficient set, that PR should bump
 # this string (e.g. "v2.0-fit-2026-04-28").
 MODEL_VERSION = "v2.0"
+PLAYER_XP_PK = "analytics#player_xp_v2"
 
 # Number of upcoming GWs to pre-compute horizon predictions for. Mirrors
 # analyze_transfer_suggestions.MAX_HORIZON — that endpoint clamps user
@@ -261,6 +263,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     computed_at = datetime.now(timezone.utc).isoformat()
     written = 0
     skipped_blank = 0
+    stored_sort_keys = sort_keys_in_partition(table, PLAYER_XP_PK)
+    written_sort_keys: set[str] = set()
 
     with table.batch_writer() as batch:
         for player in bootstrap.players:
@@ -338,7 +342,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
 
             batch.put_item(Item={
-                "pk": "analytics#player_xp_v2",
+                "pk": PLAYER_XP_PK,
                 "sk": str(player.id),
                 "schema_version": SCHEMA_VERSION,
                 "model_version": MODEL_VERSION,
@@ -363,10 +367,21 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "horizon_xp_by_gw": horizon_xp_by_gw,
             })
             written += 1
+            written_sort_keys.add(str(player.id))
+
+        # Deletes rows for departed or renumbered players, and also for
+        # players whose team blanks this GW: a missing row is how readers
+        # learn "no fixture", so last week's row must not linger.
+        stale_rows_deleted = (
+            prune_partition(batch, PLAYER_XP_PK, stored_sort_keys, written_sort_keys)
+            if written_sort_keys
+            else 0
+        )
 
     log.info(
-        "Player-xp-v2 analysis complete: gw=%d players_scored=%d skipped_blank=%d",
-        gw, written, skipped_blank,
+        "Player-xp-v2 analysis complete: gw=%d players_scored=%d skipped_blank=%d "
+        "stale_rows_deleted=%d",
+        gw, written, skipped_blank, stale_rows_deleted,
     )
     return {
         "ok": True,
@@ -376,4 +391,5 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "gameweek": gw,
         "players_scored": written,
         "skipped_blank": skipped_blank,
+        "stale_rows_deleted": stale_rows_deleted,
     }

@@ -252,11 +252,12 @@ export class FplStatsStack extends cdk.Stack {
         environment: {
           CACHE_TABLE_NAME: cacheTable.tableName,
         },
-        // Scans ~21k history rows + computes per-component xP for ~700
-        // players. Pure Python math (no numpy in the Lambda); 256 MB +
-        // 60 s leaves comfortable headroom against typical run times of
-        // a few seconds.
-        memorySize: 256,
+        // Scans every history row (~25k by season end) + computes
+        // per-component xP for ~700 players in pure Python (no numpy).
+        // 256 MB stopped being enough when stale prior-season rows grew
+        // the table to ~32k: runs hit 241 MB and timed out at 60 s every
+        // night from late July. 512 MB doubles both memory and vCPU share.
+        memorySize: 512,
         timeout: cdk.Duration.seconds(60),
         layers: [fplSchemasLayer],
       },
