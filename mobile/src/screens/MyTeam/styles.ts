@@ -204,6 +204,40 @@ export const makeStyles = (colors: Colors) =>
       backgroundColor: colors.surface,
     },
     shirtBadge: { position: 'absolute', top: spacing.hairline, right: spacing.hairline },
+    // Mirrors playerBadge's compact pill, pinned to the opposite corner
+    // from the armband.
+    changeMarker: {
+      position: 'absolute',
+      top: spacing.hairline,
+      left: spacing.hairline,
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    changeMarkerIn: { backgroundColor: colors.highlight, color: colors.onHighlight },
+    changeMarkerOut: { backgroundColor: colors.danger, color: colors.onDanger },
+
+    lineupControls: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      gap: spacing.sm,
+    },
+    lineupControlsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: spacing.md,
+    },
+    lineupSummary: {
+      fontSize: fontSize.sm2,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    lineupSummaryNote: { fontSize: fontSize.sm, color: colors.textMuted },
+
     tileName: {
       alignSelf: 'stretch',
       marginTop: spacing.xs,
