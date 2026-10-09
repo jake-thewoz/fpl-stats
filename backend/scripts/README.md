@@ -46,6 +46,17 @@ on the training set. This is the simplest calibration that produces
 per-position-correct component contributions on average. The training
 set is everything except the last 5 GWs; metrics are reported on the
 held-out validation set so we can see whether mean-matching generalizes.
+When the history spans fewer rounds than that, the holdout shrinks so at
+least one round is left to train on (the script logs a warning).
+
+A bucket with no actual events in the training set (e.g. no FWD defcon
+points yet) keeps its old weight. Fitting it to 0 would be permanent:
+a zero weight predicts nothing, and the fit skips buckets with nothing
+predicted, so later fits could never raise it again.
+
+**Early season:** the GW5 fit has only ~4 rounds to train on. In
+2026/27 that sample made validation MAE worse, not better, so the fit
+was deferred to ~GW10. Treat the GW5 run as a check, not a commitment.
 
 ### What the fit explicitly does NOT do
 

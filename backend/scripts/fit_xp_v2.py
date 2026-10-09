@@ -47,6 +47,7 @@ sys.path.insert(0, str(_THIS_DIR))
 
 from data import build_pairs, load_bootstrap, scan_player_history  # noqa: E402
 from fit import (  # noqa: E402
+    capped_holdout_rounds,
     fit_per_component_weights,
     mae_per_position,
     spearman_per_position,
@@ -147,14 +148,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     log.info("Built %d (features, actuals) pairs", len(pairs))
 
-    train, validation = time_series_split(
-        pairs, holdout_last_n_rounds=args.holdout_rounds,
-    )
-    if not train:
-        log.error("Time-series split left an empty training set "
-                  "(holdout_last_n_rounds=%d covers all rounds). Aborting.",
-                  args.holdout_rounds)
+    holdout_rounds = capped_holdout_rounds(pairs, args.holdout_rounds)
+    if holdout_rounds < 1:
+        log.error("History spans a single round, so there is nothing to "
+                  "both train and validate on. Aborting.")
         return 1
+    if holdout_rounds < args.holdout_rounds:
+        log.warning("History is too short for a %d-round holdout; using %d "
+                    "so training keeps at least one round.",
+                    args.holdout_rounds, holdout_rounds)
+
+    train, validation = time_series_split(
+        pairs, holdout_last_n_rounds=holdout_rounds,
+    )
     log.info("Train: %d pairs / Validation: %d pairs", len(train), len(validation))
 
     metrics_before = {
@@ -179,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         window=window,
     )
     _, validation_after = time_series_split(
-        pairs_after, holdout_last_n_rounds=args.holdout_rounds,
+        pairs_after, holdout_last_n_rounds=holdout_rounds,
     )
     metrics_after = {
         "mae": mae_per_position(validation_after),

@@ -155,7 +155,8 @@ def fit_per_component_weights(
     sum to P, the actual contributions sum to A, and we set the new
     weight to ``old_w × A / P``. If the bucket has no exposure
     (e.g. saves for outfield positions, or zero predicted contribution
-    on the training data), the weight is left untouched.
+    on the training data), or no actual events (A = 0), the weight is
+    left untouched.
 
     Concede points are negative — both actual and predicted come out
     negative — so the ratio is well-defined and the result has the same
@@ -180,7 +181,13 @@ def fit_per_component_weights(
     for (component, position), pred in sums_pred.items():
         if pred == 0:
             continue  # leave weight at prior — no signal to update from
-        ratio = sums_actual[(component, position)] / pred
+        actual = sums_actual[(component, position)]
+        if actual == 0:
+            # No events in the sample is weak evidence, but a weight of 0
+            # zeroes its prediction, and every later fit then skips the
+            # bucket above, so the weight could never recover.
+            continue
+        ratio = actual / pred
         new_weights[component][position] = (
             new_weights[component][position] * ratio
         )
@@ -235,6 +242,19 @@ def time_series_split(
     train = [p for p in pair_list if p.round <= cutoff]
     validation = [p for p in pair_list if p.round > cutoff]
     return train, validation
+
+
+def capped_holdout_rounds(pairs: Iterable[FitPair], requested: int) -> int:
+    """Shrink ``requested`` so the split keeps at least one training round.
+
+    Early in a season there are fewer rounds than the default holdout.
+    Returns 0 when the data spans a single round, which leaves nothing
+    to validate on.
+    """
+    rounds = {p.round for p in pairs}
+    if not rounds:
+        return 0
+    return min(requested, max(rounds) - min(rounds))
 
 
 def mae_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:

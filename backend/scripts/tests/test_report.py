@@ -106,3 +106,31 @@ def test_render_flags_extreme_weight() -> None:
         fit_date="2026-04-28",
     )
     assert "✗ All weights in plausible range" in report
+
+
+def test_render_flags_weight_that_collapsed_to_zero() -> None:
+    """A weight that was non-zero and is now exactly 0 must fail the
+    plausible-range check, not be mistaken for an ineligible position."""
+    after = _coefs(goals_mid=0.0)
+    report = render_fit_report(
+        train=[], validation=[],
+        coefs_before=_coefs(), coefs_after=after,
+        metrics_before={"mae": {}, "spearman": {}},
+        metrics_after={"mae": {}, "spearman": {}},
+        fit_date="2026-04-28",
+    )
+    assert "✗ All weights in plausible range" in report
+    assert "goals_w[3]=0.000" in report
+
+
+def test_render_ignores_weight_that_was_already_zero() -> None:
+    """Ineligible positions (cs_w[FWD], saves_w[DEF], ...) sit at 0 on
+    both sides and must not trip the check."""
+    report = render_fit_report(
+        train=[], validation=[],
+        coefs_before=_coefs(), coefs_after=_coefs(),
+        metrics_before={"mae": {}, "spearman": {}},
+        metrics_after={"mae": {}, "spearman": {}},
+        fit_date="2026-04-28",
+    )
+    assert "✓ All weights in plausible range" in report

@@ -169,9 +169,12 @@ def _sanity_checks(
 
     extreme: list[str] = []
     for component in ("goals", "assists", "cs", "concede", "saves", "defcon", "bonus"):
+        before_w = getattr(before, f"{component}_w")
         after_w = getattr(after, f"{component}_w")
         for pos, a in after_w.items():
-            if a == 0:
+            # Already 0 means an ineligible position (e.g. saves_w[DEF]);
+            # a weight that only just reached 0 must still be flagged.
+            if a == 0 and before_w[pos] == 0:
                 continue
             if abs(a) > 5.0 or abs(a) < 0.05:
                 extreme.append(f"{component}_w[{pos}]={a:.3f}")
