@@ -33,9 +33,27 @@ to a Lambda layer or shared-bundling setup.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
+
+
+def utc_now() -> datetime:
+    """Current time, aware UTC. Handlers read the clock through this so
+    tests can pin it with ``patch("handler.utc_now", ...)``."""
+    return datetime.now(timezone.utc)
+
+
+def parse_fpl_datetime(raw: str) -> datetime:
+    """Parse an FPL timestamp such as ``2025-08-15T19:00:00Z`` into an
+    aware UTC datetime. ``fromisoformat`` accepts the trailing ``Z`` on
+    Python 3.11+; naive values are assumed to be UTC."""
+    parsed = datetime.fromisoformat(raw)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 class Team(BaseModel):

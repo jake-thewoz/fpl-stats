@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
-from schemas import Fixture
+from schemas import Fixture, parse_fpl_datetime
 
 LIVE_WINDOW = timedelta(hours=2)
 FIXTURES_PK = "fpl#fixtures"
@@ -45,14 +45,7 @@ class MatchWindow:
 
 
 def _parse_kickoff(raw: Optional[str]) -> Optional[datetime]:
-    if raw is None:
-        return None
-    # FPL emits "2025-08-15T19:00:00Z"; fromisoformat handles the trailing
-    # Z on Python 3.11+. Lambda runtime is 3.12, so this is safe.
-    dt = datetime.fromisoformat(raw)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    return None if raw is None else parse_fpl_datetime(raw)
 
 
 def compute_match_window(

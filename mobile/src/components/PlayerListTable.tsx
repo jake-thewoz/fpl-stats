@@ -67,6 +67,10 @@ type Props<T extends JoinedPlayer> = {
   columns: FieldKey[];
   sort: SortState;
   onTapHeader: (key: FieldKey) => void;
+  /** Small second header line for columns whose meaning depends on the
+   *  data, e.g. the gameweek xP projects. A second line rather than a
+   *  longer label, which wouldn't fit the cell width. */
+  headerSublabels?: Partial<Record<FieldKey, string>>;
   /** Stable id for FlatList keying. */
   getId: (item: T) => string | number;
   /** Renders the contents of the pinned name column for a single row.
@@ -86,6 +90,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
   columns,
   sort,
   onTapHeader,
+  headerSublabels,
   getId,
   renderNameCell,
   getRowStyle,
@@ -257,6 +262,11 @@ export function PlayerListTable<T extends JoinedPlayer>({
                       {def.shortLabel}
                       {arrow}
                     </Text>
+                    {headerSublabels?.[c] ? (
+                      <Text style={styles.headerCellSubtext} numberOfLines={1}>
+                        {headerSublabels[c]}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -354,6 +364,7 @@ const makeStyles = (c: Colors) =>
       textTransform: 'uppercase',
     },
     headerCellTextActive: { color: c.accent },
+    headerCellSubtext: { fontSize: fontSize.xs, color: c.textMuted },
     dataCell: {
       width: CELL_WIDTH,
       paddingHorizontal: spacing.md,

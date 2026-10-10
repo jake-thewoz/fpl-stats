@@ -8,7 +8,7 @@ per the issue's AC.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from schemas import Fixture, Gameweek
 
@@ -75,16 +75,18 @@ def upcoming_fixtures_for_team(
     team_id: int,
     fixtures: Iterable[Fixture],
     count: int,
+    open_gameweek_ids: Collection[int],
 ) -> list[UpcomingFixture]:
     """Return up to `count` upcoming fixtures for `team_id`, chronologically.
 
-    An "upcoming" fixture is one with `finished=False` AND a known gameweek
-    (event is not None). Fixtures without a scheduled gameweek (rescheduled,
-    TBD) are skipped so results are always GW-anchored.
+    An "upcoming" fixture is unfinished and belongs to a gameweek still
+    open for planning (deadline ahead). That excludes the unplayed matches
+    of a live gameweek, which a manager can no longer pick players for,
+    and fixtures without a scheduled gameweek (rescheduled, TBD).
     """
     theirs = [
         fx for fx in fixtures
-        if not fx.finished and fx.event is not None
+        if not fx.finished and fx.event in open_gameweek_ids
         and team_id in (fx.team_h, fx.team_a)
     ]
     # Sort by (gameweek, kickoff_time) — kickoff_time tiebreaks when FPL

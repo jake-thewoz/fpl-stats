@@ -18,6 +18,15 @@ each horizon. End-of-season clamp: if fewer than N GWs remain, the sum
 covers what's available — the response's ``horizon_gw_ids`` list shows
 exactly which GWs each horizon would have summed.
 
+Gameweeks locked since the analyzer ran
+---------------------------------------
+The analyzer runs once a day, so rows written before a deadline still
+lead with that gameweek after it passes. Each read drops horizon GWs
+whose deadline has passed (per the cached bootstrap), so ``xp`` and
+``gameweek`` move to the next open GW at the deadline rather than at the
+next analyzer run. Until that run, ``xp_h5`` sums the four GWs left in
+the stored horizon.
+
 Source partition
 ----------------
 As of Phase 7 (#118) reads from ``analytics#player_xp_v2`` — the
@@ -39,6 +48,9 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Key
 
+from schemas import SCHEMA_VERSION, Gameweek, utc_now
+from xp_compute import open_gameweek_ids
+
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
@@ -48,6 +60,9 @@ log.setLevel(logging.INFO)
 # itself in the UX explorations and would bloat the payload.
 HORIZON_3 = 3
 HORIZON_5 = 5
+SINGLE_GAMEWEEK = 1
+
+BOOTSTRAP_KEY = {"pk": "fpl#bootstrap", "sk": "latest"}
 
 
 def _json_default(o: Any) -> Any:
@@ -64,12 +79,13 @@ def _response(status: int, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _sum_horizon(item: dict[str, Any], horizon: int) -> Decimal | None:
-    """Sum the first ``horizon`` entries from ``horizon_xp_by_gw`` in the
-    order given by ``horizon_gw_ids``. Returns ``None`` when the writer
-    didn't store horizon data on this row (older row shape, blank-GW
-    edge cases) so the client can render "—" rather than a misleading 0."""
-    gw_ids = item.get("horizon_gw_ids")
+def _sum_horizon(
+    item: dict[str, Any], gw_ids: list[int], horizon: int,
+) -> Decimal | None:
+    """Sum the first ``horizon`` entries of ``horizon_xp_by_gw`` in the
+    order of ``gw_ids``. Returns ``None`` when the writer didn't store
+    horizon data on this row (older row shape, blank-GW edge cases) so
+    the client can render "—" rather than a misleading 0."""
     horizon_map = item.get("horizon_xp_by_gw")
     if not gw_ids or not horizon_map:
         return None
@@ -90,16 +106,51 @@ def _sum_horizon(item: dict[str, Any], horizon: int) -> Decimal | None:
     return total if contributed > 0 else None
 
 
-def _slim_row(item: dict[str, Any]) -> dict[str, Any]:
+def _open_horizon(item: dict[str, Any], open_ids: set[int] | None) -> list[int]:
+    """The row's stored horizon minus GWs whose deadline has passed.
+    ``open_ids`` of ``None`` (bootstrap unavailable) keeps it as stored."""
+    gw_ids = [int(gw) for gw in item.get("horizon_gw_ids") or []]
+    if open_ids is None:
+        return gw_ids
+    return [gw for gw in gw_ids if gw in open_ids]
+
+
+def _current_gameweek(item: dict[str, Any], gw_ids: list[int]) -> int | None:
+    """The GW ``xp`` should describe: the first open one in the horizon,
+    or the stored ``gameweek`` for legacy rows that carry no horizon."""
+    if not item.get("horizon_gw_ids"):
+        return item.get("gameweek")
+    return gw_ids[0] if gw_ids else None
+
+
+def _slim_row(item: dict[str, Any], open_ids: set[int] | None) -> dict[str, Any]:
+    gw_ids = _open_horizon(item, open_ids)
     return {
         "player_id": item.get("player_id"),
         "web_name": item.get("web_name"),
         "team_id": item.get("team_id"),
         "position_id": item.get("position_id"),
-        "xp": item.get("xp"),
-        "xp_h3": _sum_horizon(item, HORIZON_3),
-        "xp_h5": _sum_horizon(item, HORIZON_5),
+        "xp": (
+            item.get("xp")
+            if _current_gameweek(item, gw_ids) == item.get("gameweek")
+            else _sum_horizon(item, gw_ids, SINGLE_GAMEWEEK)
+        ),
+        "xp_h3": _sum_horizon(item, gw_ids, HORIZON_3),
+        "xp_h5": _sum_horizon(item, gw_ids, HORIZON_5),
     }
+
+
+def _read_open_gameweek_ids(table: Any) -> set[int] | None:
+    """GW ids whose deadline is still ahead, or ``None`` when the cached
+    bootstrap is missing or from another schema version. In that case the
+    rows are served as stored rather than failing the request."""
+    item = table.get_item(Key=BOOTSTRAP_KEY).get("Item")
+    if not item or item.get("schema_version") != SCHEMA_VERSION:
+        log.warning("Bootstrap unavailable — serving xP rows unsliced")
+        return None
+    # Only the gameweeks list is needed, so skip validating ~700 players.
+    gameweeks = [Gameweek.model_validate(gw) for gw in item["data"]["gameweeks"]]
+    return set(open_gameweek_ids(gameweeks, utc_now()))
 
 
 def _read_all_xp(table: Any) -> list[dict[str, Any]]:
@@ -139,19 +190,22 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         )
 
+    open_ids = _read_open_gameweek_ids(table)
+
     # Lift gameweek + computed_at + horizon_gw_ids to the top level.
     # The analyzer writes the same value for every row in a single run,
     # so per-row repetition would be wasted bytes. On the rare race
     # during a re-run, slightly mixed values across rows are acceptable
     # for these debug fields.
     first = rows[0]
+    horizon_gw_ids = _open_horizon(first, open_ids)
     return _response(
         200,
         {
             "schema_version": first.get("schema_version"),
             "computed_at": first.get("computed_at"),
-            "gameweek": first.get("gameweek"),
-            "horizon_gw_ids": first.get("horizon_gw_ids") or [],
-            "players": [_slim_row(item) for item in rows],
+            "gameweek": _current_gameweek(first, horizon_gw_ids),
+            "horizon_gw_ids": horizon_gw_ids,
+            "players": [_slim_row(item, open_ids) for item in rows],
         },
     )

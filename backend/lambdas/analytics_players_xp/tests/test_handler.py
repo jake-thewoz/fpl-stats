@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -53,10 +54,44 @@ SAMPLE_ROWS = [
 ]
 
 
+def _gameweek(id_, deadline):
+    return {
+        "id": id_, "name": f"Gameweek {id_}", "deadline_time": deadline,
+        "is_current": False, "is_next": False, "finished": False,
+    }
+
+
+BEFORE_GW33_DEADLINE = datetime(2026, 4, 24, 4, 30, tzinfo=timezone.utc)
+DURING_GW33 = datetime(2026, 4, 25, 15, 0, tzinfo=timezone.utc)
+
+BOOTSTRAP_ITEM = {
+    "pk": "fpl#bootstrap",
+    "sk": "latest",
+    "schema_version": 1,
+    "data": {
+        "gameweeks": [
+            _gameweek(33, "2026-04-25T10:00:00Z"),
+            _gameweek(34, "2026-05-02T10:00:00Z"),
+            _gameweek(35, "2026-05-09T10:00:00Z"),
+            _gameweek(36, "2026-05-16T10:00:00Z"),
+            _gameweek(37, "2026-05-23T10:00:00Z"),
+            _gameweek(38, "2026-05-30T10:00:00Z"),
+        ],
+    },
+}
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock():
+    with patch("handler.utc_now", return_value=BEFORE_GW33_DEADLINE) as clock:
+        yield clock
+
+
 @pytest.fixture
 def mock_table():
     table = MagicMock()
     table.query.return_value = {"Items": SAMPLE_ROWS}
+    table.get_item.return_value = {"Item": BOOTSTRAP_ITEM}
 
     resource = MagicMock()
     resource.Table.return_value = table
@@ -229,3 +264,62 @@ def test_query_uses_player_xp_partition(mock_table):
     assert "analytics#player_xp" in str(
         call_kwargs["KeyConditionExpression"].get_expression()
     )
+
+
+# ---------------------------------------------------------------------------
+# Re-slicing past gameweeks whose deadline has passed since the analyzer ran
+# ---------------------------------------------------------------------------
+
+
+def _row_with_distinct_gw_values():
+    """xp differs per GW so the test can tell which GWs were summed."""
+    row = _xp_row(308, "Haaland", 13, 4, "1.0")
+    row["horizon_xp_by_gw"] = {
+        "33": Decimal("1.0"),
+        "34": Decimal("2.0"),
+        "35": Decimal("3.0"),
+        "36": Decimal("4.0"),
+        "37": Decimal("5.0"),
+    }
+    return row
+
+
+def test_locked_gameweek_dropped_after_its_deadline(mock_table, pinned_clock):
+    """Rows were written for GW33, then its deadline passed. GW33 is
+    locked, so xp and the horizons move on to GW34 before the next
+    analyzer run."""
+    mock_table.query.return_value = {"Items": [_row_with_distinct_gw_values()]}
+    pinned_clock.return_value = DURING_GW33
+
+    body = _body(lambda_handler({}, None))
+
+    assert body["gameweek"] == 34
+    assert body["horizon_gw_ids"] == [34, 35, 36, 37]
+    player = body["players"][0]
+    assert player["xp"] == 2.0
+    assert player["xp_h3"] == pytest.approx(2.0 + 3.0 + 4.0)
+    # Only four stored GWs remain open until the analyzer re-runs.
+    assert player["xp_h5"] == pytest.approx(2.0 + 3.0 + 4.0 + 5.0)
+
+
+def test_rows_served_as_stored_before_the_deadline(mock_table):
+    mock_table.query.return_value = {"Items": [_row_with_distinct_gw_values()]}
+
+    body = _body(lambda_handler({}, None))
+
+    assert body["gameweek"] == 33
+    assert body["players"][0]["xp"] == 1.0
+
+
+def test_rows_served_as_stored_when_bootstrap_missing(mock_table, pinned_clock):
+    """No bootstrap to read deadlines from: degrade to the stored rows
+    rather than failing the request."""
+    mock_table.query.return_value = {"Items": [_row_with_distinct_gw_values()]}
+    mock_table.get_item.return_value = {}
+    pinned_clock.return_value = DURING_GW33
+
+    body = _body(lambda_handler({}, None))
+
+    assert body["gameweek"] == 33
+    assert body["horizon_gw_ids"] == [33, 34, 35, 36, 37]
+    assert body["players"][0]["xp"] == 1.0

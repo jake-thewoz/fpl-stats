@@ -220,6 +220,16 @@ export const FIELDS_IN_PICKER_ORDER: FieldDef[] = [
   FIELD_DEFS.cost_change_event,
 ];
 
+/** Names the gameweek the xP column projects, under its header, so it's
+ *  explicit that projections cover the next deadline while a gameweek is
+ *  live. */
+export function xpHeaderSublabels(
+  gameweek: number | null,
+): Partial<Record<FieldKey, string>> | undefined {
+  if (gameweek == null) return undefined;
+  return { xp: `GW${gameweek}` };
+}
+
 /** Defaults a brand-new install gets. Picked to emphasise xP — the
  *  newest signal, what the unified rebuild is for. */
 export const DEFAULT_COLUMNS: FieldKey[] = ['xp', 'form', 'price'];

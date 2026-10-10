@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 import time
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,17 @@ os.environ.setdefault("CACHE_TABLE_NAME", "test-cache-table")
 
 import handler  # noqa: E402
 from handler import lambda_handler  # noqa: E402
+
+
+# Pin the clock before every deadline in the hand-built bootstrap, so
+# only ``finished`` excludes a gameweek unless a test moves it.
+BEFORE_ALL_DEADLINES = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock():
+    with patch("handler.utc_now", return_value=BEFORE_ALL_DEADLINES) as clock:
+        yield clock
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +463,14 @@ def test_horizon_clamps_to_remaining_season(mock_table):
     body = _body(lambda_handler(_event(horizon=3), None))
     assert body["horizon_gws"] == 1
     assert body["horizon_gw_ids"] == [33]
+
+
+def test_live_gameweek_is_skipped(mock_table, pinned_clock):
+    """GW33's deadline has passed but it isn't finished: transfers made
+    now land in GW34, so the horizon starts there."""
+    pinned_clock.return_value = datetime(2026, 4, 22, 11, 0, tzinfo=timezone.utc)
+    body = _body(lambda_handler(_event(horizon=3), None))
+    assert body["horizon_gw_ids"] == [34, 35]
 
 
 def test_season_over_returns_empty_suggestions(mock_table):

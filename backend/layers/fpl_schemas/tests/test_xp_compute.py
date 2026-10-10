@@ -1,21 +1,33 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from xp_compute import (
     fixtures_in_gw_for_team,
     minutes_probability,
     minutes_probability_with_selection,
+    open_gameweek_ids,
     upcoming_gameweek_ids,
 )
 from schemas import Fixture, Gameweek, Player
+
+# Deadlines fall one week apart from SEASON_START; NOW sits before all of
+# them, so only ``finished`` excludes a GW unless a test moves the clock.
+SEASON_START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+NOW = SEASON_START
+
+
+def _deadline(id_: int) -> datetime:
+    return SEASON_START + timedelta(weeks=id_)
 
 
 def _gw(id_: int, *, finished: bool = False, is_next: bool = False) -> Gameweek:
     return Gameweek(
         id=id_,
         name=f"Gameweek {id_}",
-        deadline_time=f"2026-01-{id_:02d}T00:00:00Z",
+        deadline_time=_deadline(id_).isoformat().replace("+00:00", "Z"),
         is_current=False,
         is_next=is_next,
         finished=finished,
@@ -209,17 +221,41 @@ class TestUpcomingGameweekIds:
             _gw(33),
             _gw(34),
         ]
-        assert upcoming_gameweek_ids(gws, 3) == [32, 33, 34]
+        assert upcoming_gameweek_ids(gws, 3, NOW) == [32, 33, 34]
 
     def test_clamps_to_remaining_when_horizon_exceeds(self):
         # GW37 with two GWs left and horizon=3 -> [37, 38].
         gws = [_gw(37), _gw(38)]
-        assert upcoming_gameweek_ids(gws, 3) == [37, 38]
+        assert upcoming_gameweek_ids(gws, 3, NOW) == [37, 38]
 
     def test_returns_empty_when_season_over(self):
         gws = [_gw(37, finished=True), _gw(38, finished=True)]
-        assert upcoming_gameweek_ids(gws, 3) == []
+        assert upcoming_gameweek_ids(gws, 3, NOW) == []
 
     def test_unordered_input_returns_ascending(self):
         gws = [_gw(34), _gw(32, finished=True), _gw(33), _gw(35)]
-        assert upcoming_gameweek_ids(gws, 5) == [33, 34, 35]
+        assert upcoming_gameweek_ids(gws, 5, NOW) == [33, 34, 35]
+
+    def test_skips_live_gameweek_whose_deadline_has_passed(self):
+        # GW32's deadline passed an hour ago and its matches are still
+        # being played: locked, so planning starts at GW33.
+        gws = [_gw(31, finished=True), _gw(32), _gw(33), _gw(34)]
+        live_now = _deadline(32) + timedelta(hours=1)
+        assert upcoming_gameweek_ids(gws, 3, live_now) == [33, 34]
+
+    def test_gameweek_is_open_until_its_deadline(self):
+        gws = [_gw(32), _gw(33)]
+        just_before = _deadline(32) - timedelta(seconds=1)
+        assert upcoming_gameweek_ids(gws, 1, just_before) == [32]
+        assert upcoming_gameweek_ids(gws, 1, _deadline(32)) == [33]
+
+
+class TestOpenGameweekIds:
+    def test_returns_every_open_gameweek(self):
+        gws = [_gw(1, finished=True), _gw(2), _gw(3), _gw(4)]
+        live_now = _deadline(2) + timedelta(hours=1)
+        assert open_gameweek_ids(gws, live_now) == [3, 4]
+
+    def test_empty_after_final_deadline(self):
+        gws = [_gw(37, finished=True), _gw(38)]
+        assert open_gameweek_ids(gws, _deadline(38) + timedelta(hours=1)) == []
