@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,17 @@ os.environ.setdefault("CACHE_TABLE_NAME", "test-cache-table")
 
 import handler  # noqa: E402
 from handler import FPL_BASE_URL, lambda_handler  # noqa: E402
+
+
+# Pin the clock before every deadline in the hand-built bootstrap, so
+# only ``finished`` excludes a gameweek.
+BEFORE_ALL_DEADLINES = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock():
+    with patch("handler.utc_now", return_value=BEFORE_ALL_DEADLINES) as clock:
+        yield clock
 
 
 # ---------------------------------------------------------------------------

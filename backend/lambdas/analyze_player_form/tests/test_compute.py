@@ -166,6 +166,8 @@ def test_fixture_difficulty_team_not_playing_returns_none():
 # upcoming_fixtures_for_team
 # ---------------------------------------------------------------------------
 
+ALL_OPEN = set(range(1, 39))
+
 
 def test_upcoming_fixtures_filters_and_sorts():
     # Team 3 plays in fixtures 1, 3, 4; fixtures 2 and 5 are other teams.
@@ -176,7 +178,9 @@ def test_upcoming_fixtures_filters_and_sorts():
         _fx(4, event=31, team_h=3, team_a=9, team_h_difficulty=5),
         _fx(5, event=31, team_h=1, team_a=2),
     ]
-    result = upcoming_fixtures_for_team(team_id=3, fixtures=fixtures, count=5)
+    result = upcoming_fixtures_for_team(
+        team_id=3, fixtures=fixtures, count=5, open_gameweek_ids=ALL_OPEN,
+    )
     assert [u.gw for u in result] == [30, 31, 32]
     assert [u.opponent_team_id for u in result] == [7, 9, 5]
     assert [u.home for u in result] == [True, True, False]
@@ -188,7 +192,7 @@ def test_upcoming_fixtures_skips_finished():
         _fx(1, event=30, team_h=3, team_a=7, finished=True),
         _fx(2, event=31, team_h=3, team_a=9),
     ]
-    result = upcoming_fixtures_for_team(3, fixtures, count=5)
+    result = upcoming_fixtures_for_team(3, fixtures, count=5, open_gameweek_ids=ALL_OPEN)
     assert [u.gw for u in result] == [31]
 
 
@@ -197,13 +201,24 @@ def test_upcoming_fixtures_skips_tbd_gameweek():
         _fx(1, event=None, team_h=3, team_a=7),  # rescheduled TBD
         _fx(2, event=31, team_h=3, team_a=9),
     ]
-    result = upcoming_fixtures_for_team(3, fixtures, count=5)
+    result = upcoming_fixtures_for_team(3, fixtures, count=5, open_gameweek_ids=ALL_OPEN)
+    assert [u.gw for u in result] == [31]
+
+
+def test_upcoming_fixtures_skips_live_gameweek():
+    # GW30's deadline has passed and its match is still to be played:
+    # locked, so the next fixture a manager can plan for is GW31.
+    fixtures = [
+        _fx(1, event=30, team_h=3, team_a=7),
+        _fx(2, event=31, team_h=3, team_a=9),
+    ]
+    result = upcoming_fixtures_for_team(3, fixtures, count=5, open_gameweek_ids={31})
     assert [u.gw for u in result] == [31]
 
 
 def test_upcoming_fixtures_honors_count():
     fixtures = [_fx(i, event=30 + i, team_h=3, team_a=7) for i in range(10)]
-    result = upcoming_fixtures_for_team(3, fixtures, count=3)
+    result = upcoming_fixtures_for_team(3, fixtures, count=3, open_gameweek_ids=ALL_OPEN)
     assert len(result) == 3
     assert [u.gw for u in result] == [30, 31, 32]
 

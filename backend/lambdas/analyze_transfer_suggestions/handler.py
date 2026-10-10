@@ -63,6 +63,7 @@ from schemas import (
     EntryFullHistory,
     EntryPicks,
     Fixture,
+    utc_now,
 )
 from v2_horizon import read_v2_horizon_xps
 from xp_compute import upcoming_gameweek_ids
@@ -529,7 +530,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         raise RuntimeError("fpl#fixtures / latest missing — has ingest run?")
     fixtures = [Fixture.model_validate(f) for f in fixtures_item["data"]]
 
-    horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, horizon)
+    horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, horizon, utc_now())
     if not horizon_gw_ids:
         # Post-final-deadline: nothing left to score.
         return _empty_response(

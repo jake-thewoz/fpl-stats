@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -30,7 +29,8 @@ from compute import (
 )
 from ddb_prune import prune_partition, sort_keys_in_partition
 from match_window import get_match_window
-from schemas import SCHEMA_VERSION, Bootstrap, Fixture
+from schemas import SCHEMA_VERSION, Bootstrap, Fixture, utc_now
+from xp_compute import open_gameweek_ids
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -82,7 +82,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     table = boto3.resource("dynamodb").Table(table_name)
 
     # Match-window guard — defer heavy work until the quiet window.
-    window = get_match_window(table)
+    now = utc_now()
+    window = get_match_window(table, now)
     if window.is_live:
         log.info("Match live, skipping player-form analysis this tick")
         return {"ok": True, "skipped": "match_live"}
@@ -101,6 +102,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         raise RuntimeError("fpl#fixtures / latest missing — has ingest run?")
     fixtures = [Fixture.model_validate(f) for f in fixtures_item["data"]]
 
+    open_gw_ids = set(open_gameweek_ids(bootstrap.gameweeks, now))
     recent_gws = recent_completed_gameweeks(bootstrap.gameweeks, RECENT_GW_COUNT)
     if not recent_gws:
         log.info("No finished gameweeks yet — nothing to analyze")
@@ -111,7 +113,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         gw: _fetch_gw_live(session, gw) for gw in recent_gws
     }
 
-    computed_at = datetime.now(timezone.utc).isoformat()
+    computed_at = now.isoformat()
     written = 0
     stored_sort_keys = sort_keys_in_partition(table, PLAYER_FORM_PK)
     written_sort_keys: set[str] = set()
@@ -123,7 +125,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             ]
             form_score = weighted_form_score(recent_points, FORM_WEIGHTS)
             upcoming = upcoming_fixtures_for_team(
-                player.team, fixtures, UPCOMING_FIXTURES_COUNT
+                player.team, fixtures, UPCOMING_FIXTURES_COUNT, open_gw_ids
             )
             avg_diff = average_difficulty(upcoming)
 

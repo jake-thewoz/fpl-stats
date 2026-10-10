@@ -6,7 +6,8 @@ alongside the v1 analyzer Lambda when the v2 cutover landed (#118 +
 follow-up). What remains is the pure GW/fixtures plumbing the v2
 writer needs:
 
-- ``upcoming_gameweek_ids``: pick the next N unfinished GW ids
+- ``open_gameweek_ids`` / ``upcoming_gameweek_ids``: the GWs a manager
+  can still plan for (deadline not yet passed), optionally capped to N
 - ``fixtures_in_gw_for_team``: filter a fixtures list to one team's GW
 - ``minutes_probability``: P(plays this GW) from FPL's ``status`` /
   ``chance_of_playing_next_round`` fields
@@ -18,24 +19,42 @@ consumer in ``analyze_player_xp_v2/compute.py`` and
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Iterable
 
-from schemas import Fixture, Gameweek, Player
+from schemas import Fixture, Gameweek, Player, parse_fpl_datetime
+
+
+def open_gameweek_ids(
+    gameweeks: Iterable[Gameweek],
+    now: datetime,
+) -> list[int]:
+    """Gameweek ids still open for planning, ascending: not finished and
+    deadline still ahead of ``now``.
+
+    The deadline check is what matters. A live gameweek (deadline passed,
+    matches still being played) isn't finished, yet its lineup and
+    transfers are locked, so planning must target the GW after it.
+    """
+    return sorted(
+        gw.id for gw in gameweeks
+        if not gw.finished and parse_fpl_datetime(gw.deadline_time) > now
+    )
 
 
 def upcoming_gameweek_ids(
     gameweeks: Iterable[Gameweek],
     horizon: int,
+    now: datetime,
 ) -> list[int]:
-    """Return up to ``horizon`` upcoming (un-finished) gameweek ids in
+    """Return up to ``horizon`` gameweek ids still open for planning, in
     ascending order. Used by horizon-based analyzers (transfer suggester)
     to know which GWs to project xP across.
 
     Naturally clamps to remaining season: at GW37 with two GWs left and
     horizon=3, returns [37, 38].
     """
-    unfinished = sorted(gw.id for gw in gameweeks if not gw.finished)
-    return unfinished[:horizon]
+    return open_gameweek_ids(gameweeks, now)[:horizon]
 
 
 def fixtures_in_gw_for_team(

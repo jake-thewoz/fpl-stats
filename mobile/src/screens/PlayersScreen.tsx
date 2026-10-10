@@ -15,7 +15,7 @@ import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { ControlButton } from '../components/ControlButton';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
-import { FIELD_DEFS } from '../players/fields';
+import { FIELD_DEFS, xpHeaderLabels } from '../players/fields';
 import { applyAll, activeFilterCount } from '../players/apply';
 import { POSITION_CODES } from '../players/positions';
 import type { FieldKey, JoinedPlayer } from '../players/types';
@@ -33,6 +33,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 type CombinedData = {
   players: JoinedPlayer[];
+  /** Gameweek the xP column projects (the next deadline). */
+  xpGameweek: number | null;
 };
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
@@ -48,7 +50,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
     const players: JoinedPlayer[] = playersResp.players.map((p) =>
       toJoined(p, xpById.get(p.id)),
     );
-    return { players };
+    return { players, xpGameweek: xpResp.gameweek };
   }, []);
   const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
@@ -158,6 +160,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         columns={columns}
         sort={sort}
         onTapHeader={onTapColumnHeader}
+        headerLabels={xpHeaderLabels(state.data.xpGameweek)}
         getId={(p) => p.id}
         renderNameCell={(p) => (
           <>

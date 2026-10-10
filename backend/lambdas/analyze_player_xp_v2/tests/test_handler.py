@@ -8,6 +8,7 @@ fpl#player_history#*) and the per-component output schema.
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,17 @@ os.environ.setdefault("CACHE_TABLE_NAME", "test-cache-table")
 
 import handler  # noqa: E402
 from handler import lambda_handler  # noqa: E402
+
+
+# Pin the clock before every deadline in the hand-built bootstrap, so
+# only ``finished`` excludes a gameweek unless a test moves it.
+BEFORE_ALL_DEADLINES = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock():
+    with patch("handler.utc_now", return_value=BEFORE_ALL_DEADLINES) as clock:
+        yield clock
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +290,19 @@ def test_writes_horizon_xp_by_gw(mock_table) -> None:
     # Single-GW xp matches horizon[upcoming_gw] — the players-list xP
     # column reads the top-level field, transfer suggestions reads the map.
     assert saka["xp"] == horizon[str(saka["gameweek"])]
+
+
+def test_live_gameweek_is_skipped(mock_table, pinned_clock) -> None:
+    """GW33's deadline has passed but it isn't finished: it's live and
+    locked, so the projection targets GW34 instead."""
+    _table, writer = mock_table
+    pinned_clock.return_value = datetime(2026, 4, 22, 11, 0, tzinfo=timezone.utc)
+    result = lambda_handler({}, None)
+
+    assert result["gameweek"] == 34
+    saka = _items_by_player(writer)[101]
+    assert saka["gameweek"] == 34
+    assert saka["horizon_gw_ids"] == [34, 35, 36, 37]
 
 
 def test_horizon_clamps_to_remaining_gameweeks(mock_table) -> None:
@@ -559,7 +584,8 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
         "gameweeks": [
             {
                 "id": gw_id, "name": f"Gameweek {gw_id}",
-                "deadline_time": f"2026-02-{gw_id:02d}T10:00:00Z",
+                # March 1st onwards: valid dates, all after the pinned clock.
+                "deadline_time": f"2026-03-{gw_id - 26:02d}T10:00:00Z",
                 "is_current": gw_id == 32,
                 "is_next": gw_id == 33,
                 "finished": gw_id <= 32,

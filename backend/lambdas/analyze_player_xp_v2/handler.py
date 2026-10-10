@@ -47,7 +47,6 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -61,7 +60,7 @@ from compute import (
 )
 from ddb_prune import prune_partition, sort_keys_in_partition
 from match_window import get_match_window
-from schemas import SCHEMA_VERSION, Bootstrap, Fixture, PlayerHistoryRow
+from schemas import SCHEMA_VERSION, Bootstrap, Fixture, PlayerHistoryRow, utc_now
 from xp_compute import (
     fixtures_in_gw_for_team,
     minutes_probability_with_selection,
@@ -204,7 +203,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     table_name = os.environ["CACHE_TABLE_NAME"]
     table = boto3.resource("dynamodb").Table(table_name)
 
-    window = get_match_window(table)
+    now = utc_now()
+    window = get_match_window(table, now)
     if window.is_live:
         log.info("Match live, skipping player-xp-v2 analysis this tick")
         return {"ok": True, "skipped": "match_live"}
@@ -212,7 +212,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     bootstrap = _read_bootstrap(table)
     fixtures = _read_fixtures(table)
 
-    horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, MAX_HORIZON)
+    horizon_gw_ids = upcoming_gameweek_ids(bootstrap.gameweeks, MAX_HORIZON, now)
     if not horizon_gw_ids:
         log.info("No upcoming gameweek — season over, nothing to analyze")
         return {"ok": True, "skipped": "no_upcoming_gameweek"}
@@ -260,7 +260,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # avoids ~680 redundant computations per run.
     team_xgc_cache: dict[int, float] = {}
 
-    computed_at = datetime.now(timezone.utc).isoformat()
+    computed_at = now.isoformat()
     written = 0
     skipped_blank = 0
     stored_sort_keys = sort_keys_in_partition(table, PLAYER_XP_PK)
