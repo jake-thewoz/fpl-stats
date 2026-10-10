@@ -147,7 +147,15 @@ export default function FriendsScreen({ navigation }: Props) {
     <FlatList
       data={sortedRows}
       keyExtractor={(r) => r.target.id}
-      renderItem={({ item }) => <Row row={item} onRetry={onRetry} />}
+      renderItem={({ item }) => (
+        <Row
+          row={item}
+          onRetry={onRetry}
+          onOpenTeam={(teamId, name) =>
+            navigation.navigate('FriendTeam', { teamId, name })
+          }
+        />
+      )}
       ListHeaderComponent={
         <TableHeader
           sortColumn={sortColumn}
@@ -287,14 +295,22 @@ function ColumnHeaderButton({
 function Row({
   row,
   onRetry,
+  onOpenTeam,
 }: {
   row: ComparisonRow;
   onRetry: (teamId: string) => void;
+  onOpenTeam: (teamId: string, name: string) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
 
   const { target, state } = row;
-  const retryable = isRetryable(state);
+  const action = rowAction(state);
+  const onPress =
+    action === 'open'
+      ? () => onOpenTeam(target.id, displayAlias(row))
+      : action === 'retry'
+        ? () => onRetry(target.id)
+        : undefined;
   const aliasBadge = target.isMe ? (
     <View style={styles.youBadge} accessibilityLabel="You">
       <Text style={styles.youBadgeText}>You</Text>
@@ -303,15 +319,15 @@ function Row({
 
   return (
     <Pressable
-      onPress={retryable ? () => onRetry(target.id) : undefined}
-      disabled={!retryable}
+      onPress={onPress}
+      disabled={action === null}
       style={({ pressed }) => [
         styles.row,
         target.isMe && styles.rowMe,
         pressed && styles.pressed,
       ]}
-      accessibilityRole={retryable ? 'button' : undefined}
-      accessibilityHint={retryable ? 'Retries loading this team' : undefined}
+      accessibilityRole={action ? 'button' : undefined}
+      accessibilityHint={action ? ROW_ACTION_HINTS[action] : undefined}
     >
       <View style={styles.colAlias}>
         <View style={styles.aliasLine}>
@@ -329,9 +345,21 @@ function Row({
   );
 }
 
-/** A missing team won't appear on retry; anything else might. */
-function isRetryable(state: ParallelFetchRowState<Entry>): boolean {
-  return state.status === 'error' && !(state.error instanceof EntryNotFoundError);
+type RowAction = 'open' | 'retry';
+
+const ROW_ACTION_HINTS: Record<RowAction, string> = {
+  open: 'Shows this squad',
+  retry: 'Retries loading this team',
+};
+
+/** Loaded rows open the squad; failed rows retry, except a missing team,
+ *  which won't appear on retry. Loading rows do nothing. */
+function rowAction(state: ParallelFetchRowState<Entry>): RowAction | null {
+  if (state.status === 'ok') return 'open';
+  if (state.status === 'error' && !(state.error instanceof EntryNotFoundError)) {
+    return 'retry';
+  }
+  return null;
 }
 
 function displayAlias(row: ComparisonRow): string {

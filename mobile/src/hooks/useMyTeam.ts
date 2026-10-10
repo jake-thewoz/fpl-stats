@@ -13,6 +13,13 @@ import {
 const NO_TEAM_ID = '';
 const NO_GAMEWEEK = 0;
 
+export type MyTeamOptions = {
+  /** Show last gameweek's squad instead of a Free Hit eleven, so the
+   *  user can plan around their persistent team. Off when viewing a
+   *  friend's squad, where the eleven actually playing is the point. */
+  freeHitFallback?: boolean;
+};
+
 export type MyTeamQuery = {
   data: MyTeamData | undefined;
   /** Every query the view is built from, for refresh / retry / errors. */
@@ -23,9 +30,13 @@ export type MyTeamQuery = {
  * The user's squad for the current gameweek, joined with player data and
  * live points. Picks and live points wait on the entry (it names the
  * current gameweek); the previous gameweek's picks are only fetched when
- * Free Hit is active. Pass `null` for no team: every query stays idle.
+ * Free Hit is active and `freeHitFallback` is on (the default). Pass
+ * `null` for no team: every query stays idle.
  */
-export function useMyTeam(teamId: string | null): MyTeamQuery {
+export function useMyTeam(
+  teamId: string | null,
+  { freeHitFallback = true }: MyTeamOptions = {},
+): MyTeamQuery {
   const hasTeam = teamId != null;
   const entry = useQuery({ ...entryQuery(teamId ?? NO_TEAM_ID), enabled: hasTeam });
   const players = useQuery({ ...playersQuery(), enabled: hasTeam });
@@ -43,11 +54,21 @@ export function useMyTeam(teamId: string | null): MyTeamQuery {
   const previousGameweek = (gameweek ?? NO_GAMEWEEK) - 1;
   const previousPicks = useQuery({
     ...entryGameweekQuery(teamId ?? NO_TEAM_ID, previousGameweek),
-    enabled: hasGameweek && needsPreviousPicks(picks.data, gameweek ?? NO_GAMEWEEK),
+    enabled:
+      freeHitFallback &&
+      hasGameweek &&
+      needsPreviousPicks(picks.data, gameweek ?? NO_GAMEWEEK),
   });
 
   const data = useMemo(
-    () => assembleMyTeam({ entry, players, picks, live, previousPicks }),
+    () =>
+      assembleMyTeam({
+        entry,
+        players,
+        picks,
+        live,
+        previousPicks: freeHitFallback ? previousPicks : null,
+      }),
     // Each result object is new every render; its data and error are
     // what the assembly actually reads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,6 +83,7 @@ export function useMyTeam(teamId: string | null): MyTeamQuery {
       live.error,
       previousPicks.data,
       previousPicks.error,
+      freeHitFallback,
     ],
   );
 

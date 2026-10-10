@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import FriendsScreen from '../../screens/FriendsScreen';
+import FriendTeamScreen from '../../screens/FriendTeamScreen';
 import ManageFriendsScreen from '../../screens/ManageFriendsScreen';
 import AddFriendScreen from '../../screens/AddFriendScreen';
 import ImportLeagueScreen from '../../screens/ImportLeagueScreen';
@@ -18,6 +19,11 @@ export function FriendsStack() {
         name="Friends"
         component={FriendsScreen}
         options={{ title: 'Friends' }}
+      />
+      <Stack.Screen
+        name="FriendTeam"
+        component={FriendTeamScreen}
+        options={({ route }) => ({ title: route.params.name })}
       />
       <Stack.Screen
         name="ManageFriends"

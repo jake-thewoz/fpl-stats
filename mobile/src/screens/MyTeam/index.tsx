@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import type { SquadEntry } from '../../api/myTeam';
 import { useMyTeam } from '../../hooks/useMyTeam';
 import { useQueryState } from '../../hooks/useQueryState';
 import { playersXpQuery } from '../../query/queries';
@@ -31,6 +30,7 @@ import { ChipBanner, Header, PicksUnavailableNote } from './Header';
 import { lineupFromPicks, type LineupSlot } from './lineup';
 import { LineupControls, type LineupSource } from './LineupControls';
 import { MyTeamNameCell } from './NameCell';
+import { EMPTY_SQUAD_MESSAGE, gameweekPointsText, squadRows } from './rows';
 import { PitchView } from './PitchView';
 import { makeStyles } from './styles';
 import { DEFAULT_LINEUP_METRIC, suggestLineup, type LineupMetric } from './suggestLineup';
@@ -42,16 +42,6 @@ const VIEW_OPTIONS: readonly SegmentOption<MyTeamView>[] = [
   { value: 'pitch', label: 'Pitch' },
   { value: 'list', label: 'List' },
 ];
-
-const EMPTY_SQUAD_MESSAGE = 'No squad data available yet for this gameweek.';
-
-/** Pitch tiles show this gameweek's points, captain multiplier included,
- *  matching the GW total in the header. */
-function gameweekPointsText(slot: LineupSlot): string {
-  const points = slot.row.gwPoints;
-  if (points == null) return '– pts';
-  return points === 1 ? '1 pt' : `${points} pts`;
-}
 
 export default function MyTeamScreen({ navigation }: Props) {
   const teamId = useFocusedTeamId();
@@ -76,12 +66,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   const data = useMemo(() => {
     if (myTeamData === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
-    const rows: MyTeamRow[] = myTeamData.squad
-      .filter(
-        (s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
-          s.player != null,
-      )
-      .map((s) => toMyTeamRow(s, xpById.get(s.player.id)));
+    const rows = squadRows(myTeamData.squad, xpById);
     return { myTeam: myTeamData, rows, xpGameweek: xpResp.gameweek };
   }, [myTeamData, xpResp]);
   const { state, refreshing, onRefresh, onRetry } = useQueryState(
@@ -257,45 +242,6 @@ function MyTeamContent({ teamId }: { teamId: string }) {
       />
     </View>
   );
-}
-
-function toMyTeamRow(
-  s: SquadEntry & { player: NonNullable<SquadEntry['player']> },
-  xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
-): MyTeamRow {
-  const { player } = s;
-  const formNum = parseFloat(player.form);
-  return {
-    id: player.id,
-    name: player.name,
-    team: player.team,
-    position: player.position,
-    price: player.price,
-    total_points: player.total_points,
-    form: Number.isNaN(formNum) ? 0 : formNum,
-    xp: xp?.xp ?? null,
-    xp_h3: xp?.xp_h3 ?? null,
-    xp_h5: xp?.xp_h5 ?? null,
-    defcon: player.defcon,
-    defcon_per_90: player.defcon_per_90,
-    selected_by_percent: player.selected_by_percent,
-    points_per_game: player.points_per_game,
-    minutes: player.minutes,
-    goals_scored: player.goals_scored,
-    assists: player.assists,
-    clean_sheets: player.clean_sheets,
-    bonus: player.bonus,
-    bps: player.bps,
-    ict_index: player.ict_index,
-    expected_goals: player.expected_goals,
-    expected_assists: player.expected_assists,
-    cost_change_event: player.cost_change_event,
-    squadSlot: s.pick.position,
-    isStarter: s.isStarter,
-    isCaptain: s.pick.is_captain,
-    isViceCaptain: s.pick.is_vice_captain,
-    gwPoints: s.gwPoints,
-  };
 }
 
 function ControlBar({

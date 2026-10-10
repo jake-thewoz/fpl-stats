@@ -75,9 +75,15 @@ export function ChipBanner({
       </View>
     );
   }
+  return <ChipBadge chip={chip} />;
+}
+
+/** Quiet single-line note that a chip is active this GW. */
+export function ChipBadge({ chip }: { chip: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.chipBadge}>
-      <Text style={styles.chipBadgeText}>{label} active this GW</Text>
+      <Text style={styles.chipBadgeText}>{CHIP_LABELS[chip] ?? chip} active this GW</Text>
     </View>
   );
 }
