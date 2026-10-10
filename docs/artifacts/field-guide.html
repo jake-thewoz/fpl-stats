@@ -1,0 +1,1012 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>FPL Stats Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a match-day programme. One wide interactive "pitch" (the architecture map) with a side panel, then stacked fixtures below. AWS nodes use AWS's own icon category colours. */
+:root {
+  --bg: #F2F5F0;
+  --surface: #FFFFFF;
+  --surface-2: #E7EDE5;
+  --ink: #13201A;
+  --ink-2: #4B5C52;
+  --line: #CAD4CB;
+  --line-strong: #9AA99F;
+  --accent: #0B7F57;
+  --accent-soft: #D3EDE1;
+  --flow: #E59500;
+  --flow-soft: #FFF0CC;
+  --good: #11804F;
+  --bad: #C2372F;
+  --c-compute: #ED7100;
+  --c-db: #C925D1;
+  --c-storage: #5E8A0E;
+  --c-int: #E7157B;
+  --c-net: #8C4FFF;
+  --c-front: #DD344C;
+  --c-ext: #5D6E64;
+  --c-client: #1F6FEB;
+  --c-dev: #2B3137;
+  --tile-ink: #FFFFFF;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1310; --surface: #141E19; --surface-2: #1B2721; --ink: #E5EEE8; --ink-2: #9BB0A3;
+    --line: #2A3932; --line-strong: #4A5D53; --accent: #34D191; --accent-soft: #173A2B;
+    --flow: #FFC53D; --flow-soft: #3A2E10; --good: #43D08E; --bad: #FF7A70;
+    --c-storage: #8DBB1F; --c-ext: #7E9187; --c-client: #4D94FF; --c-dev: #6E7781;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1310; --surface: #141E19; --surface-2: #1B2721; --ink: #E5EEE8; --ink-2: #9BB0A3;
+  --line: #2A3932; --line-strong: #4A5D53; --accent: #34D191; --accent-soft: #173A2B;
+  --flow: #FFC53D; --flow-soft: #3A2E10; --good: #43D08E; --bad: #FF7A70;
+  --c-storage: #8DBB1F; --c-ext: #7E9187; --c-client: #4D94FF; --c-dev: #6E7781;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+.muted { color: var(--ink-2); }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--flow); outline-offset: 2px; }
+
+/* Header */
+header.hero { display: grid; gap: 18px; padding-bottom: 26px; border-bottom: 2px solid var(--ink); }
+.hero-top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+.hero p.lede { max-width: 68ch; font-size: 1.06rem; color: var(--ink-2); }
+.scoreboard { display: flex; flex-wrap: wrap; gap: 0; border: 2px solid var(--ink); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.scoreboard div { padding: 10px 16px; display: grid; gap: 0; border-right: 1px solid var(--line); flex: 1 1 110px; }
+.scoreboard div:last-child { border-right: 0; }
+.scoreboard b { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.scoreboard span { font-size: 0.78rem; color: var(--ink-2); }
+nav.jump { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.jump a { text-decoration: none; color: var(--ink); font-size: 0.86rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: var(--surface-2); }
+nav.jump a:hover { background: var(--accent-soft); color: var(--accent); }
+
+section { padding-top: 56px; display: grid; gap: 18px; }
+.section-head { display: grid; gap: 6px; max-width: 76ch; }
+.section-head p { color: var(--ink-2); }
+
+/* Map */
+.scenarios { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 0.88rem; font-weight: 600; }
+.chip:hover { border-color: var(--flow); }
+.chip[aria-pressed="true"] { background: var(--flow); border-color: var(--flow); color: #1d1300; }
+.stepbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: var(--flow-soft); border: 1.5px solid var(--flow); border-radius: var(--radius); padding: 10px 14px; min-height: 56px; }
+.stepbar .count { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+.stepbar .caption { flex: 1 1 360px; min-width: 0; }
+.stepbar .ctrls { display: flex; gap: 6px; }
+.iconbtn { border: 1.5px solid var(--ink); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-weight: 600; font-size: 0.85rem; }
+.iconbtn:disabled { opacity: 0.4; cursor: default; }
+.map-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+@media (max-width: 1080px) { .map-grid { grid-template-columns: minmax(0, 1fr); } }
+.map-frame { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); overflow-x: auto; padding: 6px; }
+.map-frame svg { display: block; width: 100%; min-width: 880px; height: auto; }
+.node { cursor: pointer; }
+.node rect.box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; transition: stroke 0.2s, fill 0.2s; }
+.node:hover rect.box, .node:focus-visible rect.box { stroke: var(--ink); }
+.node:focus { outline: none; }
+.node.selected rect.box { stroke: var(--ink); stroke-width: 2.5; }
+.node.lit rect.box { fill: var(--flow-soft); stroke: var(--flow); stroke-width: 2.5; }
+.dim .node:not(.lit) { opacity: 0.38; }
+.dim .edge:not(.lit) { opacity: 0.18; }
+.node text.label { font-family: var(--font-body); font-weight: 600; font-size: 13px; fill: var(--ink); }
+.node text.sub { font-family: var(--font-mono); font-size: 9.5px; fill: var(--ink-2); }
+.node text.tile-text { font-family: var(--font-mono); font-weight: 600; font-size: 10px; fill: var(--tile-ink); }
+.node text.badge { font-family: var(--font-mono); font-size: 11px; font-weight: 600; fill: var(--flow); }
+.edge path { fill: none; stroke: var(--line-strong); stroke-width: 1.6; }
+.edge.dashed path { stroke-dasharray: 5 5; }
+.edge.lit path { stroke: var(--flow); stroke-width: 3; stroke-dasharray: 8 6; animation: march 0.9s linear infinite; }
+@keyframes march { to { stroke-dashoffset: -14; } }
+.colhead { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; fill: var(--ink-2); }
+.edge-label { font-family: var(--font-mono); font-size: 9.5px; fill: var(--ink-2); }
+.apigw-text { font-family: var(--font-body); font-weight: 700; font-size: 13px; fill: var(--ink); }
+
+.panel { background: var(--surface); border: 2px solid var(--ink); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 1080px) { .panel { position: static; max-height: none; } }
+.panel .kind { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 0.88rem; }
+.facts dt { color: var(--ink-2); }
+.facts dd { margin: 0; font-family: var(--font-mono); font-size: 0.82rem; overflow-wrap: anywhere; }
+.exam { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; font-size: 0.92rem; }
+.exam .eyebrow { color: var(--c-net); font-weight: 600; }
+.filepath { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: 0.84rem; }
+.legend span { display: flex; gap: 8px; align-items: center; }
+
+/* Clock */
+.clock-grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 28px; align-items: center; }
+@media (max-width: 760px) { .clock-grid { grid-template-columns: minmax(0, 1fr); } }
+.clock-svg { width: 100%; max-width: 360px; height: auto; display: block; margin-inline: auto; }
+.clock-svg .ring { fill: var(--surface); stroke: var(--line); stroke-width: 2; }
+.clock-svg .hour { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-2); text-anchor: middle; dominant-baseline: middle; }
+.clock-svg .tick30 { fill: var(--c-compute); opacity: 0.55; }
+.clock-svg .job { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
+.clock-svg .job.active { stroke: var(--ink); stroke-width: 3; }
+.clock-svg .hand { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+.clock-svg .hub { fill: var(--ink); }
+.clock-svg .center-label { font-family: var(--font-display); font-weight: 800; font-size: 26px; fill: var(--ink); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.clock-svg .center-sub { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-2); text-anchor: middle; letter-spacing: 0.1em; }
+.jobs { display: grid; gap: 8px; }
+.job-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1.5px solid var(--line); text-align: left; width: 100%; }
+.job-row[aria-pressed="true"] { border-color: var(--ink); }
+.job-row .when { font-family: var(--font-mono); font-size: 0.82rem; text-align: right; font-variant-numeric: tabular-nums; }
+.job-row .what { min-width: 0; }
+.job-row .what b { display: block; }
+.job-row .what small { color: var(--ink-2); font-size: 0.84rem; }
+.callout { border: 1.5px dashed var(--line-strong); border-radius: 10px; padding: 12px 14px; font-size: 0.92rem; }
+
+/* DDB */
+.table-frame { overflow-x: auto; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.88rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); background: var(--surface-2); }
+td.key { font-family: var(--font-mono); font-size: 0.8rem; white-space: nowrap; }
+td.key .pk { color: var(--c-db); font-weight: 600; }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr.sel { background: var(--accent-soft); }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+.pill.sched { background: color-mix(in srgb, var(--c-compute) 18%, transparent); }
+.pill.aside { background: color-mix(in srgb, var(--flow) 25%, transparent); }
+.pill.an { background: color-mix(in srgb, var(--c-net) 18%, transparent); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* App */
+.app-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 760px) { .app-grid { grid-template-columns: minmax(0, 1fr); } }
+.phone { width: 100%; max-width: 300px; aspect-ratio: 9 / 17; margin-inline: auto; border: 10px solid var(--ink); border-radius: 36px; background: var(--surface); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.phone .screen-head { padding: 22px 16px 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; border-bottom: 1px solid var(--line); }
+.phone .screen-body { padding: 12px 16px; font-size: 0.86rem; display: grid; gap: 8px; align-content: start; overflow: auto; }
+.phone .screen-body .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); }
+.phone .tabs { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); }
+.phone .tabs button { background: none; border: 0; padding: 10px 0 14px; font-size: 0.68rem; font-weight: 600; color: var(--ink-2); display: grid; justify-items: center; gap: 3px; }
+.phone .tabs button[aria-selected="true"] { color: var(--accent); }
+.phone .tabs .dot { width: 18px; height: 18px; border-radius: 5px; border: 2px solid currentColor; }
+.phone .tabs button[aria-selected="true"] .dot { background: currentColor; }
+.routes { display: grid; gap: 6px; }
+.route { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); transition: border-color 0.2s, background 0.2s, opacity 0.2s; }
+.route .verb { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; color: var(--c-net); }
+.route code { overflow-wrap: anywhere; }
+.route.on { border-color: var(--accent); background: var(--accent-soft); }
+.route.off { opacity: 0.45; }
+.route .tag { font-size: 0.72rem; color: var(--ink-2); white-space: nowrap; }
+.app-notes { display: grid; gap: 12px; }
+
+/* xP */
+.xp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .xp-grid { grid-template-columns: minmax(0, 1fr); } }
+.formula { font-family: var(--font-mono); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.formula button { border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-family: var(--font-mono); font-size: 0.84rem; }
+.formula button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.formula .op { color: var(--ink-2); }
+.xp-detail { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; min-height: 150px; }
+.xp-detail pre { margin: 0; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.82rem; background: var(--surface-2); padding: 10px; border-radius: 8px; overflow-wrap: anywhere; }
+.lifecycle { display: grid; gap: 0; }
+.lc-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding-bottom: 14px; position: relative; }
+.lc-step::before { content: ""; position: absolute; left: 16px; top: 30px; bottom: 0; width: 2px; background: var(--line); }
+.lc-step:last-child::before { display: none; }
+.lc-num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-weight: 600; background: var(--ink); color: var(--bg); font-size: 0.85rem; }
+.lc-step .warn { color: var(--bad); font-weight: 600; }
+
+/* Quiz */
+.quiz { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+.q { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.q .opts { display: grid; gap: 6px; }
+.q .opts button { text-align: left; border: 1.5px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 0.9rem; }
+.q .opts button:hover:not(:disabled) { border-color: var(--ink); }
+.q .opts button.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+.q .opts button.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.q .opts button:disabled { cursor: default; }
+.q .why { font-size: 0.9rem; border-left: 3px solid var(--c-net); padding-left: 10px; }
+.scoreline { font-family: var(--font-mono); font-size: 0.9rem; }
+
+/* Next */
+.next-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .next-grid { grid-template-columns: minmax(0, 1fr); } }
+.phase { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 4px 12px; align-items: center; font-size: 0.9rem; padding-block: 5px; }
+.bar { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.phase .n { font-family: var(--font-mono); font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+.flags { display: grid; gap: 10px; }
+.flag { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; }
+.flag.hot { border-color: var(--bad); }
+.flag .sev { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+.flag.hot .sev { color: var(--bad); }
+.flag .sev.mid { color: var(--flow); }
+.flag .sev.low { color: var(--ink-2); }
+.flag.done { border-color: var(--good); }
+.flag .sev.done { color: var(--good); }
+.timeline { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; }
+.timeline span { padding: 4px 10px; border-radius: 6px; background: var(--surface-2); }
+.timeline b { font-family: var(--font-mono); font-weight: 600; }
+
+footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink-2); font-size: 0.84rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .edge.lit path { animation: none; }
+  * { transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-top">
+      <div style="display:grid;gap:8px">
+        <span class="eyebrow">jake-thewoz/fpl-stats · updated 10 Oct 2026, after the live-gameweek work (#173 to #175)</span>
+        <h1>FPL Stats Field Guide</h1>
+      </div>
+      <nav class="jump" aria-label="Sections">
+        <a href="#map">Map</a><a href="#clock">Schedule</a><a href="#table">DynamoDB</a><a href="#app">App</a><a href="#xp">xP model</a><a href="#exam">Exam drills</a><a href="#next">What's next</a>
+      </nav>
+    </div>
+    <p class="lede">A serverless FPL companion app. Scheduled Lambdas pull the public FPL API into DynamoDB and S3, nightly analyzers turn that into expected points, and a throttled, read-only HTTP API serves an Expo app that is now public on the web. Everything below comes from the code on <code>main</code>, so click around: every box on the map explains itself, including the part that shows up on the Solutions Architect exam.</p>
+    <div class="scoreboard" aria-label="Stack at a glance">
+      <div><b>14</b><span>Lambda functions</span></div>
+      <div><b>10</b><span>API routes</span></div>
+      <div><b>1</b><span>DynamoDB table</span></div>
+      <div><b>1</b><span>S3 bucket</span></div>
+      <div><b>4</b><span>EventBridge schedules</span></div>
+      <div><b>5</b><span>CloudWatch alarms</span></div>
+      <div><b>208</b><span>commits since 21 Apr</span></div>
+    </div>
+  </header>
+
+  <section id="map">
+    <div class="section-head">
+      <span class="eyebrow">01 · The pitch</span>
+      <h2>Architecture map</h2>
+      <p>Everything lives in one CDK stack, <code>FplStatsStack</code>, except the web hosting. Click a box for details, or play a scenario to watch data move. Lambdas marked <b style="color:var(--flow)">↺</b> fall back to the FPL API on a cache miss.</p>
+    </div>
+    <div class="scenarios" role="group" aria-label="Scenarios" id="scenarioChips"></div>
+    <div class="stepbar" id="stepbar" aria-live="polite">
+      <span class="count" id="stepCount">Pick a scenario</span>
+      <span class="caption" id="stepCaption">Each scenario walks through one real path in the code, one hop at a time.</span>
+      <span class="ctrls">
+        <button class="iconbtn" id="prevStep" disabled>Back</button>
+        <button class="iconbtn" id="playStep" disabled>Play</button>
+        <button class="iconbtn" id="nextStep" disabled>Next</button>
+        <button class="iconbtn" id="clearStep" disabled>Clear</button>
+      </span>
+    </div>
+    <div class="map-grid">
+      <div class="map-frame"><svg id="map-svg" viewBox="0 0 1210 740" role="img" aria-label="FPL Stats AWS architecture diagram"></svg></div>
+      <aside class="panel" id="panel" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section id="clock">
+    <div class="section-head">
+      <span class="eyebrow">02 · Fixture list</span>
+      <h2>The 24-hour schedule (UTC)</h2>
+      <p>Four EventBridge rules drive all the background work. The orange beads are the 30-minute ingest; the big dots are the nightly chain. The hand shows the current UTC time.</p>
+    </div>
+    <div class="clock-grid">
+      <svg class="clock-svg" id="clock-svg" viewBox="0 0 340 340" role="img" aria-label="24-hour schedule clock"></svg>
+      <div class="jobs">
+        <div id="jobList" class="jobs"></div>
+        <p class="callout"><b>Chained by clock, not by events.</b> The analyzers assume the ingests finished because they run hours later. If Sunday's history ingest fails, the 04:00 and 04:30 analyzers still run on last week's history, and only the ingest's own alarm tells you. Step Functions would make the dependency explicit; that's your open issue <code>#40</code>. EventBridge Scheduler is also now AWS's preferred home for cron jobs (time zones, one-off schedules, per-target retry policy).</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="table">
+    <div class="section-head">
+      <span class="eyebrow">03 · The dressing room</span>
+      <h2>One DynamoDB table, ten key shapes</h2>
+      <p>Single-table design: a string <code>pk</code> names the entity, <code>sk</code> is usually <code>latest</code>. No GSIs; every read knows its key up front. Click a row to see who writes and who reads it.</p>
+    </div>
+    <div class="filters" role="group" aria-label="Filter rows" id="ddbFilters"></div>
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Partition key (pk)</th><th>Sort key (sk)</th><th>Written by</th><th>Read by</th><th>Freshness</th></tr></thead>
+        <tbody id="ddbBody"></tbody>
+      </table>
+    </div>
+    <p class="callout" id="ddbNote">Select a row for notes.</p>
+  </section>
+
+  <section id="app">
+    <div class="section-head">
+      <span class="eyebrow">04 · The fans' end</span>
+      <h2>Which tab calls which route</h2>
+      <p>The Expo app (React Native + TypeScript) never talks to FPL directly. Every request goes through <code>requestJson()</code> in <code>mobile/src/api/http.ts</code> to your API Gateway URL. Tap a tab on the phone.</p>
+    </div>
+    <div class="app-grid">
+      <div class="phone" aria-label="App mockup">
+        <div class="screen-head" id="phoneTitle">My Team</div>
+        <div class="screen-body" id="phoneBody"></div>
+        <div class="tabs" role="tablist" id="phoneTabs"></div>
+      </div>
+      <div class="app-notes">
+        <div class="routes" id="routeList"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+          <button class="iconbtn" id="showTabOnMap">Show this tab on the map</button>
+          <span class="muted" id="tabStorage" style="font-size:0.9rem"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="xp">
+    <div class="section-head">
+      <span class="eyebrow">05 · Tactics</span>
+      <h2>The xP model</h2>
+      <p>Expected points per player per gameweek, summed from nine independent components. The v1 model was retired in PR #127; what runs now is v2, with coefficients fitted offline on your laptop and shipped inside the Lambda layer. Click a component.</p>
+    </div>
+    <div class="xp-grid">
+      <div style="display:grid;gap:14px">
+        <div class="formula" id="formula"></div>
+        <div class="xp-detail" id="xpDetail"></div>
+        <p class="muted" style="font-size:0.9rem"><code>factor = 1 + home_advantage·sign + opp_strength_w × (opp_strength − 0.5)</code>, where <code>opp_strength = (fpl_difficulty − 1) / 4</code>. <code>p_any</code> and <code>p60</code> gate everything; FPL's <code>chance_of_playing = 100</code> is treated as "no info", the same as null.</p>
+      </div>
+      <div class="lifecycle" id="lifecycle"></div>
+    </div>
+  </section>
+
+  <section id="exam">
+    <div class="section-head">
+      <span class="eyebrow">06 · Training ground</span>
+      <h2>Exam drills from your own stack</h2>
+      <p>Eight SAA-style questions where the scenario is this app. Each one is a decision you already made, or one you'll face when it goes public.</p>
+    </div>
+    <p class="scoreline" id="scoreline">0 / 8 answered</p>
+    <div class="quiz" id="quiz"></div>
+  </section>
+
+  <section id="next">
+    <div class="section-head">
+      <span class="eyebrow">07 · Second half</span>
+      <h2>Today, and what's next</h2>
+      <p>You built nearly everything in a two-week sprint in April and May, went quiet over the summer, and came back on 9 October to a season rollover that had quietly broken the data.</p>
+    </div>
+    <div class="timeline">
+      <span><b>21 Apr</b> first commit</span><span><b>28 Apr</b> last xP fit + backtest</span><span><b>5 May</b> mobile refactor pass (PRs #151 to #156)</span><span><b>18 Sep</b> CI workflow written</span><span><b>9 Oct</b> CI merged (#157)</span><span><b>9 Oct</b> season fix (#158)</span><span><b>9 Oct</b> API throttled (#163)</span><span><b>9 Oct</b> web app public</span><span><b>9 Oct</b> layer tests in CI (#164)</span><span><b>9 Oct</b> xP fit fix (#165)</span><span><b>9 Oct</b> ClubELO dropped (#167)</span><span><b>10 Oct</b> pitch view + lineup picker, mobile jest (#168, #170)</span><span><b>10 Oct</b> filter chips (#171)</span><span><b>10 Oct</b> plan for the next deadline (#173)</span><span><b>10 Oct</b> live gameweek banner (#174, landing via #175)</span>
+    </div>
+    <div class="next-grid">
+      <div>
+        <h3 style="margin-bottom:10px">Milestones</h3>
+        <div id="phases"></div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:10px">Fixed this week, and what's next</h3>
+        <div class="flags" id="flags"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Built from <code>backend/lib/fpl-stats-stack.ts</code>, the Lambda handlers, <code>backend/docs/xp-model.md</code>, <code>mobile/src</code>, CI config, GitHub milestones and the live AWS stack as of 10 Oct 2026, after PRs #165 to #175. Exam notes reflect AWS behaviour as of mid-2026; check the current docs before relying on a specific price or limit.</footer>
+</div>
+
+<script>
+(function () {
+  const CATEGORIES = {
+    compute: { name: "Compute (Lambda)", color: "--c-compute" },
+    db: { name: "Database", color: "--c-db" },
+    storage: { name: "Storage", color: "--c-storage" },
+    int: { name: "App integration / Mgmt", color: "--c-int" },
+    net: { name: "Networking", color: "--c-net" },
+    front: { name: "Front-end hosting", color: "--c-front" },
+    client: { name: "Client app", color: "--c-client" },
+    ext: { name: "Outside AWS", color: "--c-ext" },
+    dev: { name: "Build tooling", color: "--c-dev" }
+  };
+
+  const READ_TOP = 100;
+  const READ_STEP = 50;
+  const READ_HEIGHT = 40;
+  const READ_X = 730;
+  const READ_WIDTH = 180;
+  const READ_LAMBDAS = [
+    ["r_health", "health"],
+    ["r_gwcur", "gameweek_current"],
+    ["r_players", "players"],
+    ["r_entry", "entry"],
+    ["r_entrygw", "entry_gameweek"],
+    ["r_gwlive", "gameweek_live"],
+    ["r_league", "league_members"],
+    ["r_form", "analytics_player_form"],
+    ["r_xp", "analytics_players_xp"],
+    ["r_transfers", "transfer_suggestions"]
+  ];
+  const CACHE_ASIDE = new Set(["r_entry", "r_entrygw", "r_gwlive", "r_league", "r_transfers"]);
+
+  const NODES = {
+    fpl: { x: 20, y: 225, w: 150, h: 76, label: "FPL API", sub: "fantasy.premierleague.com", cat: "ext", tile: "FPL" },
+    gh: { x: 20, y: 545, w: 150, h: 62, label: "GitHub", sub: "repo + Actions CI", cat: "dev", tile: "GH" },
+    cfn: { x: 20, y: 655, w: 150, h: 62, label: "CloudFormation", sub: "via cdk deploy", cat: "int", tile: "CFN" },
+    eb: { x: 230, y: 30, w: 200, h: 56, label: "EventBridge", sub: "4 scheduled rules", cat: "int", tile: "EB" },
+    ingest_fpl: { x: 230, y: 132, w: 200, h: 52, label: "ingest_fpl", sub: "every 30 min", cat: "compute", tile: "λ" },
+    ingest_history: { x: 230, y: 196, w: 200, h: 52, label: "ingest_player_history", sub: "Sundays 02:00", cat: "compute", tile: "λ" },
+    analyze_form: { x: 230, y: 366, w: 200, h: 52, label: "analyze_player_form", sub: "daily 04:00", cat: "compute", tile: "λ" },
+    analyze_xp: { x: 230, y: 430, w: 200, h: 52, label: "analyze_player_xp_v2", sub: "daily 04:30", cat: "compute", tile: "λ" },
+    cw: { x: 230, y: 560, w: 200, h: 56, label: "CloudWatch", sub: "14 log groups · 5 alarms", cat: "int", tile: "CW" },
+    s3: { x: 500, y: 110, w: 190, h: 70, label: "S3 snapshots", sub: "raw JSON archive", cat: "storage", tile: "S3" },
+    ddb: { x: 500, y: 220, w: 190, h: 180, label: "DynamoDB", sub: "CacheTable · on-demand", cat: "db", tile: "DDB" },
+    layer: { x: 500, y: 440, w: 190, h: 60, label: "Lambda layer", sub: "fpl_schemas · 13 of 14 λ", cat: "compute", tile: "LYR" },
+    sns: { x: 500, y: 560, w: 190, h: 56, label: "SNS topic", sub: "IngestionAlertsTopic", cat: "int", tile: "SNS" },
+    email: { x: 500, y: 660, w: 190, h: 52, label: "Your inbox", sub: "email subscription", cat: "ext", tile: "@" },
+    apigw: { x: 950, y: READ_TOP, w: 70, h: READ_STEP * 9 + READ_HEIGHT, label: "", sub: "", cat: "net", tile: "API", tall: true },
+    app: { x: 1060, y: 200, w: 140, h: 84, label: "Expo app", sub: "iOS / Android", cat: "client", tile: "RN" },
+    web: { x: 1060, y: 380, w: 140, h: 84, label: "Amplify", sub: "public web build", cat: "front", tile: "AMP" }
+  };
+  READ_LAMBDAS.forEach(([id, label], index) => {
+    NODES[id] = { x: READ_X, y: READ_TOP + index * READ_STEP, w: READ_WIDTH, h: READ_HEIGHT, label, cat: "compute", tile: "λ", small: true };
+  });
+
+  const center = (id) => { const n = NODES[id]; return { x: n.x + n.w / 2, y: n.y + n.h / 2 }; };
+  const curve = (x1, y1, x2, y2) => { const mx = (x1 + x2) / 2; return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`; };
+  const ebTrunk = (id) => { const c = center(id); const eb = NODES.eb; return `M ${eb.x} ${eb.y + eb.h / 2} H 208 V ${c.y} H ${NODES[id].x}`; };
+
+  const EDGES = [];
+  const addEdge = (id, d, opts) => EDGES.push(Object.assign({ id, d }, opts || {}));
+  ["ingest_fpl", "ingest_history", "analyze_form", "analyze_xp"].forEach((id) => addEdge("eb-" + id, ebTrunk(id)));
+  addEdge("fpl-ingest_fpl", curve(170, 250, 230, 158));
+  addEdge("fpl-ingest_history", curve(170, 282, 230, 222));
+  addEdge("ingest_fpl-s3", curve(430, 152, 500, 138));
+  addEdge("ingest_fpl-ddb", curve(430, 166, 500, 246));
+  addEdge("ingest_history-ddb", curve(430, 222, 500, 290));
+  addEdge("analyze_form-ddb", curve(430, 392, 500, 352), { both: true });
+  addEdge("analyze_xp-ddb", curve(430, 456, 500, 384), { both: true });
+  READ_LAMBDAS.filter(([id]) => id !== "r_health").forEach(([id], index) => {
+    const n = NODES[id];
+    addEdge("ddb-" + id, curve(n.x, n.y + n.h / 2, 690, 238 + index * 18), { toStart: true });
+  });
+  READ_LAMBDAS.forEach(([id]) => { const n = NODES[id]; addEdge("api-" + id, `M 950 ${n.y + n.h / 2} H ${n.x + n.w}`); });
+  addEdge("app-api", "M 1060 242 H 1020");
+  addEdge("web-api", "M 1060 422 H 1020");
+  addEdge("cachemiss", "M 880 100 V 16 H 95 V 225", { dashed: true, label: { x: 470, y: 31, text: "cache miss → refetch from FPL (5 read Lambdas, 30-min TTL)" } });
+  addEdge("logs", "M 330 482 V 560", { label: { x: 338, y: 528, text: "logs + Errors metric (all λ)" } });
+  addEdge("cw-sns", "M 430 588 H 500");
+  addEdge("sns-email", "M 595 616 V 660");
+  addEdge("gh-cfn", "M 95 607 V 655");
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("map-svg");
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const cssVar = (name) => `var(${name})`;
+
+  const defs = el("defs", {}, svg);
+  [["arrow", "--line-strong"], ["arrow-lit", "--flow"]].forEach(([id, color]) => {
+    const m = el("marker", { id, viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M 0 0 L 10 5 L 0 10 z", style: `fill:${cssVar(color)}` }, m);
+  });
+
+  [["OUTSIDE AWS", 20, 214], ["INGEST", 230, 124], ["ANALYZE", 230, 358], ["STORAGE + SHARED CODE", 500, 102], ["READ API", READ_X, 92], ["OPS", 230, 552], ["BUILD + DEPLOY", 20, 537], ["CLIENTS", 1060, 190]].forEach(([text, x, y]) => {
+    const t = el("text", { x, y, class: "colhead" }, svg); t.textContent = text;
+  });
+
+  const edgeLayer = el("g", {}, svg);
+  const edgeEls = {};
+  EDGES.forEach((edge) => {
+    const g = el("g", { class: "edge" + (edge.dashed ? " dashed" : ""), "data-id": edge.id }, edgeLayer);
+    const p = el("path", { d: edge.d }, g);
+    p.setAttribute("marker-end", "url(#arrow)");
+    if (edge.both) p.setAttribute("marker-start", "url(#arrow)");
+    if (edge.toStart) { p.removeAttribute("marker-end"); p.setAttribute("marker-start", "url(#arrow)"); }
+    if (edge.label) { const t = el("text", { x: edge.label.x, y: edge.label.y, class: "edge-label" }, g); t.textContent = edge.label.text; }
+    edgeEls[edge.id] = g;
+  });
+
+  const nodeLayer = el("g", {}, svg);
+  const nodeEls = {};
+  Object.entries(NODES).forEach(([id, n]) => {
+    const g = el("g", { class: "node", tabindex: "0", role: "button", "data-id": id, "aria-label": (n.label || "API Gateway") + " details" }, nodeLayer);
+    el("rect", { class: "box", x: n.x, y: n.y, width: n.w, height: n.h, rx: n.small ? 8 : 10 }, g);
+    const color = cssVar(CATEGORIES[n.cat].color);
+    if (n.tall) {
+      el("rect", { x: n.x + 13, y: n.y + 12, width: 44, height: 30, rx: 6, style: `fill:${color}` }, g);
+      const tt = el("text", { x: n.x + 35, y: n.y + 31, class: "tile-text", "text-anchor": "middle" }, g); tt.textContent = n.tile;
+      const t = el("text", { x: n.x + 35, y: n.y + n.h / 2, class: "apigw-text", "text-anchor": "middle", transform: `rotate(-90 ${n.x + 35} ${n.y + n.h / 2})` }, g);
+      t.textContent = "API Gateway · HTTP API · 10 routes";
+    } else {
+      const tileSize = n.small ? 24 : 30;
+      const tx = n.x + 8;
+      const ty = n.y + (n.small ? (n.h - tileSize) / 2 : 10);
+      el("rect", { x: tx, y: ty, width: tileSize, height: tileSize, rx: 6, style: `fill:${color}` }, g);
+      const tt = el("text", { x: tx + tileSize / 2, y: ty + tileSize / 2 + 3.5, class: "tile-text", "text-anchor": "middle" }, g); tt.textContent = n.tile;
+      const lx = tx + tileSize + 8;
+      if (n.small) {
+        const t = el("text", { x: lx, y: n.y + n.h / 2 + 4, class: "label", style: "font-size:11.5px" }, g); t.textContent = n.label;
+        if (CACHE_ASIDE.has(id)) { const b = el("text", { x: n.x + n.w - 14, y: n.y + n.h / 2 + 4, class: "badge" }, g); b.textContent = "↺"; }
+      } else {
+        const t = el("text", { x: lx, y: n.y + 24, class: "label" }, g); t.textContent = n.label;
+        const s = el("text", { x: n.label.length > 16 || n.w < 160 ? tx : lx, y: n.y + (n.h > 60 ? 56 : 42), class: "sub" }, g); s.textContent = n.sub;
+      }
+    }
+    if (id === "ddb") {
+      ["fpl#…  entry#…", "analytics#…  league#…", "gameweek#…", "TTL attribute: ttl"].forEach((line, i) => {
+        const t = el("text", { x: n.x + 14, y: n.y + 90 + i * 18, class: "sub" }, g); t.textContent = line;
+      });
+    }
+    g.addEventListener("click", () => showDetail(id));
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showDetail(id); } });
+    nodeEls[id] = g;
+  });
+
+  const ROUTES = {
+    r_health: "/health", r_gwcur: "/gameweek/current", r_players: "/players", r_entry: "/entry/{teamId}",
+    r_entrygw: "/entry/{teamId}/gameweek/{gw}", r_gwlive: "/gameweek/{gw}/live", r_league: "/league/{leagueId}/members",
+    r_form: "/analytics/player/{id}/form", r_xp: "/analytics/players/xp", r_transfers: "/analytics/squad/{teamId}/transfers"
+  };
+
+  const CACHE_ASIDE_EXAM = "Cache-aside (lazy loading): check the cache, on a miss fetch from the source and write back with a TTL. DynamoDB's native TTL deletes expired items in the background, often days late, so the handler also compares <code>expires_at</code> to the clock itself. TTL deletes don't consume write capacity.";
+  const DEFAULT_READ_EXAM = "Pure cache reads: these never call FPL, so a FPL outage can't break them. Default function size in this project is 128 MB / 10 s, set once in <code>FplPythonFunction</code>.";
+
+  const INFO = {
+    fpl: { kind: "External · public REST API", what: "The source of truth. Public, unauthenticated JSON. It returns 403 to anything that looks scripted, so every outbound call goes through <code>make_fpl_session()</code>: a browser User-Agent plus retries.", facts: [["Endpoints", "bootstrap-static, fixtures, element-summary/{id}, entry/{id}, picks, history, event/{gw}/live, classic league standings"], ["Auth", "none: team ID only"]], exam: "These Lambdas run outside any VPC, so they reach the internet with no NAT Gateway. Put them in a private subnet and FPL calls fail until you add a NAT Gateway (about $32/month plus data), the most common way a hobby stack leaves the free tier.", file: "backend/layers/fpl_schemas/python/fpl_session.py" },
+    gh: { kind: "Build tooling · GitHub Actions", what: "CI runs on every PR and every push to main: CDK compile + jest, pytest for each handler in its own virtualenv, pytest for the shared layer, and mobile type-check, lint, Prettier and jest. The offline <code>backend/scripts</code> tests are the one suite CI doesn't run. There is no CD: backend deploys are a manual <code>cdk deploy</code> from your machine.", facts: [["Workflow", ".github/workflows/ci.yml"], ["Jobs", "backend-infra · lambda-handlers · lambda-layer · mobile"], ["Added", "PR #157; layer job in #164; mobile jest in #170"]], exam: "Moving deploys into a pipeline would mean giving GitHub an AWS role. The recommended pattern is OIDC federation (GitHub's identity provider plus an IAM role it can assume), never long-lived access keys stored as secrets.", file: ".github/workflows/ci.yml" },
+    cfn: { kind: "Management & governance · CloudFormation", what: "CDK (TypeScript) synthesizes a CloudFormation template; <code>cdk deploy</code> creates or updates the <code>FplStatsStack</code> stack. <code>PythonFunction</code> bundles each Lambda inside Docker, which is why deploys need Docker running.", facts: [["Stack", "FplStatsStack (one stack, everything)"], ["Outputs", "ApiBaseUrl, CacheTableName, SnapshotsBucketName, IngestFplFunctionName"], ["Removal policy", "DESTROY on table + bucket"]], exam: "Calls like <code>cacheTable.grantReadData(fn)</code> generate a least-privilege IAM policy per function. Read Lambdas get read-only access, ingesters get read/write, and only ingesters can <code>PutObject</code> to S3. Also note RemovalPolicy.DESTROY: <code>cdk destroy</code> deletes your cache data too. Fine for a cache, wrong for anything you can't rebuild.", file: "backend/lib/fpl-stats-stack.ts" },
+    eb: { kind: "Application integration · EventBridge", what: "Four scheduled rules invoke the background Lambdas. The ingest runs on a rate; everything else runs on cron in UTC.", facts: [["ingest_fpl", "rate(30 minutes)"], ["ingest_player_history", "cron Sun 02:00"], ["analyze_player_form", "cron 04:00"], ["analyze_player_xp_v2", "cron 04:30"]], exam: "EventBridge invokes Lambda asynchronously. Lambda retries a failed async invocation twice by default, and you can attach an on-failure destination or a DLQ to catch what still fails. EventBridge Scheduler is the newer service for this job: time zones, one-off schedules, and flexible time windows.", file: "backend/lib/fpl-stats-stack.ts" },
+    ingest_fpl: { kind: "Compute · Lambda (scheduled)", what: "Fetches bootstrap-static and fixtures. Both must succeed or nothing is written. The raw JSON goes to S3 first, then a slim pydantic-validated copy overwrites <code>fpl#bootstrap</code> and <code>fpl#fixtures</code> in DynamoDB. So every DynamoDB state has a matching archive.", facts: [["Memory / timeout", "256 MB / 60 s"], ["Trigger", "every 30 min"], ["Alarm", "≥1 error in 2 consecutive 30-min windows"], ["Writes", "S3 + DynamoDB"]], exam: "A DynamoDB item caps at 400 KB. The raw bootstrap payload is far bigger, so it lives in S3 while only the parsed subset goes into the table. Python floats must become <code>Decimal</code> before <code>put_item</code>, which is what <code>_floats_to_decimal()</code> is for.", file: "backend/lambdas/ingest_fpl/handler.py" },
+    ingest_history: { kind: "Compute · Lambda (scheduled)", what: "Calls <code>/element-summary/{id}/</code> for about 700 players, one at a time with a 50 ms pause, and stores per-match xG, xA, xGC and defcon counts. This history is the raw material for the xP model. Each run <b>replaces</b> a player's rows: anything FPL didn't return is deleted, and so is any id that has left the bootstrap. That's the #158 fix for FPL renumbering player and fixture ids every season.", facts: [["Memory / timeout", "256 MB / 5 min"], ["Trigger", "Sundays 02:00 UTC"], ["Rows", "~3.3k now, ~25k by May: fpl#player_history#{id}"], ["Alarm", "1 error in a 7-day window"]], exam: "Lambda's hard ceiling is 15 minutes. If this job ever outgrows that, the answer is fan-out (an SQS queue feeding parallel workers, or a Step Functions Map state), not a longer timeout.", file: "backend/lambdas/ingest_player_history/handler.py" },
+    analyze_form: { kind: "Compute · Lambda (scheduled)", what: "Computes rolling form over the last 5 gameweeks and difficulty over the next 5 fixtures for each player, counting only gameweeks whose deadline is still ahead, so a live gameweek's unplayed matches are left out (#173), then writes <code>analytics#player_form/{player_id}</code> and deletes rows for players it didn't score. Fixture quality comes only from FPL's difficulty rating: the ClubELO input was dropped in #167, and #166 plans our own Elo built from FPL results. It still calls FPL's event-live endpoint directly; issue #150 proposes caching that first.", facts: [["Memory / timeout", "256 MB / 60 s"], ["Trigger", "daily 04:00 UTC"], ["Env", "RECENT_GW_COUNT=5, UPCOMING_FIXTURES_COUNT=5"]], exam: "Configuration through environment variables keeps tuning out of code. For values shared across functions or changed often, SSM Parameter Store (free for standard parameters) is the usual next step.", file: "backend/lambdas/analyze_player_form/handler.py" },
+    analyze_xp: { kind: "Compute · Lambda (scheduled)", what: "The nightly xP run. First checks the match window: if any fixture kicked off in the last 2 hours, it skips the run. Otherwise it scans about 21k history rows, builds per-player features, and writes xP for the next 5 gameweeks <b>whose deadline hasn't passed</b> to <code>analytics#player_xp_v2/{player_id}</code>, deleting rows for departed players and for players whose team blanks. It timed out nightly from late July to October because stale rows grew its scan to 32k; #158 cleaned the table and doubled its memory. Until #173, \"upcoming\" meant \"not finished\", so a Saturday-morning run during a live gameweek projected the gameweek you could no longer change.", facts: [["Memory / timeout", "512 MB / 60 s"], ["Trigger", "daily 04:30 UTC"], ["Guard", "match_window.py (kickoff → +2 h)"]], exam: "A Scan reads every item it passes and bills for all of them, 1 MB per page, so you must paginate. Fine at 21k rows. At larger scale you'd Query by partition or add a GSI. Pure Python here, no numpy, to keep the bundle small.", file: "backend/lambdas/analyze_player_xp_v2/handler.py" },
+    cw: { kind: "Management & governance · CloudWatch", what: "One log group per Lambda (explicit LogGroup, 1-week retention) and five alarms on the Lambda <code>Errors</code> metric, all wired to the SNS topic.", facts: [["Alarms", "ingest_fpl, ingest_player_history, analyze_player_form, analyze_player_xp_v2, transfer_suggestions"], ["Pattern", "2 of 2 datapoints for recurring jobs"], ["Missing data", "NOT_BREACHING"]], exam: "<code>evaluationPeriods: 2, datapointsToAlarm: 2</code> is an M-of-N alarm: two consecutive bad windows before ALARM, so one transient FPL 403 doesn't page you. NOT_BREACHING means \"no invocations\" counts as OK. Blind spot: these alarms only see crashes. A Lambda that succeeds while writing stale data stays green. And alarm actions fire only on a state <em>change</em>: two alarms sat in ALARM for months after a single email each. One of them, ClubELO's, was only cleared by deleting the job (#167).", file: "backend/lib/fpl-stats-stack.ts" },
+    s3: { kind: "Storage · S3", what: "Cold archive of every raw FPL payload, keyed <code>fpl/bootstrap-static/&lt;ISO-timestamp&gt;.json</code>. Never on the request path. Two files every 30 minutes means about 96 new objects a day. The old ClubELO CSVs under <code>clubelo/ratings/</code> are still here as the seed for #166, until the lifecycle rule expires them around 29 Nov.", facts: [["Security", "Block Public Access, SSE-S3, enforceSSL"], ["Versioning", "on; noncurrent versions expire after 30 d"], ["Lifecycle", "Standard → Standard-IA at 30 d, delete at 90 d"]], exam: "Standard-IA bills a 30-day minimum and a 128 KB minimum object size, and since Sept 2024 lifecycle rules skip objects under 128 KB by default. <code>enforceSSL</code> adds a bucket policy denying requests where <code>aws:SecureTransport</code> is false. Note the 90-day expiry: last season's raw snapshots are already gone.", file: "backend/lib/fpl-stats-stack.ts" },
+    ddb: { kind: "Database · DynamoDB", what: "The single cache table everything reads from. String <code>pk</code> + <code>sk</code>, no GSIs, on-demand billing, AWS-managed encryption, native TTL on the <code>ttl</code> attribute. See section 03 for every key shape.", facts: [["Billing", "PAY_PER_REQUEST"], ["Keys", "pk (S), sk (S)"], ["TTL attr", "ttl"], ["Removal", "DESTROY"]], exam: "On-demand means no capacity planning. One correction to the project CLAUDE.md: the always-free 25 RCU / 25 WCU applies to <em>provisioned</em> mode, so provisioned is the free-tier choice. On-demand at this traffic still costs cents a month, so keep it, but the rule in CLAUDE.md is backwards.", file: "backend/lib/fpl-stats-stack.ts" },
+    layer: { kind: "Compute · Lambda layer", what: "Shared Python code: pydantic schemas plus SCHEMA_VERSION, the FPL session factory, the match-window guard, the deadline helpers every \"which gameweek?\" question goes through (<code>open_gameweek_ids</code>, <code>current_and_next_gameweek</code>, <code>utc_now</code>, added in #173 and #174), and the xP v2 math with its fitted coefficients and priors as JSON. Attached to every Lambda except <code>health</code>.", facts: [["Contents", "schemas · fpl_session · match_window · ddb_prune · xp_compute · xp_v2 · xp_v2_features"], ["Data files", "xp_v2_coefficients.json, xp_v2_priors.json"]], exam: "A function can use up to 5 layers, and the function plus its layers must fit in 250 MB unzipped. Layer versions are immutable: each deploy publishes a new version and repoints the functions.", file: "backend/layers/fpl_schemas/python/" },
+    sns: { kind: "Application integration · SNS", what: "A single topic that every alarm publishes to, with one email subscriber.", facts: [["Topic", "IngestionAlertsTopic"], ["Subscribers", "1 email"]], exam: "Email subscriptions stay pending until confirmed from the inbox. SNS is push-based fan-out, so you can add SQS, Lambda or a chat integration as subscribers later without touching the alarms.", file: "backend/lib/fpl-stats-stack.ts" },
+    email: { kind: "Outside AWS", what: "Where the alarms end up. Each alarm emails once, when it enters ALARM, then goes quiet until it recovers. After time away, check alarm states with <code>aws cloudwatch describe-alarms</code> rather than trusting a quiet inbox.", facts: [], exam: "", file: "" },
+    apigw: { kind: "Networking · API Gateway (HTTP API, v2)", what: "Ten GET routes, each a Lambda proxy integration. CORS allows any origin for GET and OPTIONS. No authorizer, so stage throttling is the guard: requests over the limit get a 429 before any Lambda runs.", facts: [["Type", "HttpApi (apigatewayv2)"], ["Routes", "10 × GET"], ["CORS", "* origins · GET, OPTIONS"], ["Auth", "none"], ["Throttle", "20 req/s, burst 40 (PR #163)"]], exam: "HTTP API vs REST API: HTTP is roughly 70% cheaper with lower latency, and supports JWT authorizers natively, but it lacks API keys and usage plans, request validation, response caching and direct WAF attachment. Integration timeout is capped at 30 s, which is why the transfer Lambda's 30 s timeout is already the ceiling. The throttle is set on the $default stage through a CfnStage escape hatch, because CDK only exposes <code>throttle</code> on stages you add yourself.", file: "backend/lib/fpl-stats-stack.ts" },
+    app: { kind: "Client · Expo (React Native + TypeScript)", what: "Five tabs: My Team, Players, Transfers, Friends, Settings. Team ID, friends list, column and filter choices live in AsyncStorage on the device. The API base URL comes from <code>app.config.ts</code> via an env var.", facts: [["Run", "npx expo start → Expo Go"], ["Android release", "Phase 4: 7 open issues, not started"]], exam: "", file: "mobile/src/navigation/MainTabs.tsx" },
+    web: { kind: "Front-end · Amplify Hosting", what: "The same Expo code exported for web (<code>npx expo export -p web</code>, per <code>amplify.yml</code>), served by Amplify. Public since 9 Oct 2026: the shared password came off once the API was throttled.", facts: [["URL", "main.d29izwx9gn2m58.amplifyapp.com"], ["Build spec", "amplify.yml (appRoot: mobile)"], ["Custom domain", "deferred (#162)"], ["Defined in CDK?", "No: set up in the console"]], exam: "Amplify Hosting bundles CI/CD, a CloudFront CDN and hosting for static and SSR sites. Because it was set up by hand, it's the one piece of this system you can't recreate from code. Expect exam questions on drift and the IaC principle.", file: "amplify.yml" },
+    r_health: { route: "/health", what: "Returns ok plus the current UTC time. Has a CACHE_TABLE_NAME env var but no table grant. No mobile code calls it.", exam: "A health route is the natural target for a Route 53 health check or a CloudWatch Synthetics canary, which would also alert you if the API went down." },
+    r_gwcur: { route: "/gameweek/current", what: "The current gameweek (the latest whose deadline has passed), its fixtures, and <code>next_gameweek</code>. Both are picked by deadline rather than FPL's <code>is_current</code> flag, which reaches the cache up to 30 minutes late (#174). Every tab calls it now: one app-wide fetch drives the gameweek banner and the ● / ✓ player markers. The app refetches it a minute after each deadline, and every 10 minutes otherwise.", exam: "Live state is worked out on the device from kickoff times (live for 2 hours), the same rule as the backend's match_window guard. Polling a cheap cached read is the simple choice here. Push alternatives (API Gateway WebSocket APIs, AppSync subscriptions) only pay off when updates must arrive within seconds." },
+    r_players: { route: "/players", what: "Summarised player list from fpl#bootstrap, filterable by team and position. Used by My Team, Players and Transfers.", exam: DEFAULT_READ_EXAM },
+    r_entry: { route: "/entry/{teamId}", what: "A manager's team: name, bank, current event. Cache-aside with a 30-minute TTL.", exam: CACHE_ASIDE_EXAM },
+    r_entrygw: { route: "/entry/{teamId}/gameweek/{gw}", what: "The 15 picks and points for one gameweek. Cache-aside, 30-minute TTL.", exam: CACHE_ASIDE_EXAM },
+    r_gwlive: { route: "/gameweek/{gw}/live", what: "Per-player points and minutes for a gameweek. Cache-aside, 30-minute TTL.", exam: CACHE_ASIDE_EXAM },
+    r_league: { route: "/league/{leagueId}/members", what: "Members of a classic league, used by Friends → Import league. Cache-aside, 30-minute TTL.", exam: CACHE_ASIDE_EXAM },
+    r_form: { route: "/analytics/player/{id}/form", what: "Returns the form analyzer's row for one player. No mobile code calls it today: it's either a leftover or a feature you haven't built yet.", exam: DEFAULT_READ_EXAM },
+    r_xp: { route: "/analytics/players/xp", what: "Slim xP rows for every player for the next open deadline, from analytics#player_xp_v2. Powers the xP column on My Team and Players, whose header now names the gameweek (e.g. GW7). The analyzer runs once a day, so this handler also reads fpl#bootstrap and drops any gameweek whose deadline has passed since the run (#173). xP moves on at the deadline rather than the next morning.", exam: "Correcting precomputed data at read time is a cheap alternative to recomputing on a schedule. One extra GetItem per request beats an extra nightly-sized analyzer run after every deadline." },
+    r_transfers: { route: "/analytics/squad/{teamId}/transfers", lambda: "analyze_transfer_suggestions", what: "The only heavy work on the request path. Works out your free transfers from your history (25/26 rules), builds 1- to 3-move bundles, subtracts 4 points per extra transfer, and ranks by net ΔxP over the horizon. The horizon starts at the next open deadline, so during a live gameweek it plans for the one after (#173).", facts: [["Memory / timeout", "1024 MB / 30 s"], ["Query", "horizon (default 3, max 5), max_transfers (default 2, max 3), positions"], ["Alarm", "≥5 errors in 30 min"]], exam: "Lambda memory is the CPU dial: vCPU share scales with memory, with one full vCPU at 1,769 MB. This function timed out at 256 MB with low memory use, which means it was CPU-starved. Going to 1024 MB gave it about 4× the CPU. Faster runs often cost about the same despite the higher per-ms price." }
+  };
+  READ_LAMBDAS.forEach(([id, name]) => {
+    const info = INFO[id];
+    info.kind = "Compute · Lambda (read API)";
+    info.file = "backend/lambdas/" + (info.lambda || name) + "/handler.py";
+    const base = [["Route", "GET " + info.route]];
+    if (!info.facts) info.facts = base.concat([["Memory / timeout", CACHE_ASIDE.has(id) ? "128 MB / 15 s" : "128 MB / 10 s"]]);
+    else info.facts = base.concat(info.facts);
+    if (CACHE_ASIDE.has(id)) info.facts.push(["Cache", "cache-aside → FPL on miss"]);
+  });
+
+  const panel = document.getElementById("panel");
+  const legendHtml = Object.values(CATEGORIES).map((c) => `<span><i class="swatch" style="background:var(${c.color})"></i>${c.name}</span>`).join("");
+  const showIntro = () => {
+    panel.innerHTML = `<span class="eyebrow">How to read the map</span><h3>Click any box</h3><p>Tile colours follow AWS's own icon categories, the same ones you'll see in exam diagrams. Arrows point the way data flows. Each box opens with what it does here, the key settings, and an <b>exam lens</b> note.</p><div class="legend">${legendHtml}</div><p class="muted" style="font-size:0.88rem">Not drawn, to keep it readable: every Lambda except <code>health</code> imports the layer, and every Lambda logs to CloudWatch.</p>`;
+  };
+  let selected = null;
+  function showDetail(id) {
+    const n = NODES[id];
+    const info = INFO[id];
+    if (selected) nodeEls[selected].classList.remove("selected");
+    selected = id;
+    nodeEls[id].classList.add("selected");
+    const title = n.tall ? "API Gateway" : (info.lambda || n.label);
+    const facts = (info.facts || []).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+    panel.innerHTML = `
+      <span class="kind"><i class="swatch" style="background:var(${CATEGORIES[n.cat].color})"></i>${info.kind}</span>
+      <h3>${title}</h3>
+      <p>${info.what}</p>
+      ${facts ? `<dl class="facts">${facts}</dl>` : ""}
+      ${info.exam ? `<div class="exam"><span class="eyebrow">Exam lens</span><span>${info.exam}</span></div>` : ""}
+      ${info.file ? `<span class="filepath">${info.file}</span>` : ""}
+      <button class="iconbtn" id="backToIntro" style="justify-self:start">Show legend</button>`;
+    document.getElementById("backToIntro").addEventListener("click", () => { nodeEls[selected].classList.remove("selected"); selected = null; showIntro(); });
+  }
+  showIntro();
+
+  const ALL_READ_API = READ_LAMBDAS.map(([id]) => "api-" + id);
+  const SCENARIOS = [
+    { name: "Every 30 minutes", steps: [
+      { n: ["eb", "ingest_fpl"], e: ["eb-ingest_fpl"], c: "The EventBridge <code>rate(30 minutes)</code> rule fires and invokes <b>ingest_fpl</b> asynchronously." },
+      { n: ["fpl", "ingest_fpl"], e: ["fpl-ingest_fpl"], c: "It fetches <code>bootstrap-static</code> and <code>fixtures</code> with a browser User-Agent so FPL doesn't 403 it. Both must succeed or nothing gets written." },
+      { n: ["ingest_fpl", "s3"], e: ["ingest_fpl-s3"], c: "Raw JSON lands in S3 first, as <code>fpl/bootstrap-static/2026-10-09T08-30-00Z.json</code> and a fixtures file alongside it." },
+      { n: ["ingest_fpl", "ddb", "layer"], e: ["ingest_fpl-ddb"], c: "Then pydantic models from the layer parse a slim subset, and it overwrites <code>fpl#bootstrap</code> and <code>fpl#fixtures</code> (sk = <code>latest</code>)." },
+      { n: ["ddb", "r_players", "r_gwcur", "r_xp"], e: ["ddb-r_players", "ddb-r_gwcur"], c: "Every read Lambda now sees the new data on its next request. Nobody had to wait for FPL." }
+    ] },
+    { name: "Overnight analytics", steps: [
+      { n: ["eb", "ingest_history", "fpl"], e: ["eb-ingest_history", "fpl-ingest_history", "ingest_history-ddb"], c: "<b>Sunday 02:00</b>: ingest_player_history calls element-summary for about 700 players, one at a time, and writes about 21k history rows." },
+      { n: ["eb", "analyze_form", "ddb"], e: ["eb-analyze_form", "analyze_form-ddb"], c: "<b>04:00</b>: analyze_player_form reads bootstrap and fixtures and writes rolling form for every player." },
+      { n: ["eb", "analyze_xp", "ddb"], e: ["eb-analyze_xp", "analyze_xp-ddb"], c: "<b>04:30</b>: analyze_player_xp_v2 first checks the match window. If a match kicked off in the last 2 hours, it skips. Otherwise it writes xP for the next 5 gameweeks." },
+      { n: ["layer", "analyze_xp", "analyze_form"], e: [], c: "Both analyzers import their maths, including the fitted coefficients JSON, from the shared <b>fpl_schemas</b> layer." }
+    ] },
+    { name: "Open My Team", steps: [
+      { n: ["app", "apigw", "r_entry"], e: ["app-api", "api-r_entry"], c: "The app calls <code>GET /entry/{teamId}</code> to learn your current gameweek and bank." },
+      { n: ["r_entry", "ddb", "fpl"], e: ["ddb-r_entry", "cachemiss"], c: "<b>Cache-aside</b>: entry checks DynamoDB. If the copy is under 30 minutes old it returns it. If not, it fetches from FPL and writes the result back with a <code>ttl</code>." },
+      { n: ["app", "apigw", "r_entrygw", "r_gwlive", "ddb"], e: ["app-api", "api-r_entrygw", "api-r_gwlive", "ddb-r_entrygw", "ddb-r_gwlive"], c: "Next come your picks for that gameweek and the live points, both cache-aside in the same way." },
+      { n: ["app", "apigw", "r_players", "r_xp", "ddb"], e: ["app-api", "api-r_players", "api-r_xp", "ddb-r_players", "ddb-r_xp"], c: "Names, prices and xP come straight from the cache. The schedules keep those rows filled, so user traffic never triggers an FPL call for them." }
+    ] },
+    { name: "Gameweek goes live", steps: [
+      { n: ["app", "apigw", "r_gwcur", "ddb"], e: ["app-api", "api-r_gwcur", "ddb-r_gwcur"], c: "On launch, one shared fetch of <code>GET /gameweek/current</code> returns the current gameweek, its fixtures and the next deadline. The banner on every tab reads <code>GW 7 deadline · Fri 6:30 PM</code>." },
+      { n: ["app"], e: [], c: "A minute after the deadline the app refetches. Kickoff times are compared to the device clock every minute, so the banner flips to <code>● GW 7 live · 0/10 played</code> without waiting for FPL's flags." },
+      { n: ["app", "apigw", "r_xp", "ddb"], e: ["app-api", "api-r_xp", "ddb-r_xp"], c: "The xP column now reads GW 8. The stored rows still lead with GW 7 until 04:30, but the read Lambda drops locked gameweeks using deadlines from <code>fpl#bootstrap</code>." },
+      { n: ["eb", "analyze_xp", "ddb"], e: ["eb-analyze_xp", "analyze_xp-ddb"], c: "<b>04:30</b>: if no match is on, the analyzer rewrites every row starting at GW 8. During the gameweek, players show ● while their club plays and ✓ once it's done." }
+    ] },
+    { name: "Ask for transfers", steps: [
+      { n: ["app", "apigw", "r_transfers"], e: ["app-api", "api-r_transfers"], c: "<code>GET /analytics/squad/{teamId}/transfers?horizon=3</code> reaches the only heavyweight read Lambda: 1024 MB, 30 s." },
+      { n: ["r_transfers", "ddb", "fpl"], e: ["ddb-r_transfers", "cachemiss"], c: "It reads your entry, picks and transfer history (cache-aside), plus bootstrap, fixtures, player form and xP from the cache." },
+      { n: ["r_transfers", "layer"], e: [], c: "It works out your free transfers (25/26 rules: bank up to 5, Wildcard and Free Hit keep them), builds 1- to 3-move bundles, and subtracts 4 points for each extra transfer." },
+      { n: ["r_transfers", "apigw", "app"], e: ["api-r_transfers", "app-api"], c: "It returns the bundles ranked by net ΔxP. The Transfers tab shows them as cards with bank and hit pills." }
+    ] },
+    { name: "Something breaks", steps: [
+      { n: ["fpl", "ingest_fpl"], e: ["fpl-ingest_fpl"], c: "FPL returns a 403 to ingest_fpl. Lambda retries the async invocation up to twice, and each failed attempt counts toward the <code>Errors</code> metric." },
+      { n: ["ingest_fpl", "cw"], e: ["logs"], c: "CloudWatch sums Errors per 30-minute window. One bad window isn't enough to alarm." },
+      { n: ["cw", "sns", "email"], e: ["cw-sns", "sns-email"], c: "A second consecutive bad window puts the alarm in ALARM. It publishes to SNS, which emails you <b>once</b>. It then stays in ALARM silently until the job recovers." },
+      { n: ["ddb", "apigw", "app", "web", "r_players", "r_xp"], e: ["ddb-r_players", "ddb-r_xp", "app-api", "web-api"], c: "Meanwhile the app keeps serving the last good cache. Stale data is better than an outage." }
+    ] },
+    { name: "Sunday cleanup", steps: [
+      { n: ["eb", "ingest_history", "ddb"], e: ["eb-ingest_history", "ingest_history-ddb"], c: "<b>Sunday 02:00</b>: before fetching anything, ingest_player_history lists every history key it already has." },
+      { n: ["fpl", "ingest_history"], e: ["fpl-ingest_history"], c: "It fetches element-summary for each of the ~667 players in the bootstrap." },
+      { n: ["ingest_history", "ddb", "layer"], e: ["ingest_history-ddb"], c: "It writes this season's rows, then <code>ddb_prune</code> deletes any stored row FPL didn't return. If a fetch fails, that player keeps their old rows." },
+      { n: ["ingest_history", "ddb"], e: ["ingest_history-ddb"], c: "Partitions for ids no longer in the bootstrap are deleted outright. The first run after #158 removed about 29k rows of 2025/26 data." },
+      { n: ["eb", "analyze_form", "analyze_xp", "ddb"], e: ["eb-analyze_form", "eb-analyze_xp", "analyze_form-ddb", "analyze_xp-ddb"], c: "The 04:00 and 04:30 analyzers prune their own rows the same way, which also drops last week's row for a player whose team blanks." }
+    ] },
+    { name: "Ship a change", steps: [
+      { n: ["gh"], e: [], c: "Open a PR. GitHub Actions runs four jobs: jest, pytest for each handler in its own venv, pytest for the shared layer, and the mobile type-check, lint, format and jest checks." },
+      { n: ["gh", "cfn"], e: ["gh-cfn"], c: "Merge, then run <code>npx cdk deploy</code> locally. Docker bundles each Python Lambda and CDK synthesizes the template. A Lambda code change always needs a deploy, even when the CloudFormation diff looks empty." },
+      { n: ["cfn", "eb", "ddb", "s3", "layer", "apigw", "cw", "sns", "ingest_fpl", "analyze_xp", "r_transfers"], e: [], c: "CloudFormation updates FplStatsStack in place: functions, layer version, rules, alarms, API." },
+      { n: ["gh", "web"], e: [], c: "The web build is separate. Amplify builds <code>mobile/</code> from <code>amplify.yml</code>, outside the CDK stack." }
+    ] }
+  ];
+
+  const chipsBox = document.getElementById("scenarioChips");
+  const stepCount = document.getElementById("stepCount");
+  const stepCaption = document.getElementById("stepCaption");
+  const prevBtn = document.getElementById("prevStep");
+  const nextBtn = document.getElementById("nextStep");
+  const playBtn = document.getElementById("playStep");
+  const clearBtn = document.getElementById("clearStep");
+  const STEP_INTERVAL_MS = 3200;
+  let activeScenario = null;
+  let stepIndex = 0;
+  let playTimer = null;
+
+  function lightUp(nodes, edges) {
+    svg.classList.add("dim");
+    Object.values(nodeEls).forEach((g) => g.classList.remove("lit"));
+    Object.values(edgeEls).forEach((g) => { g.classList.remove("lit"); const p = g.querySelector("path"); if (p.getAttribute("marker-end")) p.setAttribute("marker-end", "url(#arrow)"); if (p.getAttribute("marker-start")) p.setAttribute("marker-start", "url(#arrow)"); });
+    nodes.forEach((id) => nodeEls[id] && nodeEls[id].classList.add("lit"));
+    edges.forEach((id) => { const g = edgeEls[id]; if (!g) return; g.classList.add("lit"); const p = g.querySelector("path"); if (p.getAttribute("marker-end")) p.setAttribute("marker-end", "url(#arrow-lit)"); if (p.getAttribute("marker-start")) p.setAttribute("marker-start", "url(#arrow-lit)"); });
+  }
+  function clearLights() {
+    svg.classList.remove("dim");
+    lightUp([], []);
+    svg.classList.remove("dim");
+  }
+  function renderStep() {
+    const sc = SCENARIOS[activeScenario];
+    const step = sc.steps[stepIndex];
+    lightUp(step.n, step.e);
+    stepCount.textContent = `${sc.name} · ${stepIndex + 1}/${sc.steps.length}`;
+    stepCaption.innerHTML = step.c;
+    prevBtn.disabled = stepIndex === 0;
+    nextBtn.disabled = stepIndex === sc.steps.length - 1;
+  }
+  function stopPlay() { clearInterval(playTimer); playTimer = null; playBtn.textContent = "Play"; }
+  function startScenario(index) {
+    stopPlay();
+    activeScenario = index;
+    stepIndex = 0;
+    [...chipsBox.children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === index)));
+    [playBtn, clearBtn].forEach((b) => (b.disabled = false));
+    renderStep();
+  }
+  SCENARIOS.forEach((sc, i) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = sc.name; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => startScenario(i));
+    chipsBox.appendChild(b);
+  });
+  prevBtn.addEventListener("click", () => { stopPlay(); stepIndex--; renderStep(); });
+  nextBtn.addEventListener("click", () => { stopPlay(); stepIndex++; renderStep(); });
+  playBtn.addEventListener("click", () => {
+    if (playTimer) { stopPlay(); return; }
+    const sc = SCENARIOS[activeScenario];
+    if (stepIndex === sc.steps.length - 1) { stepIndex = 0; renderStep(); }
+    playBtn.textContent = "Pause";
+    playTimer = setInterval(() => {
+      if (stepIndex >= SCENARIOS[activeScenario].steps.length - 1) { stopPlay(); return; }
+      stepIndex++; renderStep();
+    }, STEP_INTERVAL_MS);
+  });
+  clearBtn.addEventListener("click", () => {
+    stopPlay(); activeScenario = null; clearLights();
+    [...chipsBox.children].forEach((b) => b.setAttribute("aria-pressed", "false"));
+    [prevBtn, nextBtn, playBtn, clearBtn].forEach((b) => (b.disabled = true));
+    stepCount.textContent = "Pick a scenario";
+    stepCaption.textContent = "Each scenario walks through one real path in the code, one hop at a time.";
+  });
+
+  /* Clock */
+  const HOURS_PER_DAY = 24;
+  const MINUTES_PER_HOUR = 60;
+  const MS_PER_MINUTE = 60000;
+  const INGEST_INTERVAL_MIN = 30;
+  const SUNDAY = 0;
+  const JOBS = [
+    { id: "ingest_fpl", name: "ingest_fpl", note: "bootstrap + fixtures → S3 + DynamoDB", every: INGEST_INTERVAL_MIN, color: "--c-compute" },
+    { id: "ingest_history", name: "ingest_player_history", note: "~700 players' match history", hour: 2, minute: 0, weekday: SUNDAY, color: "--c-db" },
+    { id: "analyze_form", name: "analyze_player_form", note: "rolling form + fixture difficulty", hour: 4, minute: 0, color: "--c-net" },
+    { id: "analyze_xp", name: "analyze_player_xp_v2", note: "xP for the next 5 open GWs (skips during live matches)", hour: 4, minute: 30, color: "--c-int" }
+  ];
+  const clock = document.getElementById("clock-svg");
+  const CX = 170, CY = 170, R_RING = 150, R_TICK = 132, R_JOB = 104, R_HOUR = 150, R_HAND = 118;
+  const polar = (minutesOfDay, r) => { const a = (minutesOfDay / (HOURS_PER_DAY * MINUTES_PER_HOUR)) * 2 * Math.PI - Math.PI / 2; return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) }; };
+  const cel = (tag, attrs) => el(tag, attrs, clock);
+  cel("circle", { cx: CX, cy: CY, r: R_RING - 6, class: "ring" });
+  for (let m = 0; m < HOURS_PER_DAY * MINUTES_PER_HOUR; m += INGEST_INTERVAL_MIN) { const p = polar(m, R_TICK); cel("circle", { cx: p.x, cy: p.y, r: 2.6, class: "tick30" }); }
+  [0, 3, 6, 9, 12, 15, 18, 21].forEach((h) => { const p = polar(h * MINUTES_PER_HOUR, R_HOUR - 30); const t = cel("text", { x: p.x, y: p.y, class: "hour" }); t.textContent = String(h).padStart(2, "0"); });
+  const jobDots = {};
+  JOBS.filter((j) => j.hour !== undefined).forEach((j) => {
+    const p = polar(j.hour * MINUTES_PER_HOUR + j.minute, R_JOB - (j.weekday === SUNDAY ? 0 : 0));
+    const c = cel("circle", { cx: p.x, cy: p.y, r: 9, class: "job", style: `fill:var(${j.color})`, tabindex: "0", role: "button", "aria-label": j.name });
+    c.addEventListener("click", () => selectJob(j.id));
+    jobDots[j.id] = c;
+  });
+  const hand = cel("line", { x1: CX, y1: CY, x2: CX, y2: CY - R_HAND, class: "hand" });
+  cel("circle", { cx: CX, cy: CY, r: 5, class: "hub" });
+  const clockLabel = cel("text", { x: CX, y: CY + 36, class: "center-label" });
+  const clockSub = cel("text", { x: CX, y: CY + 52, class: "center-sub" }); clockSub.textContent = "UTC NOW";
+
+  const jobList = document.getElementById("jobList");
+  const pad = (n) => String(n).padStart(2, "0");
+  function nextRun(job, now) {
+    const d = new Date(now.getTime());
+    d.setUTCSeconds(0, 0);
+    if (job.every) {
+      const mins = d.getUTCMinutes();
+      const add = job.every - (mins % job.every);
+      return new Date(d.getTime() + add * MS_PER_MINUTE);
+    }
+    const candidate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), job.hour, job.minute));
+    for (let i = 0; i < 8; i++) {
+      const c = new Date(candidate.getTime() + i * HOURS_PER_DAY * MINUTES_PER_HOUR * MS_PER_MINUTE);
+      if (c > now && (job.weekday === undefined || c.getUTCDay() === job.weekday)) return c;
+    }
+    return candidate;
+  }
+  function fmtIn(ms) {
+    const totalMin = Math.round(ms / MS_PER_MINUTE);
+    const days = Math.floor(totalMin / (HOURS_PER_DAY * MINUTES_PER_HOUR));
+    const h = Math.floor((totalMin % (HOURS_PER_DAY * MINUTES_PER_HOUR)) / MINUTES_PER_HOUR);
+    const m = totalMin % MINUTES_PER_HOUR;
+    return (days ? days + "d " : "") + (h ? h + "h " : "") + m + "m";
+  }
+  const jobRows = {};
+  JOBS.forEach((j) => {
+    const b = document.createElement("button");
+    b.className = "job-row"; b.setAttribute("aria-pressed", "false");
+    const sched = j.every ? `every ${j.every} min` : (j.weekday === SUNDAY ? "Sun " : "daily ") + pad(j.hour) + ":" + pad(j.minute);
+    b.innerHTML = `<i class="swatch" style="background:var(${j.color})"></i><span class="what"><b>${j.name}</b><small>${sched} · ${j.note}</small></span><span class="when"></span>`;
+    b.addEventListener("click", () => selectJob(j.id));
+    jobList.appendChild(b);
+    jobRows[j.id] = b;
+  });
+  function selectJob(id) {
+    Object.entries(jobRows).forEach(([k, b]) => b.setAttribute("aria-pressed", String(k === id)));
+    Object.entries(jobDots).forEach(([k, c]) => c.classList.toggle("active", k === id));
+  }
+  function tickClock() {
+    const now = new Date();
+    const mod = now.getUTCHours() * MINUTES_PER_HOUR + now.getUTCMinutes();
+    const p = polar(mod, R_HAND);
+    hand.setAttribute("x2", p.x); hand.setAttribute("y2", p.y);
+    clockLabel.textContent = pad(now.getUTCHours()) + ":" + pad(now.getUTCMinutes());
+    JOBS.forEach((j) => {
+      const nr = nextRun(j, now);
+      const local = nr.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      jobRows[j.id].querySelector(".when").innerHTML = `in ${fmtIn(nr - now)}<br><span class="muted">${local} local</span>`;
+    });
+  }
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  /* DynamoDB */
+  const DDB = [
+    { pk: "fpl#bootstrap", sk: "latest", w: "ingest_fpl", wk: "sched", r: "players, gameweek_current, analytics_players_xp, both analyzers, transfers, ingest_player_history", f: "≤ 30 min", note: "Teams, players and gameweeks: the slim pydantic subset of bootstrap-static. Almost everything reads this one item. Gameweek deadlines in here are what decides 'current' and 'next' everywhere since #173. The full raw payload is in S3." },
+    { pk: "fpl#fixtures", sk: "latest", w: "ingest_fpl", wk: "sched", r: "gameweek_current, match_window guard, analyzers, transfers", f: "≤ 30 min", note: "The whole season's fixtures. match_window.py reads only this to decide whether a match is live (kickoff to +2 h) and the analyzers should skip." },
+    { pk: "fpl#player_history#{id}", sk: "gw#{round:03d}#fixture#{fixture}\nseason_summary#{season}", w: "ingest_player_history", wk: "sched", r: "analyze_player_xp_v2, transfers, offline fit scripts", f: "weekly", note: "About 21k rows, and the only partitions holding many items. The zero-padded round (gw#007) keeps sort keys in numeric order, a classic DynamoDB trick. FPL renumbers player and fixture ids every season, so each Sunday run replaces a player's rows and deletes departed ids (#158). Before that fix, 90% of these rows were 2025/26 matches attached to the wrong players." },
+    { pk: "analytics#player_form", sk: "{player_id}", w: "analyze_player_form", wk: "an", r: "analytics_player_form, transfers", f: "daily", note: "One partition, one item per current player (667). Read as a whole with a Query on pk, or one at a time with GetItem. Rows for players not scored this run are deleted." },
+    { pk: "analytics#player_xp_v2", sk: "{player_id}", w: "analyze_player_xp_v2", wk: "an", r: "analytics_players_xp, transfers", f: "daily", note: "xp plus horizon_xp_by_gw for the next 5 gameweeks, stored as Decimals. The xP column and transfer ranking both read this. A missing row means 'no fixture this GW', so the analyzer deletes rows for blanking players instead of leaving last week's." },
+    { pk: "entry#{teamId}", sk: "latest", w: "entry, transfers", wk: "aside", r: "entry, transfers", f: "TTL 30 min", note: "Cache-aside. expires_at is checked in code, and ttl lets DynamoDB garbage-collect the item eventually." },
+    { pk: "entry#{teamId}#gw#{gw}", sk: "latest", w: "entry_gameweek, transfers", wk: "aside", r: "entry_gameweek, transfers", f: "TTL 30 min", note: "A manager's 15 picks for one gameweek." },
+    { pk: "entry#{teamId}#history", sk: "latest", w: "transfers", wk: "aside", r: "transfers", f: "TTL 30 min", note: "Per-gameweek transfers and chips, walked to work out your free-transfer count." },
+    { pk: "gameweek#{gw}#live", sk: "latest", w: "gameweek_live", wk: "aside", r: "gameweek_live", f: "TTL 30 min", note: "Live points and minutes for every player in one gameweek." },
+    { pk: "league#{leagueId}", sk: "latest", w: "league_members", wk: "aside", r: "league_members", f: "TTL 30 min", note: "Classic league standings, for importing friends." }
+  ];
+  const DDB_FILTERS = [["all", "All"], ["sched", "Written on a schedule"], ["an", "Analyzer output"], ["aside", "Cache-aside (user-driven)"]];
+  const ddbBody = document.getElementById("ddbBody");
+  const ddbNote = document.getElementById("ddbNote");
+  const ddbFilters = document.getElementById("ddbFilters");
+  const KIND_PILL = { sched: "pill sched", an: "pill an", aside: "pill aside" };
+  let ddbFilter = "all";
+  function renderDdb() {
+    ddbBody.innerHTML = "";
+    DDB.filter((row) => ddbFilter === "all" || row.wk === ddbFilter).forEach((row) => {
+      const tr = document.createElement("tr");
+      tr.tabIndex = 0;
+      tr.innerHTML = `<td class="key"><span class="pk">${row.pk}</span></td><td class="key">${row.sk.replace("\n", "<br>")}</td><td><span class="${KIND_PILL[row.wk]}">${row.w}</span></td><td>${row.r}</td><td><span class="pill">${row.f}</span></td>`;
+      const pick = () => { [...ddbBody.children].forEach((r) => r.classList.remove("sel")); tr.classList.add("sel"); ddbNote.innerHTML = `<b class="mono">${row.pk}</b>: ${row.note}`; };
+      tr.addEventListener("click", pick);
+      tr.addEventListener("keydown", (e) => { if (e.key === "Enter") pick(); });
+      ddbBody.appendChild(tr);
+    });
+  }
+  DDB_FILTERS.forEach(([key, label]) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = label; b.setAttribute("aria-pressed", String(key === ddbFilter));
+    b.addEventListener("click", () => { ddbFilter = key; [...ddbFilters.children].forEach((c) => c.setAttribute("aria-pressed", String(c === b))); renderDdb(); });
+    ddbFilters.appendChild(b);
+  });
+  renderDdb();
+
+  /* App tabs */
+  const TABS = [
+    { id: "myteam", label: "My Team", routes: ["r_entry", "r_entrygw", "r_gwlive", "r_players", "r_xp", "r_gwcur"], storage: "Team ID and the Pitch/List choice live in AsyncStorage.", body: [["Banner", "● GW 6 live · 3/10 played"], ["View", "Pitch | List"], ["Lineup", "Yours | Suggested"], ["Suggested XI", "GW 7 · 4-4-2 · +5.0 xP"], ["Rogers", "✓ 16 pts"]], note: "fetchMyTeam() chains entry → picks → live points, then merges players and xP. Pitch view (#168) is the default. Suggested (#170) picks the best XI for the next deadline, entirely on the device. During a gameweek each player shows ● while their club plays and ✓ once it's done (#174)." },
+    { id: "players", label: "Players", routes: ["r_players", "r_xp", "r_entry", "r_entrygw", "r_gwlive", "r_gwcur"], storage: "Column and filter choices are saved in AsyncStorage and shared with My Team's list.", body: [["Sort by", "xP ▾ (GW7)"], ["Filters", "Position: MID ✕ · Price ≤ £8.0 ✕"], ["Your players", "dimmed"], ["Mbeumo", "● playing now"]], note: "Active filters show as removable chips under the control bar (#171). Calls fetchMyTeam too, so it can dim players you already own. The xP header names the gameweek it projects (#173)." },
+    { id: "transfers", label: "Transfers", routes: ["r_transfers", "r_players", "r_gwcur"], storage: "Horizon is chosen in the UI.", body: [["OUT", "Palmer"], ["IN", "Haaland"], ["Net ΔxP (3 GW)", "+4.2 · −4 hit"]], note: "One heavy request. Bundle cards show bank and hit pills." },
+    { id: "friends", label: "Friends", routes: ["r_entry", "r_league", "r_gwcur"], storage: "Friends list lives in AsyncStorage on this device only.", body: [["You", "rank 412k"], ["Friend A", "rank 1.2m"], ["Import league", "/league/{id}/members"]], note: "useParallelFetch fires one /entry call per friend at the same time." },
+    { id: "settings", label: "Settings", routes: ["r_gwcur"], storage: "Team ID and theme (light/dark/system) in AsyncStorage. Its only API call is the shared gameweek banner's.", body: [["Team ID", "1234567"], ["Theme", "System"]], note: "The gameweek banner sits under every screen's header, Settings included. All tabs share one fetch, made by a provider above the tab navigator." }
+  ];
+  const phoneTabs = document.getElementById("phoneTabs");
+  const phoneTitle = document.getElementById("phoneTitle");
+  const phoneBody = document.getElementById("phoneBody");
+  const routeList = document.getElementById("routeList");
+  const tabStorage = document.getElementById("tabStorage");
+  const routeEls = {};
+  READ_LAMBDAS.forEach(([id]) => {
+    const d = document.createElement("div");
+    d.className = "route";
+    const tag = id === "r_health" || id === "r_form" ? "no caller in the app" : (CACHE_ASIDE.has(id) ? "cache-aside ↺" : "cache only");
+    d.innerHTML = `<span class="verb">GET</span><code>${ROUTES[id]}</code><span class="tag">${tag}</span>`;
+    routeList.appendChild(d);
+    routeEls[id] = d;
+  });
+  let activeTab = TABS[0];
+  function selectTab(tab) {
+    activeTab = tab;
+    [...phoneTabs.children].forEach((b) => b.setAttribute("aria-selected", String(b.dataset.id === tab.id)));
+    phoneTitle.textContent = tab.label;
+    phoneBody.innerHTML = tab.body.map(([a, b]) => `<div class="row"><span>${a}</span><b class="mono">${b}</b></div>`).join("") + `<p class="muted" style="font-size:0.78rem">Example values</p>` + (tab.note ? `<p style="font-size:0.82rem">${tab.note}</p>` : "");
+    Object.entries(routeEls).forEach(([id, d]) => { const on = tab.routes.includes(id); d.classList.toggle("on", on); d.classList.toggle("off", !on); });
+    tabStorage.textContent = tab.storage;
+  }
+  TABS.forEach((tab) => {
+    const b = document.createElement("button");
+    b.setAttribute("role", "tab"); b.dataset.id = tab.id;
+    b.innerHTML = `<span class="dot"></span>${tab.label}`;
+    b.addEventListener("click", () => selectTab(tab));
+    phoneTabs.appendChild(b);
+  });
+  selectTab(TABS[0]);
+  document.getElementById("showTabOnMap").addEventListener("click", () => {
+    stopPlay();
+    const nodes = ["app", "apigw"].concat(activeTab.routes);
+    const edges = activeTab.routes.length ? ["app-api"].concat(activeTab.routes.map((r) => "api-" + r), activeTab.routes.map((r) => "ddb-" + r)) : [];
+    if (activeTab.routes.length) nodes.push("ddb");
+    if (activeTab.routes.some((r) => CACHE_ASIDE.has(r))) { nodes.push("fpl"); edges.push("cachemiss"); }
+    lightUp(nodes, edges);
+    [...chipsBox.children].forEach((b) => b.setAttribute("aria-pressed", "false"));
+    activeScenario = null;
+    [prevBtn, nextBtn, playBtn].forEach((b) => (b.disabled = true));
+    clearBtn.disabled = false;
+    stepCount.textContent = activeTab.label + " tab";
+    stepCaption.innerHTML = activeTab.routes.length ? `Lit: the ${activeTab.routes.length} routes the ${activeTab.label} tab calls.` : "Settings makes no API calls.";
+    document.getElementById("map").scrollIntoView({ behavior: "smooth" });
+  });
+
+  /* xP */
+  const XP = [
+    ["appearance", "p60 × 2 + (p_any − p60) × 1", "2 points for 60+ minutes, 1 for a cameo. Gated by the two-stage availability signal: FPL's injury flag first, then season play rate."],
+    ["goals", "goal_pts[pos] × p60 × npxg_p90 × goals_w[pos] × factor", "Position-stratified: GK/DEF 6, MID 5, FWD 4 points per goal. Uses non-penalty xG per 90."],
+    ["assists", "3 × p60 × xa_p90 × assists_w[pos] × factor", "3 points per assist, every position."],
+    ["cs", "cs_pts[pos] × p60 × exp(−team_xgc_p90 × factor) × cs_w[pos]", "Poisson probability of conceding zero. Forwards get nothing."],
+    ["concede", "−1 × p60 × (team_xgc_p90 × factor) / 2 × concede_w[pos]", "GK/DEF lose 1 point per 2 conceded."],
+    ["saves", "(saves_p90 × factor) / 3 × p_any × saves_w[GKP]", "Goalkeepers only: 1 point per 3 saves."],
+    ["bonus", "min(3, bonus_p90 × p60 × bonus_w[pos] × factor)", "Capped at 3 per fixture."],
+    ["defcon", "2 × p_any × defcon_per_match_rate × defcon_w[pos] × factor", "+2 when a player hits the defensive-contribution threshold (DEF 10, MID/FWD 12). New for 25/26, and a big deal for budget midfielders."],
+    ["discipline", "−1 × yc_p90 × p_any + −3 × rc_p90 × p_any", "Expected card deductions."]
+  ];
+  const formula = document.getElementById("formula");
+  const xpDetail = document.getElementById("xpDetail");
+  const lead = document.createElement("span"); lead.textContent = "xP ="; lead.style.fontWeight = "600"; formula.appendChild(lead);
+  XP.forEach(([name, f, desc], i) => {
+    if (i) { const op = document.createElement("span"); op.className = "op"; op.textContent = "+"; formula.appendChild(op); }
+    const b = document.createElement("button"); b.textContent = name; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => {
+      [...formula.querySelectorAll("button")].forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      xpDetail.innerHTML = `<h3>${name}</h3><pre>${f}</pre><p>${desc}</p>`;
+    });
+    formula.appendChild(b);
+  });
+  formula.querySelectorAll("button")[7].click();
+
+  const LIFECYCLE = [
+    ["Collect", "ingest_player_history fills about 21k history rows every Sunday."],
+    ["Fit (laptop)", "<code>backend/scripts/fit_xp_v2.py --dry-run</code> reads the table, mean-matches each component × position weight, and holds out the last 5 GWs for validation, shrinking the holdout early in a season so at least one round is left to train on (#165). A bucket with no events keeps its old weight instead of locking at 0. Nothing here ships to AWS."],
+    ["Commit", "New weights go into <code>xp_v2_coefficients.json</code> in the layer, along with a dated fit report."],
+    ["Deploy", "<code>cdk deploy</code> publishes a new layer version, and the analyzer uses it at 04:30."],
+    ["Re-fit cadence", "Pre-season, ~GW10, GW15 and GW25. A trial fit on 9 Oct with GW1–5 validated worse than the current weights, so nothing shipped. <span class=\"warn\">Last shipped fit: 28 Apr 2026 on 25/26 data. Next: ~GW10, mid-November (#159).</span>"]
+  ];
+  document.getElementById("lifecycle").innerHTML = `<h3 style="margin-bottom:12px">How the model gets its numbers</h3>` + LIFECYCLE.map(([t, d], i) => `<div class="lc-step"><span class="lc-num">${i + 1}</span><div><b>${t}</b><p class="muted" style="font-size:0.92rem">${d}</p></div></div>`).join("");
+
+  /* Quiz */
+  const QUIZ = [
+    { q: "analyze_transfer_suggestions timed out at 15 s with 256 MB, yet Max Memory Used was low. What's the cheapest fix?", o: ["Raise the timeout to 15 minutes", "Raise memory to 1024 MB", "Add provisioned concurrency", "Move it to a container image"], a: 1, why: "Lambda allocates CPU in proportion to memory. Low memory use plus a timeout means CPU starvation. 1024 MB gave about 4× the CPU and it finished in 5 to 8 s. (API Gateway would cut the request off at 30 s regardless.)" },
+    { q: "To 'harden' the stack you move every Lambda into private VPC subnets. What breaks?", o: ["Only CloudWatch logging", "Nothing, Lambda handles it", "FPL calls (they need a NAT Gateway), plus DynamoDB and S3 unless you add gateway endpoints", "Only the API Gateway integration"], a: 2, why: "A Lambda in a VPC has no internet route. NAT Gateway restores outbound access at about $32/month. DynamoDB and S3 gateway endpoints are free and keep that traffic private." },
+    { q: "Why does the ingest alarm use evaluationPeriods = 2 and datapointsToAlarm = 2?", o: ["To halve the CloudWatch bill", "So one transient FPL 403 doesn't email you; two bad windows in a row do", "Because Lambda emits metrics every 60 minutes", "SNS needs two messages to confirm a subscription"], a: 1, why: "This is an M-of-N alarm. PR #149 added it after transient 403s caused noisy alerts. treatMissingData NOT_BREACHING keeps idle periods green." },
+    { q: "Which of these can REST API do that your HTTP API can't?", o: ["Lambda proxy integration", "CORS preflight", "JWT authorizers", "API keys with usage plans, and response caching"], a: 3, why: "HTTP API is cheaper and faster and supports JWT authorizers natively, but usage plans, API keys, caching and direct WAF attachment are REST-only. Your public API now leans on stage throttling instead." },
+    { q: "A cached entry#123 item expired 31 minutes ago. A request arrives. What happens?", o: ["DynamoDB already deleted it the moment TTL passed", "The handler sees expires_at in the past, refetches from FPL, and writes back", "The read fails with ConditionalCheckFailed", "API Gateway serves its own cached copy"], a: 1, why: "TTL deletion is a background sweep and can lag by days, so expired items can still be returned. That's why the handler checks expires_at itself. TTL deletes also don't consume write capacity." },
+    { q: "S3 lifecycle moves snapshots to Standard-IA at 30 days. Which statement is true?", o: ["Standard-IA retrievals take hours", "Objects under 128 KB aren't transitioned by default, and IA bills a 30-day minimum", "Lifecycle transitions need versioning turned off", "IA objects lose SSE-S3 encryption"], a: 1, why: "Retrieval-in-hours is Glacier Flexible and Deep Archive. IA is millisecond access with a per-GB retrieval fee. Since Sept 2024 the 128 KB floor is the default lifecycle filter." },
+    { q: "Two of your alarms sat in ALARM for months, and you got only one email each. Why?", o: ["SNS throttles repeat emails", "Alarm actions fire on state transitions, not on every evaluation period", "The email subscription had expired", "TreatMissingData NOT_BREACHING silenced them"], a: 1, why: "An alarm notifies when it enters ALARM and again when it leaves. Stuck in ALARM, it says nothing more. After time away, check states with describe-alarms, or build a daily digest of anything not OK." },
+    { q: "The web password is gone and a scraper hammers /analytics/squad/{id}/transfers. Stage throttling is 20 req/s with burst 40. What happens to the excess requests?", o: ["They queue until capacity frees up", "API Gateway returns 429 and the Lambda is never invoked", "Lambda runs them but the responses are dropped", "API Gateway raises the limit automatically"], a: 1, why: "API Gateway uses a token bucket. Over the limit, it rejects with 429 Too Many Requests before the integration runs, so the 1024 MB Lambda costs nothing. The account-level default (10,000 req/s) is far higher, which is why a stage limit matters." }
+  ];
+  const quiz = document.getElementById("quiz");
+  const scoreline = document.getElementById("scoreline");
+  let answered = 0, correct = 0;
+  QUIZ.forEach((item, qi) => {
+    const card = document.createElement("div"); card.className = "q";
+    card.innerHTML = `<span class="eyebrow">Question ${qi + 1}</span><b>${item.q}</b><div class="opts"></div><p class="why" hidden></p>`;
+    const opts = card.querySelector(".opts");
+    const why = card.querySelector(".why");
+    item.o.forEach((text, oi) => {
+      const b = document.createElement("button"); b.textContent = text;
+      b.addEventListener("click", () => {
+        [...opts.children].forEach((x, xi) => { x.disabled = true; if (xi === item.a) x.classList.add("right"); });
+        if (oi !== item.a) b.classList.add("wrong"); else correct++;
+        answered++;
+        why.textContent = item.why; why.hidden = false;
+        scoreline.textContent = `${answered} / ${QUIZ.length} answered · ${correct} correct`;
+      });
+      opts.appendChild(b);
+    });
+    quiz.appendChild(card);
+  });
+
+  /* Where you left off */
+  const PHASES = [
+    ["Phase 0 · Walking skeleton", 10, 10], ["Phase 1 · MVP", 10, 10], ["Phase 2 · Social", 9, 9], ["Phase 3 · Custom analytics", 9, 9],
+    ["Phase 3.5 · Frontend polish", 11, 12], ["Phase 3.6 · Transfer engine + friends launch", 10, 10], ["Phase 6 · xP v2", 8, 8],
+    ["Phase 4 · Distribution (Android)", 0, 7], ["Phase 5 · Post-launch backlog", 5, 17]
+  ];
+  document.getElementById("phases").innerHTML = PHASES.map(([name, done, total]) => `<div class="phase"><span>${name}</span><span class="n">${done}/${total}</span><span class="bar"><i style="width:${(done / total) * 100}%"></i></span></div>`).join("") + `<p class="muted" style="font-size:0.86rem;margin-top:8px">Six milestones are fully closed but still marked open on GitHub. Close them to tidy up.</p>`;
+  const FLAGS = [
+    ["done", "Fixed · #158", "Season rollover", "Stale 2025/26 rows were 90% of player history, tied to the wrong players by FPL's id renumbering. Writers now prune what they didn't produce, the xP job has 512 MB, and Coventry, Hull and Ipswich are mapped. xP for GW6 is fresh."],
+    ["done", "Fixed · #163", "Public, but throttled", "The API is limited to 20 req/s (burst 40) and the Amplify password is off. Anyone with the link can use the app."],
+    ["done", "Fixed · #164", "Layer tests in CI", "The 121 shared-layer tests now run on every PR."],
+    ["done", "Fixed · #167", "ClubELO dropped", "Their free API moved behind a login on 1 Sep. The ingest Lambda, its schedule, its stuck alarm, the Elo math and the Transfers 'Avg ELO win prob' row are gone. Fixture quality now comes from FPL's difficulty rating alone."],
+    ["done", "Shipped · #168, #170, #171", "My Team pitch view and lineup picker", "My Team opens on a pitch with a Yours | Suggested lineup toggle, and both list screens show active filters as removable chips. Mobile now has jest, run in CI."],
+    ["done", "Shipped · #173", "Plan for the next deadline", "xP, the Suggested XI and transfer suggestions used to aim at the live gameweek, which you can no longer change. Spotted live on 10 Oct: during GW 6 the xP column projected GW 6. \"Upcoming\" now means the deadline is still ahead."],
+    ["mid", "Merge + deploy · #175", "Live gameweek banner and player markers", "#174 was stacked on #173 and merged into its branch rather than <code>main</code>. #175 lands it. After merging, run <code>cdk deploy</code> for the new <code>/gameweek/current</code> fields. To stop this recurring, turn on <i>Automatically delete head branches</i> in the repo settings, which makes GitHub retarget stacked PRs itself."],
+    ["mid", "Watch · this weekend", "xP alarm should clear", "AnalyzePlayerXpV2ErrorsAlarm still reads ALARM because its 24-hour window includes this morning's timeout. Successful nightly runs should clear it. If it's still ALARM by Sunday, look there first."],
+    ["mid", "~GW10 · mid-November", "Re-fit xP coefficients (#159)", "The model still uses 2025/26 coefficients, and 2026/27 changed bonus scoring. A GW5 trial fit predicted worse, so wait for about 10 gameweeks. #165 fixed the bug that locked empty buckets at a weight of 0."],
+    ["mid", "Before 29 Nov", "Save the ClubELO seed (#166)", "Building our own Elo starts from the 31 Aug snapshot in <code>clubelo/ratings/</code>. The S3 lifecycle deletes it around 29 Nov, so copy it to a prefix that doesn't expire before then."],
+    ["low", "Deferred", "Custom domain (#162)", "No domain yet, by choice. Steps are recorded on the issue: Route 53 registration, Amplify domain management with free TLS, ideally moving Amplify into CDK at the same time."],
+    ["low", "Before May 2027", "Next season rollover", "Promoted clubs need entries in clubVisuals.ts, plus a pre-season re-fit. With ingest_clubelo gone, nothing fails loudly as a reminder, so use the checklist. The pruning handles the id changes."],
+    ["low", "Loose ends", "Small cleanups", "/health and /analytics/player/{id}/form have no caller in the app. Issue #52 (placeholder CDK test) is still open. CI doesn't run the <code>backend/scripts</code> tests. The DynamoDB free-tier line in CLAUDE.md is backwards. Six finished milestones are still marked open."]
+  ];
+  document.getElementById("flags").innerHTML = FLAGS.map(([sev, tag, title, body]) => `<div class="flag ${sev === "hot" ? "hot" : ""} ${sev === "done" ? "done" : ""}"><span class="sev ${sev}">${tag}</span><b>${title}</b><p class="muted" style="font-size:0.9rem">${body}</p></div>`).join("");
+})();
+</script>
+
+
+</body></html>

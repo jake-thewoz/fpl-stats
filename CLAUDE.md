@@ -20,6 +20,7 @@ fpl-stats/
 │   ├── lambdas/         # Python Lambda handlers, one dir per function
 │   │   └── <name>/      # handler.py, requirements.txt, tests/
 │   └── test/            # jest tests for CDK stacks
+├── docs/                # architecture, xP model, runbook, history (index: docs/README.md)
 └── CLAUDE.md
 ```
 
