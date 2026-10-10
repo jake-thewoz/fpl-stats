@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Captain's Log",
+    "slug": "captains-log",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,16 +9,14 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f4f2f3"
+      "resizeMode": "contain"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#f4f2f3"
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

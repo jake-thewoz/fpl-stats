@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
+import { APP_NAME } from '../config';
 import type { OnboardingScreenProps } from '../navigation/types';
 import {
   effects,
@@ -51,7 +52,7 @@ export default function OnboardingScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to FPL Stats</Text>
+      <Text style={styles.title}>Welcome to {APP_NAME}</Text>
       <Text style={styles.body}>
         Enter your Fantasy Premier League team ID so we can pull your team and compare
         with friends.

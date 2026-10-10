@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx}\"",
-    "test": "jest"
+    "test": "jest",
+    "brand": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-brand-assets.mts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -33,6 +34,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.0",
     "eslint": "9.39.4",

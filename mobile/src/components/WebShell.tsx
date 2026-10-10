@@ -13,6 +13,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme';
 
 const WEB_COLUMN_MAX_WIDTH = 640;
+const THEME_COLOR_META_NAME = 'theme-color';
 
 export function WebShell({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
@@ -23,6 +24,17 @@ export function WebShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     document.body.style.backgroundColor = colors.background;
+    // The installed web app's status bar takes this color. It starts as the
+    // manifest's brand color during launch, then follows the theme.
+    let themeColorMeta = document.querySelector<HTMLMetaElement>(
+      `meta[name="${THEME_COLOR_META_NAME}"]`,
+    );
+    if (!themeColorMeta) {
+      themeColorMeta = document.createElement('meta');
+      themeColorMeta.name = THEME_COLOR_META_NAME;
+      document.head.appendChild(themeColorMeta);
+    }
+    themeColorMeta.content = colors.background;
   }, [colors.background]);
 
   if (Platform.OS !== 'web') {
