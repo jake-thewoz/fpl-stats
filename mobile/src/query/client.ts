@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { focusManager, QueryClient } from '@tanstack/react-query';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { shouldRetryQuery } from './retry';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -23,9 +24,7 @@ export const queryClient = new QueryClient({
       // Persisted entries are only restored while they're still in
       // memory-cache terms alive, so gcTime has to cover the max age.
       gcTime: PERSISTED_MAX_AGE_MS,
-      // Domain 404s (unknown team, picks not out yet) are answers, not
-      // transient failures; retrying them only delays the message.
-      retry: false,
+      retry: shouldRetryQuery,
     },
   },
 });

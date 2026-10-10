@@ -16,6 +16,8 @@ export type UseParallelQueriesResult<K, T> = {
   rows: readonly ParallelFetchRow<K, T>[];
   refreshing: boolean;
   onRefresh: () => Promise<void>;
+  /** Refetches one key's query, e.g. from a tap on its failed row. */
+  onRetry: (key: K) => void;
 };
 
 /**
@@ -45,6 +47,13 @@ export function useParallelQueries<K extends string | number, T, TKey extends Qu
     }
   }, [results]);
 
+  const onRetry = useCallback(
+    (key: K) => {
+      results[keys.indexOf(key)]?.refetch();
+    },
+    [keys, results],
+  );
+
   const rows = useMemo(
     () =>
       keys.map((key, i): ParallelFetchRow<K, T> => {
@@ -58,5 +67,5 @@ export function useParallelQueries<K extends string | number, T, TKey extends Qu
     [keys, results],
   );
 
-  return { rows, refreshing, onRefresh };
+  return { rows, refreshing, onRefresh, onRetry };
 }

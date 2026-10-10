@@ -9,6 +9,15 @@ export type StatusMapper = (
   body: unknown,
 ) => Error | undefined;
 
+/** Non-OK response with no domain-specific mapping. Carries the status
+ *  so callers (e.g. the query retry policy) can branch on it. */
+export class HttpError extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
+    this.name = 'HttpError';
+  }
+}
+
 export type RequestJsonInit = RequestInit & {
   /** Map an HTTP status to a domain-specific error. Returning
    *  `undefined` falls back to the generic `HTTP <status>` Error. */
@@ -21,7 +30,7 @@ export type RequestJsonInit = RequestInit & {
  * Replaces the `if (!res.ok) throw new Error(\`HTTP ${status}\`)`
  * pattern that every endpoint module was repeating, while letting
  * endpoints surface domain-specific errors for known status codes
- * via `mapStatus`. The AbortSignal on `init` is forwarded
+ * via `mapStatus`; unmapped statuses throw `HttpError`. The AbortSignal on `init` is forwarded
  * transparently. `path` is appended to `API_BASE_URL`; pass query
  * strings as part of the path string.
  *
@@ -39,7 +48,7 @@ export async function requestJson<T>(path: string, init?: RequestJsonInit): Prom
       const mapped = mapStatus(res.status, body);
       if (mapped) throw mapped;
     }
-    throw new Error(`HTTP ${res.status}`);
+    throw new HttpError(res.status);
   }
   return (await res.json()) as T;
 }

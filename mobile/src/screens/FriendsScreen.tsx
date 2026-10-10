@@ -1,12 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
@@ -18,6 +11,7 @@ import { entryQuery } from '../query/queries';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { formatInt, formatRank } from '../format/rank';
 import type { FriendsScreenProps } from '../navigation/types';
 import {
@@ -102,6 +96,7 @@ export default function FriendsScreen({ navigation }: Props) {
     rows: fetchedRows,
     refreshing,
     onRefresh,
+    onRetry,
   } = useParallelQueries(targetIds, entryQuery);
 
   // Join the per-key fetch state back to the target metadata. If the
@@ -152,7 +147,7 @@ export default function FriendsScreen({ navigation }: Props) {
     <FlatList
       data={sortedRows}
       keyExtractor={(r) => r.target.id}
-      renderItem={({ item }) => <Row row={item} />}
+      renderItem={({ item }) => <Row row={item} onRetry={onRetry} />}
       ListHeaderComponent={
         <TableHeader
           sortColumn={sortColumn}
@@ -162,7 +157,7 @@ export default function FriendsScreen({ navigation }: Props) {
       }
       contentContainerStyle={styles.listContent}
       stickyHeaderIndices={[0]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
@@ -289,10 +284,17 @@ function ColumnHeaderButton({
   );
 }
 
-function Row({ row }: { row: ComparisonRow }) {
+function Row({
+  row,
+  onRetry,
+}: {
+  row: ComparisonRow;
+  onRetry: (teamId: string) => void;
+}) {
   const styles = useThemedStyles(makeStyles);
 
   const { target, state } = row;
+  const retryable = isRetryable(state);
   const aliasBadge = target.isMe ? (
     <View style={styles.youBadge} accessibilityLabel="You">
       <Text style={styles.youBadgeText}>You</Text>
@@ -300,7 +302,17 @@ function Row({ row }: { row: ComparisonRow }) {
   ) : null;
 
   return (
-    <View style={[styles.row, target.isMe && styles.rowMe]}>
+    <Pressable
+      onPress={retryable ? () => onRetry(target.id) : undefined}
+      disabled={!retryable}
+      style={({ pressed }) => [
+        styles.row,
+        target.isMe && styles.rowMe,
+        pressed && styles.pressed,
+      ]}
+      accessibilityRole={retryable ? 'button' : undefined}
+      accessibilityHint={retryable ? 'Retries loading this team' : undefined}
+    >
       <View style={styles.colAlias}>
         <View style={styles.aliasLine}>
           <Text style={styles.rowAlias} numberOfLines={1}>
@@ -313,8 +325,13 @@ function Row({ row }: { row: ComparisonRow }) {
       <CellValue state={state} field="rank" />
       <CellValue state={state} field="gw" />
       <CellValue state={state} field="total" />
-    </View>
+    </Pressable>
   );
+}
+
+/** A missing team won't appear on retry; anything else might. */
+function isRetryable(state: ParallelFetchRowState<Entry>): boolean {
+  return state.status === 'error' && !(state.error instanceof EntryNotFoundError);
 }
 
 function displayAlias(row: ComparisonRow): string {
@@ -339,7 +356,9 @@ function RowSubtext({
   if (state.status === 'error') {
     const notFound = state.error instanceof EntryNotFoundError;
     return (
-      <Text style={styles.rowError}>{notFound ? 'Team not found' : "Couldn't load"}</Text>
+      <Text style={styles.rowError}>
+        {notFound ? 'Team not found' : "Couldn't load · tap to retry"}
+      </Text>
     );
   }
   // Manager name as the secondary line — stable across the season even
