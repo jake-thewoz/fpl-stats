@@ -775,15 +775,17 @@ def test_response_carries_free_transfers_and_max_transfers(mock_table):
     body = _body(lambda_handler(_event(), None))
     # Default HISTORY_CACHE has one completed GW, so derived FT = 1.
     assert body["free_transfers"] == 1
+    assert body["derived_free_transfers"] == 1
     # Default max_transfers is 2 (DEFAULT_MAX_TRANSFERS).
     assert body["max_transfers_considered"] == 2
 
 
 def test_free_transfers_query_param_overrides_derivation(mock_table):
-    """``?free_transfers=N`` skips the history fetch and uses N directly.
-    Useful for previewing 'what if I had 3 banked FTs' scenarios."""
+    """``?free_transfers=N`` replaces the derived count for hit math, while
+    the derived count is still reported so the app can show both."""
     body = _body(lambda_handler(_event(free_transfers=3), None))
     assert body["free_transfers"] == 3
+    assert body["derived_free_transfers"] == 1
 
 
 def test_max_transfers_clamped_to_module_constant(mock_table):
