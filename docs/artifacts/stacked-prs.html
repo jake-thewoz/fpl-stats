@@ -1,0 +1,391 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Stacked PRs, Step by Step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow reading column; the commit graph is the hero, with step controls and the command for that step directly under it. */
+:root {
+  --bg: #f6f7f4;
+  --surface: #ffffff;
+  --ink: #1b2420;
+  --muted: #5d6b64;
+  --rule: #d9dfdb;
+  --lane-main: #0f7a63;
+  --lane-fix: #b5651d;
+  --lane-feat: #6a4fb3;
+  --bad: #b8323f;
+  --code-bg: #eef1ee;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121715; --surface: #1a211e; --ink: #e6ece8; --muted: #9fb0a7; --rule: #2c3631;
+    --lane-main: #3fc4a2; --lane-fix: #e59a52; --lane-feat: #a891ea; --bad: #ef6b77; --code-bg: #222b27;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121715; --surface: #1a211e; --ink: #e6ece8; --muted: #9fb0a7; --rule: #2c3631;
+  --lane-main: #3fc4a2; --lane-fix: #e59a52; --lane-feat: #a891ea; --bad: #ef6b77; --code-bg: #222b27;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-inline: 16px; padding-block: 32px 64px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(28px, 6vw, 40px); font-weight: 700; }
+h2 { font-size: 22px; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+.lede { color: var(--muted); font-size: 17px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+.ideas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.idea { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: grid; gap: 6px; min-width: 0; }
+.idea b { font-family: var(--font-display); font-size: 17px; }
+.idea p { font-size: 15px; color: var(--muted); }
+
+.stage { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+.scenario { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scenario span { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-right: 4px; }
+.seg { border: 1px solid var(--rule); background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.seg[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.seg:focus-visible, .nav button:focus-visible, .copy:focus-visible { outline: 2px solid var(--lane-main); outline-offset: 2px; }
+
+.graph-box { overflow-x: auto; }
+svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.lane-label { font-family: var(--font-mono); font-size: 11px; fill: var(--muted); }
+.edge { fill: none; stroke-width: 3; transition: opacity .45s ease; }
+.node { transition: opacity .45s ease, transform .45s cubic-bezier(.2,.9,.3,1.2); transform-box: fill-box; transform-origin: center; }
+.node circle { stroke: var(--surface); stroke-width: 3; }
+.node text { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); text-anchor: middle; }
+.node.hidden { opacity: 0; transform: scale(.3); }
+.edge.hidden { opacity: 0; }
+.tag { transition: transform .55s cubic-bezier(.3,.8,.3,1), opacity .4s ease; }
+.tag rect { rx: 4; }
+.tag text { font-family: var(--font-mono); font-size: 11px; font-weight: 600; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+.tag.hidden { opacity: 0; }
+
+.prs { display: flex; flex-wrap: wrap; gap: 8px; }
+.pr { font-size: 14px; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 10px; display: flex; gap: 6px; align-items: center; transition: border-color .3s; }
+.pr .num { font-family: var(--font-mono); font-weight: 600; }
+.pr .state { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; background: var(--code-bg); color: var(--muted); }
+.pr .state.merged { background: var(--lane-feat); color: #fff; }
+.pr.flag { border-color: var(--bad); }
+
+.caption { display: grid; gap: 6px; min-height: 7.5em; }
+.caption h3 { margin: 0; font-family: var(--font-display); font-size: 19px; }
+.caption .warn { color: var(--bad); font-weight: 700; }
+.cmd { position: relative; background: var(--code-bg); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+.cmd pre { margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; white-space: pre; }
+.cmd .comment { color: var(--muted); }
+.copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: 12px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); border-radius: 5px; padding: 2px 8px; cursor: pointer; }
+
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.nav button { font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+.nav button.ghost { background: transparent; color: var(--ink); }
+.nav button:disabled { opacity: .35; cursor: default; }
+.dots { display: flex; gap: 6px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--rule); transition: background .3s; }
+.dots i.on { background: var(--ink); }
+
+.cheats { display: grid; gap: 10px; }
+.cheat { display: grid; gap: 4px; }
+.cheat p { font-size: 15px; color: var(--muted); }
+.tip { border-left: 3px solid var(--lane-main); padding: 4px 0 4px 14px; display: grid; gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .node, .edge, .tag, .dots i { transition: none; }
+}
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:10px">
+    <h1>Stacked PRs, step by step</h1>
+    <p class="lede">A replay of what happened to fpl-stats #173 and #174: why the second PR never reached <code>main</code>, how it should have gone, and how #175 brings it home. Each dot is a real commit from the repo.</p>
+  </header>
+
+  <section class="ideas" aria-label="Three ideas">
+    <div class="idea"><b>A branch is a label</b><p>It points at one commit. A new commit on the branch moves the label forward. Nothing else does.</p></div>
+    <div class="idea"><b>A PR has a fixed target</b><p>"Merge <i>head</i> into <i>base</i>." The base stays what you picked until someone changes it.</p></div>
+    <div class="idea"><b>Merging moves one label</b><p>Merging a PR adds a commit to its base branch and moves only that label. Other branches don't notice.</p></div>
+  </section>
+
+  <section class="stage" aria-label="Interactive replay">
+    <div class="scenario" role="group" aria-label="Choose what happens after #173 merges">
+      <span>After #173 merges</span>
+      <button class="seg" id="sc-wrong" aria-pressed="true">What happened</button>
+      <button class="seg" id="sc-right" aria-pressed="false">Retarget first</button>
+    </div>
+
+    <div class="graph-box">
+      <svg id="graph" viewBox="0 0 760 250" role="img" aria-labelledby="cap-title"></svg>
+    </div>
+
+    <div class="prs" id="prs" aria-label="Pull requests"></div>
+
+    <div class="caption" aria-live="polite">
+      <h3 id="cap-title"></h3>
+      <p id="cap-body"></p>
+    </div>
+
+    <div class="cmd">
+      <button class="copy" id="copy">Copy</button>
+      <pre id="cmd"></pre>
+    </div>
+
+    <div class="nav">
+      <button class="ghost" id="prev">← Back</button>
+      <div class="dots" id="dots" aria-hidden="true"></div>
+      <button id="next">Next →</button>
+    </div>
+  </section>
+
+  <section class="cheats">
+    <h2>Checking it yourself</h2>
+    <div class="cheat">
+      <pre class="cmd"><code>gh pr view 174 --json state,baseRefName --jq '.state + " into " + .baseRefName'</code></pre>
+      <p>Prints what a PR merges into. Before merging the child of a stack, this should say <code>main</code>. For #174 it said <code>MERGED into fix/plan-for-next-deadline</code>.</p>
+    </div>
+    <div class="cheat">
+      <pre class="cmd"><code>git fetch && git log --oneline -5 origin/main</code></pre>
+      <p>After any merge, the PR's commits should show up here. If they don't, the PR landed somewhere else.</p>
+    </div>
+    <div class="cheat">
+      <pre class="cmd"><code>gh api -X PATCH repos/jake-thewoz/fpl-stats/pulls/174 -f base=main</code></pre>
+      <p>Retargets an open PR. Use this instead of <code>gh pr edit --base</code>, which fails in this repo with a "Projects (classic) is being deprecated" error.</p>
+    </div>
+    <div class="tip">
+      <b>The easy way out: let GitHub do it</b>
+      <p>Turn on <i>Settings → General → Automatically delete head branches</i>. When #173 merges, GitHub deletes <code>fix/plan-for-next-deadline</code>, and any open PR based on it, like #174, is retargeted to <code>main</code> for you. That retarget is the step that went missing here.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const X = (col) => 70 + col * 88;
+  const LANES = { main: 205, fix: 130, feat: 55 };
+  const LANE_NAME = { main: 'main', fix: 'fix/plan-for-next-deadline', feat: 'feat/live-gameweek-ui' };
+  const COLOR = { main: 'var(--lane-main)', fix: 'var(--lane-fix)', feat: 'var(--lane-feat)' };
+
+  // Real commits from the repo, plus the merge that would have happened.
+  const COMMITS = {
+    m1:   { lane: 'main', col: 0, label: '4f3ba19', parents: [] },
+    m2:   { lane: 'main', col: 1, label: '8f68ace', parents: ['m1'] },
+    a1:   { lane: 'fix',  col: 2, label: '4507a7a', parents: ['m2'] },
+    a2:   { lane: 'fix',  col: 3, label: 'f45aabb', parents: ['a1'] },
+    b1:   { lane: 'feat', col: 4, label: '4e34f34', parents: ['a2'] },
+    M173: { lane: 'main', col: 5, label: '77b66c8', parents: ['m2', 'a2'] },
+    R174: { lane: 'main', col: 6, label: 'merge #174', parents: ['M173', 'b1'] },
+    W174: { lane: 'fix',  col: 6, label: 'f8bcf5c', parents: ['a2', 'b1'] },
+    M175: { lane: 'main', col: 7, label: 'merge #175', parents: ['M173', 'W174'] },
+  };
+
+  const PR173 = (state) => ({ num: 173, head: 'fix', base: 'main', state });
+  const PR174 = (base, state, flag) => ({ num: 174, head: 'feat', base, state, flag });
+
+  const COMMON = [
+    {
+      title: 'Where we started',
+      body: '<code>main</code> is a label on commit 8f68ace, the merge of #171.',
+      show: ['m1', 'm2'], tags: { main: 'm2' }, prs: [],
+      cmd: '<span class="comment"># see where main points</span>\ngit log --oneline -2 main',
+    },
+    {
+      title: 'Branch off for #173',
+      body: 'A new branch is a new label on the same commit. Committing moves only that label forward. PR #173 asks to merge it into <code>main</code>.',
+      show: ['m1', 'm2', 'a1', 'a2'], tags: { main: 'm2', fix: 'a2' }, prs: [PR173('open')],
+      cmd: 'git switch -c fix/plan-for-next-deadline main\n<span class="comment"># …commit work…</span>\ngh pr create --base main',
+    },
+    {
+      title: 'Stack #174 on top of #173',
+      body: '#174 needs code from #173, which isn\'t in <code>main</code> yet, so it branches from #173\'s branch and targets it as the base. Its diff then shows only its own commit.',
+      show: ['m1', 'm2', 'a1', 'a2', 'b1'], tags: { main: 'm2', fix: 'a2', feat: 'b1' },
+      prs: [PR173('open'), PR174('fix', 'open')],
+      cmd: 'git switch -c feat/live-gameweek-ui fix/plan-for-next-deadline\n<span class="comment"># …commit work…</span>\ngh pr create --base fix/plan-for-next-deadline',
+    },
+    {
+      title: 'Merge #173',
+      body: 'A merge commit lands on <code>main</code> and the <code>main</code> label moves. <code>fix/plan-for-next-deadline</code> still exists, because this repo doesn\'t delete branches on merge, so #174 still targets it.',
+      show: ['m1', 'm2', 'a1', 'a2', 'b1', 'M173'], tags: { main: 'M173', fix: 'a2', feat: 'b1' },
+      prs: [PR173('merged'), PR174('fix', 'open', true)],
+      cmd: 'gh pr merge 173 --merge\n<span class="comment"># #174 still says: into fix/plan-for-next-deadline</span>\ngh pr view 174 --json baseRefName',
+    },
+  ];
+
+  const SCENARIOS = {
+    wrong: [
+      {
+        title: 'Merge #174 without retargeting',
+        warn: true,
+        body: 'The merge goes exactly where the PR said: into <code>fix/plan-for-next-deadline</code>. That label moves; <code>main</code> doesn\'t. GitHub shows #174 as merged, but the app on <code>main</code> has no banner.',
+        show: ['m1', 'm2', 'a1', 'a2', 'b1', 'M173', 'W174'], tags: { main: 'M173', fix: 'W174', feat: 'b1' },
+        prs: [PR173('merged'), PR174('fix', 'merged', true)],
+        cmd: 'gh pr merge 174 --merge\ngit fetch && git log --oneline -3 origin/main\n<span class="comment"># 77b66c8 is still on top: #174 isn\'t there</span>',
+      },
+      {
+        title: 'Recover with #175',
+        body: 'The work is safe on <code>fix/plan-for-next-deadline</code>, so a new PR from that branch into <code>main</code> carries it the rest of the way. A merged PR can\'t be retargeted, which is why recovery needs a new one.',
+        show: ['m1', 'm2', 'a1', 'a2', 'b1', 'M173', 'W174', 'M175'], tags: { main: 'M175', fix: 'W174', feat: 'b1' },
+        prs: [PR173('merged'), PR174('fix', 'merged'), { num: 175, head: 'fix', base: 'main', state: 'merged' }],
+        cmd: 'gh pr create --base main --head fix/plan-for-next-deadline\ngh pr merge 175 --merge',
+      },
+    ],
+    right: [
+      {
+        title: 'Retarget #174 to main',
+        body: 'Point #174 at <code>main</code> before merging it. Its diff stays one commit, since #173\'s commits are already in <code>main</code>. No commits move; only the PR\'s target changes.',
+        show: ['m1', 'm2', 'a1', 'a2', 'b1', 'M173'], tags: { main: 'M173', fix: 'a2', feat: 'b1' },
+        prs: [PR173('merged'), PR174('main', 'open')],
+        cmd: 'gh api -X PATCH repos/jake-thewoz/fpl-stats/pulls/174 -f base=main\n<span class="comment"># check before merging</span>\ngh pr view 174 --json baseRefName',
+      },
+      {
+        title: 'Merge #174',
+        body: 'Now the merge commit lands on <code>main</code> and the label moves there. Both PRs\' work is on <code>main</code>, with no recovery PR needed.',
+        show: ['m1', 'm2', 'a1', 'a2', 'b1', 'M173', 'R174'], tags: { main: 'R174', fix: 'a2', feat: 'b1' },
+        prs: [PR173('merged'), PR174('main', 'merged')],
+        cmd: 'gh pr merge 174 --merge\ngit fetch && git log --oneline -3 origin/main',
+      },
+    ],
+  };
+
+  const svg = document.getElementById('graph');
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs = {}, parent = svg) => {
+    const node = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    parent.appendChild(node);
+    return node;
+  };
+
+  for (const [lane, y] of Object.entries(LANES)) {
+    el('line', { x1: 20, x2: 740, y1: y, y2: y, stroke: 'var(--rule)', 'stroke-dasharray': '2 6' });
+  }
+
+  const edges = {};
+  const edgeLayer = el('g');
+  for (const [id, c] of Object.entries(COMMITS)) {
+    for (const p of c.parents) {
+      const pc = COMMITS[p];
+      const x1 = X(pc.col), y1 = LANES[pc.lane], x2 = X(c.col), y2 = LANES[c.lane];
+      const mid = (x1 + x2) / 2;
+      const d = y1 === y2 ? `M${x1},${y1} L${x2},${y2}` : `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`;
+      // A merge's second parent is drawn in the colour of the branch being merged in.
+      edges[`${p}>${id}`] = el('path', { d, class: 'edge hidden', stroke: COLOR[y1 === y2 ? c.lane : pc.lane] }, edgeLayer);
+    }
+  }
+
+  const nodes = {};
+  for (const [id, c] of Object.entries(COMMITS)) {
+    const g = el('g', { class: 'node hidden' });
+    el('circle', { cx: X(c.col), cy: LANES[c.lane], r: 9, fill: COLOR[c.lane] }, g);
+    el('text', { x: X(c.col), y: LANES[c.lane] + 24 }, g).textContent = c.label;
+    nodes[id] = g;
+  }
+
+  const tags = {};
+  for (const lane of Object.keys(LANES)) {
+    const g = el('g', { class: 'tag hidden' });
+    const text = LANE_NAME[lane];
+    const width = text.length * 6.9 + 14;
+    el('rect', { x: -width / 2, y: -11, width, height: 22, fill: COLOR[lane] }, g);
+    el('text', { x: 0, y: 0 }, g).textContent = text;
+    tags[lane] = g;
+  }
+
+  const placeTag = (lane, commitId) => {
+    const c = COMMITS[commitId];
+    // Tags sit above their commit; main's sits below so it never collides with the fix lane.
+    const dy = lane === 'main' ? 46 : -27;
+    let x = X(c.col);
+    const half = (LANE_NAME[lane].length * 6.9 + 14) / 2;
+    x = Math.min(Math.max(x, 16 + half), 744 - half);
+    tags[lane].style.transform = `translate(${x}px, ${LANES[c.lane] + dy}px)`;
+  };
+
+  let scenario = 'wrong';
+  let index = 0;
+  const steps = () => [...COMMON, ...SCENARIOS[scenario]];
+
+  const dots = document.getElementById('dots');
+  const renderDots = () => {
+    dots.innerHTML = '';
+    steps().forEach((_, i) => {
+      const d = document.createElement('i');
+      if (i === index) d.className = 'on';
+      dots.appendChild(d);
+    });
+  };
+
+  const render = () => {
+    const step = steps()[index];
+    const visible = new Set(step.show);
+    for (const [id, g] of Object.entries(nodes)) g.classList.toggle('hidden', !visible.has(id));
+    for (const [key, path] of Object.entries(edges)) {
+      const [p, c] = key.split('>');
+      path.classList.toggle('hidden', !(visible.has(p) && visible.has(c)));
+    }
+    for (const lane of Object.keys(tags)) {
+      const at = step.tags[lane];
+      tags[lane].classList.toggle('hidden', !at);
+      if (at) placeTag(lane, at);
+    }
+    document.getElementById('prs').innerHTML = step.prs.map((pr) => `
+      <div class="pr${pr.flag ? ' flag' : ''}">
+        <span class="num">#${pr.num}</span>
+        <span class="mono">${LANE_NAME[pr.head]} → ${LANE_NAME[pr.base]}</span>
+        <span class="state${pr.state === 'merged' ? ' merged' : ''}">${pr.state}</span>
+      </div>`).join('');
+    document.getElementById('cap-title').innerHTML =
+      (step.warn ? '<span class="warn">Where it went wrong: </span>' : '') + step.title;
+    document.getElementById('cap-body').innerHTML = step.body;
+    document.getElementById('cmd').innerHTML = step.cmd;
+    document.getElementById('prev').disabled = index === 0;
+    document.getElementById('next').disabled = index === steps().length - 1;
+    renderDots();
+    // On narrow screens the graph scrolls sideways; keep the newest commit in view.
+    const box = document.querySelector('.graph-box');
+    const newestCol = Math.max(...step.show.map((id) => COMMITS[id].col));
+    const scale = svg.getBoundingClientRect().width / 760;
+    const target = X(newestCol) * scale - box.clientWidth * 0.6;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    box.scrollTo({ left: Math.max(0, target), behavior: reduce ? 'auto' : 'smooth' });
+  };
+
+  const setScenario = (name) => {
+    scenario = name;
+    document.getElementById('sc-wrong').setAttribute('aria-pressed', String(name === 'wrong'));
+    document.getElementById('sc-right').setAttribute('aria-pressed', String(name === 'right'));
+    // Jump to the fork so the difference is visible straight away.
+    index = Math.max(index, COMMON.length);
+    render();
+  };
+
+  document.getElementById('sc-wrong').addEventListener('click', () => setScenario('wrong'));
+  document.getElementById('sc-right').addEventListener('click', () => setScenario('right'));
+  document.getElementById('prev').addEventListener('click', () => { if (index > 0) { index--; render(); } });
+  document.getElementById('next').addEventListener('click', () => { if (index < steps().length - 1) { index++; render(); } });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') document.getElementById('next').click();
+    if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+  });
+  document.getElementById('copy').addEventListener('click', async (e) => {
+    const text = document.getElementById('cmd').textContent;
+    try { await navigator.clipboard.writeText(text); e.target.textContent = 'Copied'; }
+    catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('cmd')); getSelection().removeAllRanges(); getSelection().addRange(r); e.target.textContent = 'Selected'; }
+    setTimeout(() => { e.target.textContent = 'Copy'; }, 1500);
+  });
+
+  render();
+})();
+</script>
+
+</body></html>

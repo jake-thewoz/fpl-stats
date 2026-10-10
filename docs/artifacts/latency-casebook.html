@@ -1,0 +1,723 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>FPL Stats Latency Casebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: one reading column (~68ch) with figures that widen to 980px; a lab-notebook feel built on graph-paper ground. */
+:root {
+  --ground: #f3f5f8;
+  --paper: #ffffff;
+  --ink: #18202c;
+  --ink-soft: #4a5566;
+  --rule: #d6dce6;
+  --grid: #e6eaf0;
+  --before: #c4502b;
+  --before-soft: #f6dcd2;
+  --after: #13806f;
+  --after-soft: #d3eee8;
+  --init: #8a63c9;
+  --init-soft: #e6dcf6;
+  --net: #6b7a90;
+  --accent: #2257c9;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: 0.85rem;
+  --step-0: 1.05rem;
+  --step-1: 1.3rem;
+  --step-2: 1.75rem;
+  --step-3: clamp(2.2rem, 6vw, 3.6rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #10151d; --paper: #171e29; --ink: #e5eaf2; --ink-soft: #a3aec0;
+    --rule: #2c3646; --grid: #1b2330;
+    --before: #f07a55; --before-soft: #3e2219; --after: #3cc6ae; --after-soft: #143631;
+    --init: #b493ec; --init-soft: #2c2343; --net: #8796ad; --accent: #79a2ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #10151d; --paper: #171e29; --ink: #e5eaf2; --ink-soft: #a3aec0;
+  --rule: #2c3646; --grid: #1b2330;
+  --before: #f07a55; --before-soft: #3e2219; --after: #3cc6ae; --after-soft: #143631;
+  --init: #b493ec; --init-soft: #2c2343; --net: #8796ad; --accent: #79a2ff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--ground);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 80px; display: grid; gap: 56px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.1; margin: 0; }
+h1 { font-size: var(--step-3); font-weight: 800; font-variation-settings: "wdth" 112; letter-spacing: -0.01em; }
+h2 { font-size: var(--step-2); font-weight: 750; font-variation-settings: "wdth" 108; }
+h3 { font-size: var(--step-1); font-weight: 700; }
+p { margin: 0; }
+.stack { display: grid; gap: 16px; }
+.eyebrow { font-family: var(--font-display); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Hero */
+.hero { display: grid; gap: 20px; }
+.verdict { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.verdict .from { color: var(--before); font-size: var(--step-2); text-decoration: line-through; text-decoration-thickness: 2px; }
+.verdict .arrow { color: var(--ink-soft); font-size: var(--step-1); }
+.verdict .to { color: var(--after); font-size: var(--step-3); font-weight: 600; }
+.verdict .label { font-family: var(--font-display); font-size: var(--step--1); color: var(--ink-soft); letter-spacing: 0.06em; text-transform: uppercase; flex-basis: 100%; }
+
+/* Figure shell */
+.figure { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.figure-caption { font-size: var(--step--1); color: var(--ink-soft); font-family: var(--font-display); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font-family: var(--font-display); font-size: var(--step--1); font-weight: 600;
+  border: 1px solid var(--rule); background: var(--ground); color: var(--ink);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn {
+  font-family: var(--font-display); font-weight: 700; font-size: var(--step--1);
+  border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer;
+  background: var(--accent); color: var(--paper);
+}
+
+/* Investigation steps (a real sequence, so numbered) */
+.steps { display: grid; gap: 40px; counter-reset: step; }
+.step { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 16px; }
+.step-num {
+  counter-increment: step; font-family: var(--font-mono); font-weight: 600; font-size: var(--step-1);
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink);
+  display: grid; place-items: center; background: var(--paper);
+}
+.step-num::before { content: counter(step); }
+.step-body { display: grid; gap: 14px; min-width: 0; }
+
+/* Terminal / log blocks */
+.term {
+  font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.7;
+  background: var(--ground); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 14px 16px; overflow-x: auto; white-space: pre; color: var(--ink);
+}
+.term .dim { color: var(--ink-soft); }
+.term .bad { color: var(--before); font-weight: 600; }
+.term .good { color: var(--after); font-weight: 600; }
+
+/* Waterfall */
+.waterfall { display: grid; gap: 10px; }
+.wf-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) 72px; gap: 12px; align-items: center; font-family: var(--font-mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.wf-track { height: 18px; background: var(--ground); border-radius: 3px; position: relative; overflow: hidden; display: flex; }
+.wf-seg { height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--font-display); font-size: var(--step--1); color: var(--ink-soft); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--swatch); vertical-align: -1px; }
+
+/* REPORT annotator */
+.report { font-family: var(--font-mono); font-size: 0.82rem; line-height: 2; background: var(--ground); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: nowrap; }
+.field { border: 0; background: transparent; font: inherit; color: var(--ink); padding: 2px 4px; border-radius: 4px; cursor: pointer; border-bottom: 2px dotted var(--ink-soft); }
+.field[aria-pressed="true"] { background: var(--accent); color: var(--paper); border-bottom-color: transparent; }
+.field.hot { color: var(--before); font-weight: 600; }
+.note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--ink); min-height: 3.2em; }
+
+/* Journey player */
+.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lanes.edge { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.node {
+  border: 1.5px solid var(--rule); border-radius: 8px; padding: 10px 8px; text-align: center;
+  font-family: var(--font-display); font-weight: 650; font-size: var(--step--1); background: var(--ground);
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.node small { display: block; font-weight: 400; color: var(--ink-soft); font-size: 0.75rem; }
+.node.lit { border-color: var(--lit); background: var(--lit-soft); }
+.timeline { display: flex; height: 34px; border-radius: 6px; overflow: hidden; background: var(--ground); position: relative; }
+.tl-seg { height: 100%; position: relative; display: flex; align-items: center; justify-content: flex-start; overflow: hidden; }
+.tl-seg span { font-family: var(--font-mono); font-size: 0.72rem; padding-left: 6px; white-space: nowrap; color: var(--ink); }
+.tl-fill { position: absolute; inset: 0; transform-origin: left; }
+.tl-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
+.readout .clock { font-family: var(--font-mono); font-size: var(--step-2); font-variant-numeric: tabular-nums; font-weight: 600; min-width: 7ch; }
+.readout .desc { color: var(--ink-soft); font-size: var(--step--1); font-family: var(--font-display); max-width: 52ch; }
+
+/* Results table */
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font-family: var(--font-display); font-size: var(--step--1); font-weight: 700; color: var(--ink-soft); letter-spacing: 0.04em; text-transform: uppercase; }
+td.num { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; }
+th.num { text-align: right; }
+td .b { color: var(--before); } td .a { color: var(--after); font-weight: 600; }
+
+/* Memory lab */
+.lab { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.slider-row { display: grid; gap: 8px; }
+.slider-row label { font-family: var(--font-display); font-weight: 700; font-size: var(--step--1); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stat { border-top: 2px solid var(--rule); padding-top: 8px; }
+.stat .k { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.stat .v { font-family: var(--font-mono); font-size: var(--step-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.verdict-line { font-size: var(--step--1); font-family: var(--font-display); padding: 8px 12px; border-radius: 6px; background: var(--ground); }
+svg text { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-soft); }
+
+/* Architecture options */
+.arch-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.path { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.path .hop { font-family: var(--font-display); font-weight: 650; font-size: var(--step--1); padding: 8px 10px; border-radius: 6px; border: 1.5px solid var(--rule); background: var(--ground); }
+.path .hop.skip { opacity: 0.35; text-decoration: line-through; }
+.path .hop.new { border-color: var(--after); background: var(--after-soft); }
+.path .sep { color: var(--ink-soft); font-family: var(--font-mono); }
+.pill { display: inline-block; font-family: var(--font-display); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+.pill.done { background: var(--after-soft); color: var(--after); }
+.pill.next { background: var(--init-soft); color: var(--init); }
+.pill.no { background: var(--before-soft); color: var(--before); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card h3 { font-size: var(--step-0); }
+.card p { font-size: 0.95rem; color: var(--ink-soft); }
+ul.tight { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.footer { font-size: var(--step--1); color: var(--ink-soft); font-family: var(--font-display); display: grid; gap: 6px; }
+
+@media (max-width: 720px) {
+  .lab, .arch-cols { grid-template-columns: minmax(0, 1fr); }
+  .wf-row { grid-template-columns: 96px minmax(0, 1fr) 60px; }
+  .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .step { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .node { transition: none; }
+}
+</style>
+
+<main class="wrap">
+
+  <header class="hero prose">
+    <div class="eyebrow">FPL Stats · Phase 3.7 · October 2026</div>
+    <h1>The 128 MB bottleneck</h1>
+    <p>Why the app took 2–10 seconds to show anything, how we found the cause in a couple of commands, and what one CDK line changed. The second half covers the AWS options still open in the latency milestone.</p>
+    <div class="verdict" aria-label="Warm handler time for /gameweek/current went from 2,430 ms to 306 ms">
+      <span class="label">Warm Lambda duration, GET /gameweek/current</span>
+      <span class="from">2,430 ms</span><span class="arrow">→</span><span class="to">306 ms</span>
+    </div>
+  </header>
+
+  <section class="stack">
+    <div class="prose stack">
+      <div class="eyebrow">Part one</div>
+      <h2>How we tracked it down</h2>
+      <p>The method is to split the request into pieces and time each piece on its own, so you only work on the piece that's actually slow. Each step below rules out one suspect.</p>
+    </div>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num" aria-hidden="true"></div>
+        <div class="step-body">
+          <h3>Time the request from outside</h3>
+          <p class="prose"><code>curl -w</code> reports when each phase of a request finished. Comparing a trivial endpoint with a real one tells you whether the network or the server is to blame. <code>/health</code> runs a Lambda that does nothing, so it shows the fixed cost of DNS, TLS, API Gateway and Lambda invocation.</p>
+          <div class="term"><span class="dim">$ curl -s -o /dev/null -w "ttfb=%{time_starttransfer}\n" "$API/health"</span>
+ttfb=<span class="good">0.075</span>
+<span class="dim">$ curl -s -o /dev/null -w "ttfb=%{time_starttransfer}\n" "$API/gameweek/current"</span>
+ttfb=<span class="bad">2.497</span>   <span class="dim"># warm, 2.7 KB response</span></div>
+          <div class="figure">
+            <div class="figure-caption">Time to first byte, warm, measured 10 October 2026 before the fix</div>
+            <div class="waterfall" id="waterfall"></div>
+            <div class="legend">
+              <span style="--swatch: var(--net)">Network + API Gateway + invoke</span>
+              <span style="--swatch: var(--before)">Inside the Lambda handler</span>
+            </div>
+          </div>
+          <p class="prose">Network and API Gateway account for about 70 ms. Everything else happens inside our code.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num" aria-hidden="true"></div>
+        <div class="step-body">
+          <h3>Read Lambda's own report</h3>
+          <p class="prose">Every invocation writes one <code>REPORT</code> line to CloudWatch Logs. It's the cheapest profiler AWS gives you, and nothing needs to be installed to get it. Tap a field to see what it means.</p>
+          <div class="report" id="report" role="group" aria-label="Annotated REPORT log line">REPORT RequestId: 3f1c…a9 <button class="field hot" data-k="duration" aria-pressed="false">Duration: 2452.25 ms</button> <button class="field" data-k="billed" aria-pressed="false">Billed Duration: 2453 ms</button> <button class="field hot" data-k="size" aria-pressed="false">Memory Size: 128 MB</button> <button class="field hot" data-k="used" aria-pressed="false">Max Memory Used: 105 MB</button> <button class="field" data-k="init" aria-pressed="false">Init Duration: 745.40 ms</button></div>
+          <p class="note" id="report-note" aria-live="polite">Tap a field above.</p>
+          <p class="prose">The REPORT line explains the curl result: the handler itself took 2.45 s, at 105 of 128 MB. A function using 82% of a small memory allowance and still taking seconds is the signature of a CPU-starved Lambda.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num" aria-hidden="true"></div>
+        <div class="step-body">
+          <h3>Run the same work somewhere with a full CPU</h3>
+          <p class="prose">To check whether the work itself is heavy, we ran the handler's steps from a laptop against the real table: <code>get_item</code> on the ~500 KB bootstrap item, deserialising it, validating it with pydantic, and querying the 667 xP rows.</p>
+          <div class="term">bootstrap get_item       <span class="good">0.147 s</span>   <span class="dim"># includes the WAN round trip to us-east-1</span>
+TypeDeserializer         <span class="good">0.006 s</span>
+pydantic validate        <span class="good">0.003 s</span>
+xP query, 667 rows       <span class="good">0.178 s</span></div>
+          <p class="prose">About 0.35 s in total, mostly network. The work is small, so the Lambda environment itself must be the problem.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num" aria-hidden="true"></div>
+        <div class="step-body">
+          <h3>Connect it to how Lambda allocates CPU</h3>
+          <p class="prose">Lambda has no CPU setting. You choose memory, and AWS gives CPU in proportion to it: 1,769 MB buys one full vCPU, so 128 MB is about <strong>7%</strong> of one. Our handlers spend most of their time parsing JSON and building Python objects, which is CPU-bound, so they ran roughly 14× slower than they needed to. We had hit the same wall before, when the xP analyzer timed out at 256 MB.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="prose stack">
+      <div class="eyebrow">Replay</div>
+      <h2>Where a request spends its time</h2>
+      <p>Pick a scenario and press play. The bar fills in real time, and the diagram lights up whichever part of the system is busy. Cold means Lambda first had to start a new execution environment, which happens on the first request after the function has been idle, a common case with only a handful of users.</p>
+    </div>
+    <div class="figure" id="journey">
+      <div class="chips" role="group" aria-label="Scenario" id="scenario-chips"></div>
+      <div class="lanes" id="lanes"></div>
+      <div class="timeline" id="timeline" aria-hidden="true"></div>
+      <div class="tl-scale" aria-hidden="true"><span>0 s</span><span>1.6 s</span><span>3.2 s</span><span>4.8 s</span><span>6.4 s</span></div>
+      <div class="readout">
+        <button class="btn" id="play">Play</button>
+        <span class="clock" id="clock" aria-live="off">0 ms</span>
+        <span class="desc" id="scenario-desc"></span>
+      </div>
+      <div class="legend">
+        <span style="--swatch: var(--net)">Network + API Gateway</span>
+        <span style="--swatch: var(--init)">Init (cold start)</span>
+        <span style="--swatch: var(--before)">Handler, 128 MB</span>
+        <span style="--swatch: var(--after)">Handler, 1024 MB / edge</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="prose stack">
+      <div class="eyebrow">Part two</div>
+      <h2>The fix: one line of CDK</h2>
+      <p>PR #183 changed the default in <code>backend/lib/fpl-python-function.ts</code> from 128 to 1024 MB, so every read Lambda got eight times the CPU share. A jest test now fails if any <code>Read API</code> function drops below the default.</p>
+    </div>
+    <div class="term"><span class="dim">// Lambda CPU scales linearly with memory. At 128 MB the read handlers
+// took 2–5 s warm for ~0.3 s of real work (#176).</span>
+<span class="bad">-      memorySize: 128,</span>
+<span class="good">+      memorySize: DEFAULT_MEMORY_MB,   // 1024</span></div>
+    <div class="figure">
+      <div class="figure-caption">Prod, before (10 Oct) and after (same day, post-deploy). Lambda duration from CloudWatch REPORT lines.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Endpoint</th><th class="num">Warm duration</th><th class="num">Cold init</th><th class="num">Time to first byte</th><th class="num">GB-seconds per call</th></tr></thead>
+          <tbody>
+            <tr><td><code>/gameweek/current</code></td><td class="num"><span class="b">2,430</span> → <span class="a">306 ms</span></td><td class="num">745 → 698 ms</td><td class="num"><span class="b">2.50</span> → <span class="a">0.39 s</span></td><td class="num">0.30 → 0.31</td></tr>
+            <tr><td><code>/players</code></td><td class="num"><span class="b">2,070</span> → <span class="a">290 ms</span></td><td class="num">684 → 607 ms</td><td class="num"><span class="b">2.15</span> → <span class="a">0.35 s</span></td><td class="num">0.26 → 0.29</td></tr>
+            <tr><td><code>/analytics/players/xp</code></td><td class="num"><span class="b">5,390</span> → <span class="a">700 ms</span></td><td class="num">1,244 → 1,232 ms</td><td class="num"><span class="b">5.43</span> → <span class="a">0.73 s</span></td><td class="num">0.67 → 0.70</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <h3>The cost stayed flat</h3>
+        <p>Lambda bills memory × duration, in GB-seconds. Eight times the memory for an eighth of the time is the same bill: 0.125 GB × 2.43 s ≈ 1 GB × 0.31 s ≈ 0.30 GB-s. For CPU-bound work, more memory is nearly free.</p>
+      </div>
+      <div class="card">
+        <h3>Init barely moved</h3>
+        <p>Cold-start init stayed at 0.6–1.2 s. Init is mostly loading the runtime and importing boto3 and pydantic, and extra memory did little for it. More memory can't get rid of cold starts; caching in front of Lambda can (see #179 below).</p>
+      </div>
+      <div class="card">
+        <h3>Memory used is a poor guide</h3>
+        <p>Max Memory Used is now ~120 of 1024 MB. That looks like over-provisioning, but the memory is there to buy CPU. Size Lambdas by duration, not by memory used.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="prose stack">
+      <div class="eyebrow">Try it</div>
+      <h2>Memory lab</h2>
+      <p>Drag to pick a memory size for <code>/gameweek/current</code>. The curve is a simple model fitted to the two measured points: about 175 ms of work at one full vCPU, divided by the CPU share. Our Python handlers are single-threaded, so past 1,769 MB the extra vCPUs sit idle and only the bill grows.</p>
+    </div>
+    <div class="figure">
+      <div class="lab">
+        <div class="stack" style="min-width:0">
+          <svg id="lab-chart" viewBox="0 0 520 260" role="img" aria-label="Modelled warm duration against memory size, with measured points at 128 and 1024 MB" style="width:100%;height:auto"></svg>
+        </div>
+        <div class="stack">
+          <div class="slider-row">
+            <label for="memory">Memory size: <span id="mem-label" class="mono">1024 MB</span></label>
+            <input type="range" id="memory" min="0" max="7" step="1" value="3">
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="k">CPU share</div><div class="v" id="s-cpu"></div></div>
+            <div class="stat"><div class="k">Warm duration</div><div class="v" id="s-dur"></div></div>
+            <div class="stat"><div class="k">Cost per 1M calls</div><div class="v" id="s-cost"></div></div>
+            <div class="stat"><div class="k">Free calls / month</div><div class="v" id="s-free"></div></div>
+          </div>
+          <p class="verdict-line" id="s-verdict"></p>
+        </div>
+      </div>
+      <div class="figure-caption">Pricing: us-east-1 x86, $0.0000166667 per GB-second plus $0.20 per million requests. The free tier's 400,000 GB-s per month is usually the limit you hit first.</div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="prose stack">
+      <div class="eyebrow">What's next in the milestone</div>
+      <h2>Taking Lambda off the hot path</h2>
+      <p>After the fix, a warm request costs about 0.35 s and a cold one about 1.4 s. The remaining options change the architecture so that most requests never reach a Lambda at all.</p>
+    </div>
+
+    <div class="figure" id="arch">
+      <div class="chips" role="group" aria-label="Architecture" id="arch-chips"></div>
+      <div class="arch-cols">
+        <div class="stack">
+          <div class="eyebrow">Request path</div>
+          <div class="path" id="arch-path"></div>
+          <div class="eyebrow">Per request, AWS runs</div>
+          <p id="arch-runs"></p>
+        </div>
+        <div class="stack">
+          <div class="eyebrow">How it works</div>
+          <p id="arch-how"></p>
+          <div class="eyebrow">Watch out for</div>
+          <p id="arch-caveat"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <span class="pill next">Small tweak</span>
+        <h3>Reuse work across warm invocations</h3>
+        <p>Code at module level runs once per execution environment and stays alive between invocations. Parsing the bootstrap into a global, keyed by its <code>fetched_at</code>, would skip the 500 KB parse on most warm calls.</p>
+      </div>
+      <div class="card">
+        <span class="pill next">Small tweak</span>
+        <h3>ARM64 (Graviton)</h3>
+        <p><code>architecture: Architecture.ARM_64</code> in CDK. About 20% cheaper per GB-second and often a little faster. Docker bundling then has to build ARM wheels, which matters for pydantic-core.</p>
+      </div>
+      <div class="card">
+        <span class="pill next">Remaining hot spots</span>
+        <h3>xP and Transfers</h3>
+        <p>xP is still 0.7 s warm: a paginated 667-row query, each row turned into Decimals. Transfers was already at 1024 MB and still takes about 8 s, because that's real computation. Precomputing (#181) or speeding up the algorithm are the levers there.</p>
+      </div>
+    </div>
+
+    <div class="stack">
+      <h3>Considered and rejected</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="pill no">Rejected</span>
+          <h3>Provisioned concurrency</h3>
+          <p>Keeps environments initialised so there are no cold starts, but you pay for every hour they sit ready, and there's no free tier. CloudFront removes most cold starts for free.</p>
+        </div>
+        <div class="card">
+          <span class="pill no">Rejected</span>
+          <h3>SnapStart for Python</h3>
+          <p>Restores a snapshot of an initialised environment instead of running init. It works, but caching and restoring snapshots are both billed.</p>
+        </div>
+        <div class="card">
+          <span class="pill no">Rejected</span>
+          <h3>Keep-warm pings</h3>
+          <p>An EventBridge rule invoking each function every few minutes. It warms only one environment per function, so two users at once still hit a cold start. It hides the problem rather than fixing it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>Milestone: <a href="https://github.com/jake-thewoz/fpl-stats/milestone/10">Phase 3.7: Latency</a> · analysis <a href="https://github.com/jake-thewoz/fpl-stats/issues/176">#176</a> · memory fix <a href="https://github.com/jake-thewoz/fpl-stats/pull/183">#183</a> · CloudFront <a href="https://github.com/jake-thewoz/fpl-stats/issues/179">#179</a> · precompute <a href="https://github.com/jake-thewoz/fpl-stats/issues/181">#181</a></div>
+    <div>Measurements: curl from a home connection to us-east-1 and CloudWatch REPORT lines, 10 October 2026. The CloudFront edge timing is an estimate, not a measurement.</div>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const css = (name) => `var(--${name})`;
+
+  // Step 1 waterfall
+  const WATERFALL = [
+    { name: '/health', net: 75, handler: 0 },
+    { name: '/gameweek/current', net: 70, handler: 2427 },
+    { name: '/players', net: 70, handler: 2070 },
+    { name: '/players/xp', net: 70, handler: 5360 },
+  ];
+  const wfMax = Math.max(...WATERFALL.map((r) => r.net + r.handler));
+  const wf = document.getElementById('waterfall');
+  for (const row of WATERFALL) {
+    const total = row.net + row.handler;
+    const el = document.createElement('div');
+    el.className = 'wf-row';
+    el.innerHTML = `<span>${row.name}</span>
+      <div class="wf-track"><div class="wf-seg" style="width:${(row.net / wfMax) * 100}%;background:${css('net')};min-width:3px"></div><div class="wf-seg" style="width:${(row.handler / wfMax) * 100}%;background:${css('before')}"></div></div>
+      <span style="text-align:right">${(total / 1000).toFixed(2)} s</span>`;
+    wf.appendChild(el);
+  }
+
+  // Step 2 REPORT annotator
+  const NOTES = {
+    duration: 'Duration is wall-clock time inside your handler, from the moment Lambda calls lambda_handler until it returns. 2.45 s for a response of a few KB means our code is the slow part.',
+    billed: 'What you pay for, rounded up to the next millisecond. Since August 2025 AWS also bills the init phase on cold starts for managed runtimes like Python.',
+    size: 'The memory you configured. It also sets your CPU: Lambda allocates CPU in proportion to memory, reaching one full vCPU at 1,769 MB. 128 MB gets about 7% of a core.',
+    used: 'Peak memory actually used. 105 of 128 MB says we are near the limit, but it is the CPU that comes with memory that we were short of, not the memory itself.',
+    init: 'Only appears on a cold start: time to start the runtime and run module-level code (imports of boto3 and pydantic, client setup) before the first request.',
+  };
+  const report = document.getElementById('report');
+  const note = document.getElementById('report-note');
+  report.addEventListener('click', (e) => {
+    const btn = e.target.closest('.field');
+    if (!btn) return;
+    for (const f of report.querySelectorAll('.field')) f.setAttribute('aria-pressed', String(f === btn));
+    note.textContent = NOTES[btn.dataset.k];
+  });
+
+  // Journey player
+  const SCALE_MAX_MS = 6400;
+  const NODES_ORIGIN = [
+    { id: 'phone', label: 'Phone', sub: 'the app' },
+    { id: 'apigw', label: 'API Gateway', sub: 'HTTP API' },
+    { id: 'lambda', label: 'Lambda', sub: 'Python 3.12' },
+    { id: 'ddb', label: 'DynamoDB', sub: 'cache table' },
+  ];
+  const NODES_EDGE = [
+    { id: 'phone', label: 'Phone', sub: 'the app' },
+    { id: 'edge', label: 'CloudFront edge', sub: 'cached response' },
+  ];
+  const SCENARIOS = [
+    { id: 'before-warm', label: 'Before · warm', nodes: NODES_ORIGIN,
+      desc: 'Measured. The environment already exists, but the handler gets 7% of a vCPU to parse a 500 KB item.',
+      segs: [
+        { kind: 'net', ms: 70, lit: ['phone', 'apigw'], text: 'network' },
+        { kind: 'before', ms: 2430, lit: ['lambda', 'ddb'], text: 'handler 2,430 ms' },
+      ] },
+    { id: 'before-cold', label: 'Before · cold', nodes: NODES_ORIGIN,
+      desc: 'Measured. A new environment boots first, and the first invocation runs about twice as slow as later ones.',
+      segs: [
+        { kind: 'net', ms: 70, lit: ['phone', 'apigw'], text: '' },
+        { kind: 'init', ms: 745, lit: ['lambda'], text: 'init 745' },
+        { kind: 'before', ms: 5460, lit: ['lambda', 'ddb'], text: 'handler 5,460 ms' },
+      ] },
+    { id: 'after-warm', label: 'After · warm', nodes: NODES_ORIGIN,
+      desc: 'Measured. Same code, eight times the CPU share.',
+      segs: [
+        { kind: 'net', ms: 70, lit: ['phone', 'apigw'], text: '' },
+        { kind: 'after', ms: 306, lit: ['lambda', 'ddb'], text: '306' },
+      ] },
+    { id: 'after-cold', label: 'After · cold', nodes: NODES_ORIGIN,
+      desc: 'From Lambda logs. Init barely changed, so cold starts are now the biggest remaining cost.',
+      segs: [
+        { kind: 'net', ms: 70, lit: ['phone', 'apigw'], text: '' },
+        { kind: 'init', ms: 698, lit: ['lambda'], text: 'init 698' },
+        { kind: 'after', ms: 665, lit: ['lambda', 'ddb'], text: '665' },
+      ] },
+    { id: 'edge', label: 'Next · CloudFront hit', nodes: NODES_EDGE,
+      desc: 'Estimate for #179. The nearest edge location answers from its cache; no Lambda, no cold start.',
+      segs: [
+        { kind: 'after', ms: 35, lit: ['phone', 'edge'], text: '' },
+      ] },
+  ];
+  const COLORS = {
+    net: ['net', 'grid'], init: ['init', 'init-soft'], before: ['before', 'before-soft'], after: ['after', 'after-soft'],
+  };
+
+  const chipsEl = document.getElementById('scenario-chips');
+  const lanesEl = document.getElementById('lanes');
+  const timelineEl = document.getElementById('timeline');
+  const clockEl = document.getElementById('clock');
+  const descEl = document.getElementById('scenario-desc');
+  const playBtn = document.getElementById('play');
+  let current = SCENARIOS[0];
+  let raf = 0;
+
+  const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${Math.round(ms)} ms`);
+  const totalOf = (s) => s.segs.reduce((sum, seg) => sum + seg.ms, 0);
+
+  function renderScenario(fillAll) {
+    lanesEl.className = current.nodes === NODES_EDGE ? 'lanes edge' : 'lanes';
+    lanesEl.innerHTML = current.nodes
+      .map((n) => `<div class="node" data-node="${n.id}">${n.label}<small>${n.sub}</small></div>`)
+      .join('');
+    timelineEl.innerHTML = current.segs
+      .map((seg, i) => {
+        const [strong] = COLORS[seg.kind];
+        const width = Math.max((seg.ms / SCALE_MAX_MS) * 100, 0.6);
+        return `<div class="tl-seg" style="width:${width}%"><div class="tl-fill" data-i="${i}" style="background:${css(strong)};transform:scaleX(${fillAll ? 1 : 0})"></div><span style="position:relative;color:var(--paper)">${seg.text}</span></div>`;
+      })
+      .join('');
+    clockEl.textContent = fillAll ? fmtMs(totalOf(current)) : '0 ms';
+    descEl.textContent = current.desc;
+    for (const chip of chipsEl.children) chip.setAttribute('aria-pressed', String(chip.dataset.id === current.id));
+  }
+
+  function lightNodes(ids, kind) {
+    const [strong, soft] = COLORS[kind] ?? COLORS.net;
+    for (const node of lanesEl.children) {
+      const on = ids.includes(node.dataset.node);
+      node.classList.toggle('lit', on);
+      node.style.setProperty('--lit', css(strong));
+      node.style.setProperty('--lit-soft', css(soft));
+    }
+  }
+
+  function stop() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    playBtn.textContent = 'Play';
+  }
+
+  function play() {
+    if (raf) { stop(); renderScenario(true); return; }
+    renderScenario(false);
+    if (reduceMotion) { renderScenario(true); return; }
+    playBtn.textContent = 'Skip';
+    const fills = [...timelineEl.querySelectorAll('.tl-fill')];
+    const start = performance.now();
+    const total = totalOf(current);
+    const tick = (now) => {
+      const elapsed = Math.min(now - start, total);
+      let acc = 0;
+      current.segs.forEach((seg, i) => {
+        const local = Math.min(Math.max(elapsed - acc, 0), seg.ms);
+        fills[i].style.transform = `scaleX(${local / seg.ms})`;
+        if (elapsed >= acc && elapsed < acc + seg.ms) lightNodes(seg.lit, seg.kind);
+        acc += seg.ms;
+      });
+      clockEl.textContent = fmtMs(elapsed);
+      if (elapsed < total) raf = requestAnimationFrame(tick);
+      else { stop(); lightNodes([], 'net'); }
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  for (const s of SCENARIOS) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.dataset.id = s.id;
+    chip.textContent = s.label;
+    chip.addEventListener('click', () => { stop(); current = s; renderScenario(true); });
+    chipsEl.appendChild(chip);
+  }
+  playBtn.addEventListener('click', play);
+  renderScenario(true);
+
+  // Memory lab
+  const MEMORY_OPTIONS = [128, 256, 512, 1024, 1536, 1769, 2048, 3008];
+  const FULL_VCPU_MB = 1769;
+  const CPU_WORK_MS = 175; // fitted: 128 MB → 2,430 ms and 1024 MB → 306 ms
+  const IO_MS = 5;
+  const PRICE_PER_GB_SECOND = 0.0000166667;
+  const PRICE_PER_MILLION_REQUESTS = 0.2;
+  const FREE_GB_SECONDS = 400000;
+  const MEASURED = [{ mb: 128, ms: 2430 }, { mb: 1024, ms: 306 }];
+
+  const cpuShare = (mb) => Math.min(mb / FULL_VCPU_MB, 1);
+  const durationMs = (mb) => IO_MS + CPU_WORK_MS / cpuShare(mb);
+  const gbSeconds = (mb) => (mb / 1024) * (Math.ceil(durationMs(mb)) / 1000);
+
+  const W = 520, H = 260, PAD = { l: 52, r: 16, t: 14, b: 40 };
+  const X_MIN = Math.log2(128), X_MAX = Math.log2(3008);
+  const Y_MAX = 2500;
+  const x = (mb) => PAD.l + ((Math.log2(mb) - X_MIN) / (X_MAX - X_MIN)) * (W - PAD.l - PAD.r);
+  const y = (ms) => PAD.t + (1 - ms / Y_MAX) * (H - PAD.t - PAD.b);
+  const svg = document.getElementById('lab-chart');
+
+  function drawChart(selectedMb) {
+    const parts = [];
+    for (const ms of [0, 500, 1000, 1500, 2000, 2500]) {
+      parts.push(`<line x1="${PAD.l}" x2="${W - PAD.r}" y1="${y(ms)}" y2="${y(ms)}" stroke="var(--rule)" stroke-width="1"/>`);
+      parts.push(`<text x="${PAD.l - 8}" y="${y(ms) + 4}" text-anchor="end">${ms === 0 ? '0' : (ms / 1000).toFixed(1) + 's'}</text>`);
+    }
+    for (const mb of [128, 256, 512, 1024, 1769, 3008]) {
+      parts.push(`<text x="${x(mb)}" y="${H - PAD.b + 18}" text-anchor="middle">${mb}</text>`);
+    }
+    parts.push(`<text x="${(PAD.l + W - PAD.r) / 2}" y="${H - 6}" text-anchor="middle">memory (MB, log scale)</text>`);
+    parts.push(`<line x1="${x(FULL_VCPU_MB)}" x2="${x(FULL_VCPU_MB)}" y1="${PAD.t}" y2="${H - PAD.b}" stroke="var(--ink-soft)" stroke-dasharray="3 4"/>`);
+    parts.push(`<text x="${x(FULL_VCPU_MB) - 6}" y="${PAD.t + 12}" text-anchor="end">1 vCPU</text>`);
+    let d = '';
+    for (let i = 0; i <= 80; i++) {
+      const mb = 2 ** (X_MIN + ((X_MAX - X_MIN) * i) / 80);
+      d += `${i === 0 ? 'M' : 'L'}${x(mb).toFixed(1)},${y(Math.min(durationMs(mb), Y_MAX)).toFixed(1)}`;
+    }
+    parts.push(`<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`);
+    for (const p of MEASURED) {
+      parts.push(`<circle cx="${x(p.mb)}" cy="${y(p.ms)}" r="5" fill="${p.mb === 128 ? 'var(--before)' : 'var(--after)'}"/>`);
+      parts.push(`<text x="${x(p.mb) + 9}" y="${y(p.ms) - 8}">measured ${p.ms} ms</text>`);
+    }
+    parts.push(`<circle cx="${x(selectedMb)}" cy="${y(durationMs(selectedMb))}" r="8" fill="none" stroke="var(--ink)" stroke-width="2"/>`);
+    svg.innerHTML = parts.join('');
+  }
+
+  const slider = document.getElementById('memory');
+  const fmtInt = (n) => Math.round(n).toLocaleString('en-US');
+  function updateLab() {
+    const mb = MEMORY_OPTIONS[Number(slider.value)];
+    const dur = durationMs(mb);
+    const gbs = gbSeconds(mb);
+    const cost = gbs * 1e6 * PRICE_PER_GB_SECOND + PRICE_PER_MILLION_REQUESTS;
+    document.getElementById('mem-label').textContent = `${fmtInt(mb)} MB`;
+    document.getElementById('s-cpu').textContent = `${Math.round(cpuShare(mb) * 100)}% vCPU`;
+    document.getElementById('s-dur').textContent = fmtMs(dur);
+    document.getElementById('s-cost').textContent = `$${cost.toFixed(2)}`;
+    document.getElementById('s-free').textContent = `${(FREE_GB_SECONDS / gbs / 1e6).toFixed(2)}M`;
+    let verdict;
+    if (mb < 1024) verdict = 'Starved: same bill as 1024 MB, several times slower.';
+    else if (mb <= FULL_VCPU_MB) verdict = 'Sweet spot: faster at roughly the same cost per call.';
+    else verdict = 'Past one vCPU: single-threaded Python gains nothing, and each call costs more.';
+    document.getElementById('s-verdict').textContent = verdict;
+    drawChart(mb);
+  }
+  slider.addEventListener('input', updateLab);
+  updateLab();
+
+  // Architecture options
+  const ARCH = [
+    { id: 'today', label: 'Today', pill: ['done', 'Shipped'],
+      path: [['Phone'], ['API Gateway'], ['Lambda'], ['DynamoDB']],
+      runs: 'One API Gateway request, one Lambda invocation (warm ~0.3 s, cold ~1.4 s), and one or two DynamoDB reads, on every single request, even though the data only changes every 30 minutes.',
+      how: 'Each read Lambda fetches the cached FPL data from DynamoDB, reshapes it, and returns JSON. Since #183 it has the CPU to do that in ~0.3 s.',
+      caveat: 'Cold starts still cost about 0.7–1.2 s of init, and HTTP API never compresses responses: /players goes out as 257 KB.' },
+    { id: 'cloudfront', label: '#179 CloudFront', pill: ['next', 'Next'],
+      path: [['Phone'], ['CloudFront edge', 'new'], ['API Gateway', 'skip'], ['Lambda', 'skip'], ['DynamoDB', 'skip']],
+      runs: 'On a cache hit, nothing but CloudFront: the nearest edge location answers in tens of milliseconds. Only a miss travels on to API Gateway and Lambda, and refills the cache for everyone.',
+      how: 'Put a CloudFront distribution in front of the HTTP API, and have handlers return Cache-Control (for example s-maxage=300). CloudFront also gzips responses automatically: /players drops from 257 KB to about 24 KB. The always-free tier covers 1 TB and 10M requests a month.',
+      caveat: '/analytics/players/xp drops locked gameweeks when it is read, at the deadline. A long TTL would keep serving the old gameweek after it locks, so keep TTLs to minutes, or derive them from the next deadline. Per-team URLs cache separately, so they get less benefit.' },
+    { id: 'static', label: '#181 Precompute to S3', pill: ['next', 'Later'],
+      path: [['Phone'], ['CloudFront edge', 'new'], ['S3 object', 'new']],
+      runs: 'No Lambda and no DynamoDB on the read path at all. The ingest Lambda that already runs every 30 minutes writes finished JSON files, and CloudFront serves them from S3.',
+      how: 'Compute on write, not on read: ingest and the analyzers write players.json, xp.json and gameweek.json to S3 next to the snapshots they already store. CloudFront reads the bucket through Origin Access Control, so the bucket stays private.',
+      caveat: 'Any logic that runs at read time has to move to write time. For the xP deadline rule, that means an EventBridge Scheduler one-off at each deadline to rewrite xp.json. Per-team data (entry, picks) still needs a Lambda.' },
+  ];
+  const archChips = document.getElementById('arch-chips');
+  function renderArch(option) {
+    for (const c of archChips.children) c.setAttribute('aria-pressed', String(c.dataset.id === option.id));
+    document.getElementById('arch-path').innerHTML = option.path
+      .map(([name, mod], i) => `${i ? '<span class="sep">→</span>' : ''}<span class="hop ${mod ?? ''}">${name}</span>`)
+      .join('') + `&nbsp;<span class="pill ${option.pill[0]}">${option.pill[1]}</span>`;
+    document.getElementById('arch-runs').textContent = option.runs;
+    document.getElementById('arch-how').textContent = option.how;
+    document.getElementById('arch-caveat').textContent = option.caveat;
+  }
+  for (const option of ARCH) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.dataset.id = option.id;
+    chip.textContent = option.label;
+    chip.addEventListener('click', () => renderArch(option));
+    archChips.appendChild(chip);
+  }
+  renderArch(ARCH[0]);
+})();
+</script>
+
+</body></html>

@@ -1,29 +1,31 @@
-# FPL Stats — friends beta
+# FPL Stats: getting started
 
-Thanks for trying the beta. This is a Fantasy Premier League companion app I've been building. It's a one-person side project, runs on AWS, and is wide open about its caveats — read on.
+Thanks for trying FPL Stats. It's a Fantasy Premier League companion app I've been building as a side project. It runs on AWS, and it's open about its caveats, so read on.
 
 ## Getting in
 
-1. Open the URL Jakob sent you. **Use your phone's browser** for the best experience — the layout is mobile-first. It also works on desktop, where it'll be centered in a phone-shaped column.
-2. The browser will prompt for a username and password. Enter the credentials Jakob sent. (Single shared password for the whole beta — please don't pass it around.)
-3. On first launch, the app asks for your **FPL team ID**. You can find this by logging into [fantasy.premierleague.com](https://fantasy.premierleague.com), going to "Points" or "Pick Team," and copying the number from the URL — e.g. `https://fantasy.premierleague.com/entry/1234567/event/35` → your team ID is `1234567`.
+1. Open **https://main.d29izwx9gn2m58.amplifyapp.com** on your phone. The layout is mobile-first; on desktop it sits in a phone-shaped column.
+2. Add it to your home screen (Chrome: ⋮ → *Add to Home screen*; Safari: Share → *Add to Home Screen*). It then opens like an app.
+3. On first launch it asks for your **FPL team ID**. Log in at [fantasy.premierleague.com](https://fantasy.premierleague.com), open *Points* or *Pick Team*, and copy the number from the URL: `https://fantasy.premierleague.com/entry/1234567/event/7` → your team ID is `1234567`.
+
+There's no password and no account. Your team ID and settings are stored only on your device.
 
 ## What the tabs do
 
-- **My Team** — your current squad with each player's expected points (xP) for the next gameweek and the rolling horizon (next 3 GWs). Bench is shown below the starting XI.
-- **Players** — the global player pool, sortable by xP, price, form, ICT, and so on. Useful for "who should I bring in" research.
-- **Transfers** — suggested transfer plans, FT-aware, including hits when the upside justifies the cost. The card shows the players going out / coming in, the xP delta, your bank balance, and any -4 hit applied.
-- **Friends** — add friends by team ID and see your league-of-friends standings against them. Lightweight; this isn't a full leagues view (intentionally — see "Known limitations").
-- **Settings** — change your team ID, toggle dark/light/system theme.
+- **My Team.** Your squad on a pitch (or as a list), with each player's expected points (xP) for the next gameweek. Switch between *Yours* and *Suggested* to see the best XI and captain by xP. A banner shows the next deadline, or during a gameweek which matches are live; players show ● while their club plays and ✓ once it's done. Tap the banner for the fixture list.
+- **Players.** Every player, sortable and filterable by xP, price, form and more. Active filters show as chips you can tap to remove. Players you already own are dimmed.
+- **Transfers.** Ranked transfer plans for your squad over the next few gameweeks: who goes out, who comes in, the net xP gain, your bank, and any −4 hit. You can choose how many gameweeks to plan over and the most transfers to consider, and correct your free-transfer count if it's wrong (for example, right after you've made transfers).
+- **Friends.** Add friends by team ID or import a whole classic league, compare ranks, and tap a friend to see their current squad.
+- **Settings.** Change your team ID or theme (light, dark, or follow your phone).
 
 ## Known limitations
 
-- **No FPL login.** I never see your password. I only call the public FPL API using your team ID, so anything that requires authentication (your draft transfers, chip activations not yet confirmed) won't show up.
-- **Free Hit / Wildcard / chip detection is best-effort.** When you've activated a chip mid-gameweek, the app may take a tick to reflect it. There's a banner that flags Free Hit specifically because the squad you see isn't your "real" squad that week.
-- **xP is a model, not a prophecy.** My expected-points model uses fixtures, form, minutes, and a few custom signals — it disagrees with the official site sometimes, on purpose.
-- **No real-time during matches.** Data refreshes on a schedule from the public FPL API; live scores during a fixture will lag.
-- **Beta means rough edges.** Things will break. Tell me when they do.
+- **No FPL login.** I never see your password. The app only uses FPL's public data for your team ID, so anything that needs a login (unconfirmed transfers, chips you haven't played yet) won't show up. That's also why the free-transfer count can be off until FPL publishes your transfers; you can correct it on the Transfers tab.
+- **Chip detection is best-effort.** If you've played Free Hit, My Team shows a banner because the squad you see that week isn't your "real" one.
+- **xP is a model, not a prophecy.** It uses fixtures, minutes, underlying stats (xG, xA, defensive contributions) and a few custom signals. It disagrees with the official site sometimes, on purpose. It updates overnight, and moves on to the next gameweek as soon as a deadline passes.
+- **Live points lag.** During matches, points and minutes refresh from FPL roughly every 30 minutes, not in real time.
+- **Rough edges.** It's a side project. Things will break. Tell me when they do.
 
-## How to send feedback
+## Sending feedback
 
-Anything broken, confusing, or just wrong — WhatsApp/email Jakob directly. Screenshots help a lot. The more boring-sounding the bug ("the back button on this screen does the wrong thing") the more useful it tends to be.
+Anything broken, confusing or just wrong: WhatsApp or email Jakob directly. Screenshots help a lot. The more boring the bug sounds ("the back button on this screen goes to the wrong place"), the more useful it usually is.
