@@ -53,8 +53,10 @@ export type MyTeamSources = {
   players: QuerySnapshot<PlayersResponse>;
   picks: QuerySnapshot<EntryGameweekResponse>;
   live: QuerySnapshot<GameweekLiveResponse>;
-  /** Previous gameweek's picks, only consulted when Free Hit is active. */
-  previousPicks: QuerySnapshot<EntryGameweekResponse>;
+  /** Previous gameweek's picks, only consulted when Free Hit is active.
+   *  `null` turns the Free Hit fallback off: the squad shown is the Free
+   *  Hit eleven actually being played. */
+  previousPicks: QuerySnapshot<EntryGameweekResponse> | null;
 };
 
 function isSettled<T>(snapshot: QuerySnapshot<T>): boolean {
@@ -132,11 +134,12 @@ export function assembleMyTeam(sources: MyTeamSources): MyTeamData | undefined {
   // gameweek"), so this is acceptable for v1.
   let squadPicks: Pick[] = picks.squad;
   let showingPersistentSquad = false;
-  if (needsPreviousPicks(picksResponse, gw)) {
-    if (!isSettled(sources.previousPicks)) return undefined;
+  const previousPicks = sources.previousPicks;
+  if (previousPicks !== null && needsPreviousPicks(picksResponse, gw)) {
+    if (!isSettled(previousPicks)) return undefined;
     // A failed previous-GW fetch (404, network) falls back to the FH
     // temporary squad. The banner still explains the state.
-    const previous = sources.previousPicks.data;
+    const previous = previousPicks.data;
     if (previous !== undefined) {
       squadPicks = previous.entry.squad;
       showingPersistentSquad = true;

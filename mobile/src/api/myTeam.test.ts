@@ -214,5 +214,12 @@ describe('assembleMyTeam', () => {
       expect(team?.showingPersistentSquad).toBe(false);
       expect(team?.squad.map((s) => s.pick.element)).toEqual([BRUNO_ID]);
     });
+
+    it('shows the Free Hit squad when the fallback is off', () => {
+      const team = assembleMyTeam(sources({ picks: freeHitPicks, previousPicks: null }));
+      expect(team?.showingPersistentSquad).toBe(false);
+      expect(team?.squad.map((s) => s.pick.element)).toEqual([BRUNO_ID]);
+      expect(team?.picks?.active_chip).toBe(FREE_HIT_CHIP);
+    });
   });
 });

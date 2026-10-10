@@ -12,7 +12,7 @@
  *          ├─ MyTeamTab    -> MyTeamStack    (MyTeam, Gameweek)
  *          ├─ PlayersTab   -> PlayersStack   (Players)
  *          ├─ TransfersTab -> TransfersStack (Transfers)
- *          ├─ FriendsTab   -> FriendsStack   (Friends, ManageFriends, AddFriend, ImportLeague)
+ *          ├─ FriendsTab   -> FriendsStack   (Friends, FriendTeam, ManageFriends, AddFriend, ImportLeague)
  *          └─ SettingsTab  -> SettingsStack  (Settings)
  */
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -37,6 +37,8 @@ export type TransfersStackParamList = {
 
 export type FriendsStackParamList = {
   Friends: undefined;
+  /** `name` is the squad name, shown as the title before the squad loads. */
+  FriendTeam: { teamId: string; name: string };
   ManageFriends: undefined;
   AddFriend: undefined;
   ImportLeague: undefined;
@@ -91,6 +93,10 @@ export type FriendsScreenProps = CompositeScreenProps<
   >
 >;
 
+export type FriendTeamScreenProps = NativeStackScreenProps<
+  FriendsStackParamList,
+  'FriendTeam'
+>;
 export type ManageFriendsScreenProps = NativeStackScreenProps<
   FriendsStackParamList,
   'ManageFriends'
