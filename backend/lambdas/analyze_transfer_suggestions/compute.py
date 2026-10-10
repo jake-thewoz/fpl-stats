@@ -9,8 +9,8 @@ from __future__ import annotations
 import heapq
 from collections import defaultdict
 from dataclasses import dataclass
-from itertools import combinations, product
-from typing import Iterable
+from itertools import combinations
+from typing import Callable, Iterable, Iterator
 
 from schemas import EntryChip, EntryHistory, Player
 
@@ -247,6 +247,42 @@ def _per_slot_top_k_moves(
     return per_slot
 
 
+def _move_combos_above_threshold(
+    slot_options: list[list[TransferCandidate]],
+    hit_cost: int,
+    current_threshold: Callable[[], float],
+) -> Iterator[tuple[TransferCandidate, ...]]:
+    """Depth-first walk of the cartesian product of ``slot_options``,
+    yielding only combos whose net could still beat the top-N threshold.
+
+    Each slot's options are sorted by delta desc, so at every depth the
+    bound ``partial + this move + best of each remaining slot − hit`` only
+    falls as we move down the list. The first option that can't beat the
+    threshold ends that slot's loop — every later option is worse. The
+    threshold is re-read on each check because the caller raises it as
+    the heap fills."""
+    # best_remaining[i] = sum of the top move of every slot from i onward.
+    best_remaining = [0.0] * (len(slot_options) + 1)
+    for i in range(len(slot_options) - 1, -1, -1):
+        best_remaining[i] = best_remaining[i + 1] + slot_options[i][0].delta_xp
+
+    chosen: list[TransferCandidate] = []
+
+    def walk(depth: int, partial: float) -> Iterator[tuple[TransferCandidate, ...]]:
+        if depth == len(slot_options):
+            yield tuple(chosen)
+            return
+        for move in slot_options[depth]:
+            bound = partial + move.delta_xp + best_remaining[depth + 1] - hit_cost
+            if bound <= current_threshold():
+                break
+            chosen.append(move)
+            yield from walk(depth + 1, partial + move.delta_xp)
+            chosen.pop()
+
+    yield from walk(0, 0.0)
+
+
 def suggest_transfer_bundles(
     squad: list[Player],
     bank: int,
@@ -297,9 +333,10 @@ def suggest_transfer_bundles(
         player_by_id[p.id] = p
 
     # Branch-and-bound + heap-based top-N. Without pruning, max_transfers=3
-    # explores ~7M (15C3 × 25^3) combinations and times the Lambda out;
-    # with the slot-subset upper-bound prune, most subsets are skipped
-    # entirely once the heap fills with strong 1- and 2-move bundles.
+    # explores ~7M (15C3 × 25^3) combinations and times the Lambda out.
+    # Two prunes: the slot-subset bound below skips whole subsets, and
+    # _move_combos_above_threshold cuts each subset's product short once
+    # the remaining moves can't reach the top N.
     #
     # heap entries: (delta_xp_net, counter, bundle). The min-heap's root
     # is the *worst* bundle currently in the top-N; once the heap is full
@@ -311,7 +348,7 @@ def suggest_transfer_bundles(
     threshold = float("-inf")
 
     # Collapses permutations of the same effective transfer into one bundle.
-    # ``product(*slot_options)`` enumerates every IN→OUT pairing; when two
+    # The per-subset product enumerates every IN→OUT pairing; when two
     # slots share top-K candidates (common for same-position swaps), the
     # cross product emits e.g. (1→10, 2→11) AND (1→11, 2→10) — same OUT
     # set, same IN set, same gross/net delta-xP, indistinguishable to the
@@ -332,7 +369,9 @@ def suggest_transfer_bundles(
             max_gross = sum(opts[0].delta_xp for opts in slot_options)
             if max_gross - hit_cost <= threshold:
                 continue
-            for move_combo in product(*slot_options):
+            for move_combo in _move_combos_above_threshold(
+                slot_options, hit_cost, lambda: threshold
+            ):
                 if not is_valid_bundle(move_combo, counts, bank, player_by_id):
                     continue
                 bundle_key = (
