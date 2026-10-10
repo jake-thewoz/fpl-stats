@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, Text, UIManager, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
@@ -8,15 +8,18 @@ import { playersQuery, transferSuggestionsQuery } from '../../query/queries';
 import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
-import {
-  PositionFilterDialog,
-  type Position,
-} from '../../components/PositionFilterDialog';
 import { POSITIONS_WITH_LABELS } from '../../players/positions';
+import {
+  DEFAULT_TRANSFER_SETTINGS,
+  countActiveFilters,
+  freeTransfersOverrideFor,
+  type TransferSettings,
+} from '../../transfers/settings';
 import type { TransfersScreenProps } from '../../navigation/types';
 import { useThemedStyles } from '../../theme';
 import { MessageState, NoTeamIdState, PicksNotFoundState } from './EmptyStates';
 import { SuggestionsList } from './SuggestionsList';
+import { TransferFilterDialog, type Position } from './TransferFilterDialog';
 import { makeStyles } from './styles';
 
 // Android needs LayoutAnimation explicitly enabled. Once-per-app call,
@@ -31,7 +34,7 @@ const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
 const DEFAULT_HORIZON: Horizon = 3;
 
-// PositionFilterDialog wants the legacy `Position` shape (id + label),
+// TransferFilterDialog wants the legacy `Position` shape (id + label),
 // derived from the canonical players/positions module.
 const POSITIONS: readonly Position[] = POSITIONS_WITH_LABELS.map(({ id, label }) => ({
   id,
@@ -51,6 +54,7 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const teamId = useFocusedTeamId();
   const [horizon, setHorizon] = useState<Horizon>(DEFAULT_HORIZON);
   const [positionFilter, setPositionFilter] = useState<readonly number[]>([]);
+  const [settings, setSettings] = useState<TransferSettings>(DEFAULT_TRANSFER_SETTINGS);
   const [filterOpen, setFilterOpen] = useState(false);
 
   if (teamId === undefined) return <LoadingView />;
@@ -62,28 +66,19 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
     );
   }
   return (
-    <>
-      <SuggestionsView
-        teamId={teamId}
-        horizon={horizon}
-        positionFilter={positionFilter}
-        onChangeHorizon={setHorizon}
-        onOpenFilter={() => setFilterOpen(true)}
-        onOpenMyTeam={() => navigation.getParent()?.navigate('MyTeamTab')}
-      />
-      <PositionFilterDialog
-        visible={filterOpen}
-        positions={POSITIONS}
-        selected={positionFilter}
-        onToggle={(id) =>
-          setPositionFilter((prev) =>
-            prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
-          )
-        }
-        onClearAll={() => setPositionFilter([])}
-        onClose={() => setFilterOpen(false)}
-      />
-    </>
+    <SuggestionsView
+      teamId={teamId}
+      horizon={horizon}
+      positionFilter={positionFilter}
+      settings={settings}
+      onChangeHorizon={setHorizon}
+      onChangePositionFilter={setPositionFilter}
+      onChangeSettings={setSettings}
+      filterOpen={filterOpen}
+      onOpenFilter={() => setFilterOpen(true)}
+      onCloseFilter={() => setFilterOpen(false)}
+      onOpenMyTeam={() => navigation.getParent()?.navigate('MyTeamTab')}
+    />
   );
 }
 
@@ -91,21 +86,36 @@ function SuggestionsView({
   teamId,
   horizon,
   positionFilter,
+  settings,
   onChangeHorizon,
+  onChangePositionFilter,
+  onChangeSettings,
+  filterOpen,
   onOpenFilter,
+  onCloseFilter,
   onOpenMyTeam,
 }: {
   teamId: string;
   horizon: Horizon;
   positionFilter: readonly number[];
+  settings: TransferSettings;
   onChangeHorizon: (h: Horizon) => void;
+  onChangePositionFilter: (positions: readonly number[]) => void;
+  onChangeSettings: (settings: TransferSettings) => void;
+  filterOpen: boolean;
   onOpenFilter: () => void;
+  onCloseFilter: () => void;
   onOpenMyTeam: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
 
   const suggestionsQuery = useQuery(
-    transferSuggestionsQuery(teamId, horizon, positionFilter),
+    transferSuggestionsQuery(teamId, {
+      horizon,
+      positions: positionFilter,
+      maxTransfers: settings.maxTransfers,
+      freeTransfers: settings.freeTransfersOverride,
+    }),
   );
   const playersQueryResult = useQuery(playersQuery());
   const response = suggestionsQuery.data;
@@ -120,13 +130,22 @@ function SuggestionsView({
     data,
   );
 
+  // Held across refetches: changing a setting starts a new query with no
+  // data yet, and the dialog's FT picker shouldn't vanish while it loads.
+  const [derivedFreeTransfers, setDerivedFreeTransfers] = useState<number>();
+  useEffect(() => {
+    if (response !== undefined) setDerivedFreeTransfers(response.derived_free_transfers);
+  }, [response]);
+
+  const activeFilterCount = countActiveFilters(positionFilter, settings);
+
   return (
     <View style={styles.container}>
       <ControlsRow
         horizon={horizon}
         onChangeHorizon={onChangeHorizon}
         onOpenFilter={onOpenFilter}
-        filterCount={positionFilter.length}
+        filterCount={activeFilterCount}
       />
       <Body
         state={state}
@@ -135,6 +154,36 @@ function SuggestionsView({
         onRetry={onRetry}
         onOpenMyTeam={onOpenMyTeam}
         filterActive={positionFilter.length > 0}
+      />
+      <TransferFilterDialog
+        visible={filterOpen}
+        onClose={onCloseFilter}
+        maxTransfers={settings.maxTransfers}
+        onChangeMaxTransfers={(maxTransfers) =>
+          onChangeSettings({ ...settings, maxTransfers })
+        }
+        freeTransfers={settings.freeTransfersOverride ?? derivedFreeTransfers}
+        derivedFreeTransfers={derivedFreeTransfers}
+        onChangeFreeTransfers={(picked) =>
+          onChangeSettings({
+            ...settings,
+            freeTransfersOverride: freeTransfersOverrideFor(picked, derivedFreeTransfers),
+          })
+        }
+        positions={POSITIONS}
+        selectedPositions={positionFilter}
+        onTogglePosition={(id) =>
+          onChangePositionFilter(
+            positionFilter.includes(id)
+              ? positionFilter.filter((p) => p !== id)
+              : [...positionFilter, id],
+          )
+        }
+        hasActiveFilters={activeFilterCount > 0}
+        onClearAll={() => {
+          onChangePositionFilter([]);
+          onChangeSettings(DEFAULT_TRANSFER_SETTINGS);
+        }}
       />
     </View>
   );
@@ -265,9 +314,7 @@ function ControlsRow({
           pressed && styles.filterButtonPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={
-          filterCount > 0 ? `Filter (${filterCount} positions selected)` : 'Filter'
-        }
+        accessibilityLabel={filterCount > 0 ? `Filter (${filterCount} active)` : 'Filter'}
       >
         <Text
           style={[

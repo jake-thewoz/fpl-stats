@@ -16,7 +16,7 @@ const PERSISTED_MAX_AGE_MS = 24 * HOUR_MS;
 const PERSISTED_CACHE_KEY = 'cache.queries';
 // Bump when an API response shape changes incompatibly, so devices drop
 // responses saved under the old shape instead of rendering them.
-const PERSISTED_CACHE_VERSION = '1';
+const PERSISTED_CACHE_VERSION = '2';
 
 export const queryClient = new QueryClient({
   defaultOptions: {

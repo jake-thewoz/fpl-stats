@@ -8,16 +8,16 @@ import {
   type Colors,
 } from '../theme';
 
-export type SegmentOption<T extends string> = { value: T; label: string };
+export type SegmentOption<T extends string | number> = { value: T; label: string };
 
-type Props<T extends string> = {
+type Props<T extends string | number> = {
   options: readonly SegmentOption<T>[];
   value: T;
   onChange: (next: T) => void;
 };
 
 /** Pill-shaped single-choice toggle (e.g. List | Pitch). */
-export function SegmentedControl<T extends string>({
+export function SegmentedControl<T extends string | number>({
   options,
   value,
   onChange,
@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string>({
         const selected = option.value === value;
         return (
           <Pressable
-            key={option.value}
+            key={String(option.value)}
             onPress={() => onChange(option.value)}
             style={({ pressed }) => [
               styles.segment,
