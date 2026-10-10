@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import {
-  DefaultTheme,
-  NavigationContainer,
-  type Theme,
-} from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LoadingView } from './src/components/LoadingView';
 import { WebShell } from './src/components/WebShell';
@@ -14,6 +11,7 @@ import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
 import { MainTabs } from './src/navigation/MainTabs';
 import type { RootStackParamList } from './src/navigation/types';
 import { ThemeProvider, useTheme } from './src/theme';
+import { persistOptions, queryClient, subscribeToAppFocus } from './src/query/client';
 
 // Re-export so screens can keep importing param-list types from `'../../App'`
 // during the transition without churn. (`./src/navigation/types` is the
@@ -27,18 +25,22 @@ type BootstrapState =
   | { status: 'ready'; initialRoute: keyof RootStackParamList };
 
 export default function App() {
+  useEffect(subscribeToAppFocus, []);
+
   // SafeAreaProvider must wrap anything that calls useSafeAreaInsets()
   // (notably the bottom tab bar in MainTabs.tsx). Without it, insets fall
   // back to 0 on real devices, which would clip content under the home
   // indicator.
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <WebShell>
-          <ThemedAppRoot />
-        </WebShell>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <WebShell>
+            <ThemedAppRoot />
+          </WebShell>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </PersistQueryClientProvider>
   );
 }
 

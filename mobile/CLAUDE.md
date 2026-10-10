@@ -28,14 +28,23 @@ return requestJson<EntryResponse>(`/entry/${teamId}`, {
 
 `mapStatus` also receives the parsed response body for endpoints that need to disambiguate same-status errors via body shape (see `transferSuggestions.ts` for the 404-with-body-discrimination case). Don't reimplement the `if (!res.ok) throw new Error(\`HTTP ${status}\`)` pattern.
 
+## Data fetching — `src/query/`
+
+Server data goes through TanStack Query, cached per endpoint and persisted to AsyncStorage, so a reopened app renders its last data immediately and refreshes in the background.
+
+- **`src/query/queries.ts`** — one `queryOptions` factory per API endpoint (`playersQuery()`, `entryQuery(teamId)`, …). Screens combine these; they don't cache their own joined results. That's what lets `/players` fetched on one tab serve every tab. Add new endpoints here.
+- **Stale times** (`src/query/client.ts`): `LIVE_STALE_MS` (1 min) for data that moves during matches (entry, picks, live points); `INGESTED_STALE_MS` (5 min) for ingest/analyzer outputs. Stale data still renders; it just refetches on mount, screen focus, and app foreground.
+- **Bump `PERSISTED_CACHE_VERSION`** when an API response shape changes incompatibly, or devices will render saved responses with the new code.
+
 ## Hooks — `src/hooks/`
 
-- **`useFetch<T>`** — single-fetcher state machine (loading/ok/error) with abort-on-unmount. The default for any data screen.
+- **`useQueryState(queries, data)`** — screen state (loading/ok/error) + `refreshing` / `onRefresh` / `onRetry` over the queries a screen is built from. Derive `data` yourself in a `useMemo` over each query's `.data`. The default for any data screen. Also refetches stale queries when the screen regains focus.
+- **`useMyTeam(teamId)`** — the user's squad joined with players + live points, built from cached endpoint queries (dependent picks/live, Free Hit fallback). Shared by My Team and Players.
 - **`useFocusedTeamId()`** — reads the user's FPL team id from storage on every screen focus. Returns `string | null | undefined` (the tri-state of "loading", "not set", "set"). Use whenever a screen needs the current team id; **don't roll your own** `let alive = true` + `getFplTeamId().then(...)` ceremony.
 - **`useFocusedPlayersConfig()`** — bundles the columns/filters/sort load-on-focus + persisting setters shared between Players and My Team. Don't reimplement.
-- **`useParallelFetch<K, T>(keys, fetcher)`** — sibling to `useFetch` for the per-key parallel pattern ("render placeholder rows immediately, fill in as fetches resolve"). Errors come through unwrapped on `state.error: unknown`; consumers branch on `instanceof DomainError` to derive the UI state. See `FriendsScreen.tsx`.
+- **`useParallelQueries(keys, queryFor)`** — sibling to `useQueryState` for the per-key parallel pattern ("render placeholder rows immediately, fill in as fetches resolve"). Errors come through unwrapped on `state.error: unknown`; consumers branch on `instanceof DomainError` to derive the UI state. See `FriendsScreen.tsx`.
 
-If you need team-id + a follow-on fetch (like Players' `ownedIds` re-resolve), it's fine to do that inline rather than forcing it through the team-id hook — those two cases are deliberately separate.
+If you need team-id + a follow-on fetch (like Players' `ownedIds`), pair `useFocusedTeamId()` with the query hook at the call site rather than forcing it through the team-id hook — those two cases are deliberately separate.
 
 ## Domain modules — single sources of truth
 

@@ -1,12 +1,10 @@
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import {
-  fetchGameweekCurrent,
-  type Fixture,
-  type GameweekCurrentResponse,
-} from '../api/gameweekCurrent';
+import { useQuery } from '@tanstack/react-query';
+import type { Fixture, GameweekCurrentResponse } from '../api/gameweekCurrent';
 import { formatDeadline, formatKickoff } from '../format/datetime';
 import { fixtureStatus } from '../gameweek/status';
-import { useFetch } from '../hooks/useFetch';
+import { useQueryState } from '../hooks/useQueryState';
+import { gameweekCurrentQuery } from '../query/queries';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import type { GameweekScreenProps } from '../navigation/types';
@@ -17,7 +15,11 @@ type Props = GameweekScreenProps;
 export default function GameweekScreen(_props: Props) {
   const styles = useThemedStyles(makeStyles);
 
-  const { state, refreshing, onRefresh, onRetry } = useFetch(fetchGameweekCurrent);
+  const gameweekQuery = useQuery(gameweekCurrentQuery());
+  const { state, refreshing, onRefresh, onRetry } = useQueryState(
+    [gameweekQuery],
+    gameweekQuery.data,
+  );
 
   if (state.status === 'loading') return <LoadingView />;
   if (state.status === 'error') {

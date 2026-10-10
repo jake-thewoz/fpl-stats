@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { fetchMyTeam, type SquadEntry } from '../../api/myTeam';
-import { fetchPlayersXp } from '../../api/playersXp';
-import { useFetch } from '../../hooks/useFetch';
+import { useQuery } from '@tanstack/react-query';
+import type { SquadEntry } from '../../api/myTeam';
+import { useMyTeam } from '../../hooks/useMyTeam';
+import { useQueryState } from '../../hooks/useQueryState';
+import { playersXpQuery } from '../../query/queries';
 import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { useFocusedPlayersConfig } from '../../hooks/useFocusedPlayersConfig';
 import { LoadingView } from '../../components/LoadingView';
@@ -67,24 +69,25 @@ export default function MyTeamScreen({ navigation }: Props) {
 function MyTeamContent({ teamId }: { teamId: string }) {
   const styles = useThemedStyles(makeStyles);
 
-  const fetcher = useCallback(
-    async (signal: AbortSignal) => {
-      const [myTeam, xpResp] = await Promise.all([
-        fetchMyTeam(teamId, signal),
-        fetchPlayersXp(signal),
-      ]);
-      const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
-      const rows: MyTeamRow[] = myTeam.squad
-        .filter(
-          (s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
-            s.player != null,
-        )
-        .map((s) => toMyTeamRow(s, xpById.get(s.player.id)));
-      return { myTeam, rows, xpGameweek: xpResp.gameweek };
-    },
-    [teamId],
+  const myTeamQuery = useMyTeam(teamId);
+  const xpQuery = useQuery(playersXpQuery());
+  const myTeamData = myTeamQuery.data;
+  const xpResp = xpQuery.data;
+  const data = useMemo(() => {
+    if (myTeamData === undefined || xpResp === undefined) return undefined;
+    const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
+    const rows: MyTeamRow[] = myTeamData.squad
+      .filter(
+        (s): s is SquadEntry & { player: NonNullable<SquadEntry['player']> } =>
+          s.player != null,
+      )
+      .map((s) => toMyTeamRow(s, xpById.get(s.player.id)));
+    return { myTeam: myTeamData, rows, xpGameweek: xpResp.gameweek };
+  }, [myTeamData, xpResp]);
+  const { state, refreshing, onRefresh, onRetry } = useQueryState(
+    [...myTeamQuery.queries, xpQuery],
+    data,
   );
-  const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
 
   // Columns / filters / sort are shared with the Players tab via a
   // single set of AsyncStorage keys; the hook re-reads on focus.

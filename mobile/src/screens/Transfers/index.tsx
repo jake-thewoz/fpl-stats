@@ -1,11 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, Text, UIManager, View } from 'react-native';
-import {
-  fetchTransferSuggestions,
-  type TransferSuggestionsResponse,
-} from '../../api/transferSuggestions';
-import { fetchPlayers, type Player } from '../../api/players';
-import { useFetch } from '../../hooks/useFetch';
+import { useQuery } from '@tanstack/react-query';
+import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
+import type { Player } from '../../api/players';
+import { useQueryState, type FetchState } from '../../hooks/useQueryState';
+import { playersQuery, transferSuggestionsQuery } from '../../query/queries';
 import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -105,27 +104,21 @@ function SuggestionsView({
 }) {
   const styles = useThemedStyles(makeStyles);
 
-  // teamId + horizon + positionFilter are stable refs across renders here,
-  // but the closure changes on any of them so the hook re-runs and refetches.
-  // useCallback gives us one new ref per (teamId, horizon, filter) tuple,
-  // not one per render. Sorting positionFilter inside the dep makes ordering
-  // irrelevant — [2, 3] and [3, 2] should be the same fetch.
-  const filterKey = useMemo(() => [...positionFilter].sort().join(','), [positionFilter]);
-  const fetcher = useCallback(
-    async (signal: AbortSignal): Promise<CombinedData> => {
-      const [response, playersResp] = await Promise.all([
-        fetchTransferSuggestions(teamId, horizon, positionFilter, signal),
-        fetchPlayers(signal),
-      ]);
-      const playersById = new Map(playersResp.players.map((p) => [p.id, p]));
-      return { response, playersById };
-    },
-    // filterKey is the canonical dep; positionFilter array reference itself
-    // would re-run on every state setter call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [teamId, horizon, filterKey],
+  const suggestionsQuery = useQuery(
+    transferSuggestionsQuery(teamId, horizon, positionFilter),
   );
-  const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
+  const playersQueryResult = useQuery(playersQuery());
+  const response = suggestionsQuery.data;
+  const playersResp = playersQueryResult.data;
+  const data = useMemo<CombinedData | undefined>(() => {
+    if (response === undefined || playersResp === undefined) return undefined;
+    const playersById = new Map(playersResp.players.map((p) => [p.id, p]));
+    return { response, playersById };
+  }, [response, playersResp]);
+  const { state, refreshing, onRefresh, onRetry } = useQueryState(
+    [suggestionsQuery, playersQueryResult],
+    data,
+  );
 
   return (
     <View style={styles.container}>
@@ -155,7 +148,7 @@ function Body({
   onOpenMyTeam,
   filterActive,
 }: {
-  state: ReturnType<typeof useFetch<CombinedData>>['state'];
+  state: FetchState<CombinedData>;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
   onRetry: () => void;
