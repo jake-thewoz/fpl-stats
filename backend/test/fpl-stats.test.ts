@@ -6,6 +6,7 @@ import {
   API_THROTTLE_RATE_LIMIT,
   FplStatsStack,
 } from '../lib/fpl-stats-stack';
+import { DEFAULT_MEMORY_MB } from '../lib/fpl-python-function';
 
 // Instantiating FplStatsStack would trigger Docker-based PythonFunction
 // bundling for every Lambda — minutes of work, and impossible in any
@@ -123,5 +124,19 @@ describe('HttpApi', () => {
         ThrottlingBurstLimit: API_THROTTLE_BURST_LIMIT,
       },
     });
+  });
+});
+
+describe('Read API Lambdas', () => {
+  const READ_API_DESCRIPTION_PREFIX = 'Read API';
+
+  test('get at least the default memory, which sets their CPU share', () => {
+    const functions = template.findResources('AWS::Lambda::Function', {
+      Properties: { Description: Match.stringLikeRegexp(`^${READ_API_DESCRIPTION_PREFIX}`) },
+    });
+    expect(Object.keys(functions).length).toBeGreaterThan(0);
+    for (const resource of Object.values(functions)) {
+      expect(resource.Properties?.MemorySize).toBeGreaterThanOrEqual(DEFAULT_MEMORY_MB);
+    }
   });
 });

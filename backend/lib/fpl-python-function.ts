@@ -10,6 +10,11 @@ import { Construct } from 'constructs';
 
 const LAMBDAS_ROOT = path.join(__dirname, '..', 'lambdas');
 
+// Lambda CPU scales linearly with memory. At 128 MB the read handlers
+// took 2–5 s warm for ~0.3 s of real work (#176); 1024 MB is what lets
+// them parse the ~500 KB bootstrap item quickly.
+export const DEFAULT_MEMORY_MB = 1024;
+
 export interface FplPythonFunctionProps
   extends Omit<PythonFunctionProps, 'entry' | 'runtime'> {
   /** Directory name under `backend/lambdas/`. Resolves to the Lambda's entry path. */
@@ -18,7 +23,7 @@ export interface FplPythonFunctionProps
 
 /**
  * PythonFunction with the defaults this project standardizes on:
- * Python 3.12, 128MB memory, 10s timeout, 1-week log retention.
+ * Python 3.12, 1024MB memory, 10s timeout, 1-week log retention.
  * Any default can be overridden via props.
  */
 export class FplPythonFunction extends PythonFunction {
@@ -39,7 +44,7 @@ export class FplPythonFunction extends PythonFunction {
       index: 'handler.py',
       handler: 'lambda_handler',
       runtime: Runtime.PYTHON_3_12,
-      memorySize: 128,
+      memorySize: DEFAULT_MEMORY_MB,
       timeout: cdk.Duration.seconds(10),
       logGroup,
       bundling: {
