@@ -4,6 +4,8 @@ import {
   type Fixture,
   type GameweekCurrentResponse,
 } from '../api/gameweekCurrent';
+import { formatDeadline, formatKickoff } from '../format/datetime';
+import { fixtureStatus } from '../gameweek/status';
 import { useFetch } from '../hooks/useFetch';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
@@ -74,6 +76,7 @@ function FixtureRow({ fixture }: { fixture: Fixture }) {
   const styles = useThemedStyles(makeStyles);
 
   const { home, away, kickoff_time, finished, started } = fixture;
+  const isLive = fixtureStatus(fixture, Date.now()) === 'live';
   const scoreline =
     finished || started
       ? `${home.score ?? '-'} – ${away.score ?? '-'}`
@@ -81,35 +84,15 @@ function FixtureRow({ fixture }: { fixture: Fixture }) {
   return (
     <View style={styles.fixtureRow}>
       <Text style={styles.fixtureTeam}>{home.short_name ?? `#${home.id}`}</Text>
-      <Text style={styles.fixtureScore}>{scoreline}</Text>
+      <Text style={styles.fixtureScore}>
+        {isLive ? <Text style={styles.liveMarker}>● </Text> : null}
+        {scoreline}
+      </Text>
       <Text style={[styles.fixtureTeam, styles.fixtureTeamAway]}>
         {away.short_name ?? `#${away.id}`}
       </Text>
     </View>
   );
-}
-
-function formatDeadline(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatKickoff(iso: string | null): string {
-  if (!iso) return 'TBD';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    weekday: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 const makeStyles = (colors: Colors) =>
@@ -146,5 +129,6 @@ const makeStyles = (colors: Colors) =>
       color: colors.textPrimary,
       fontVariant: ['tabular-nums'],
     },
+    liveMarker: { color: colors.live },
     emptyBody: { padding: spacing.xl2, color: colors.textMuted, textAlign: 'center' },
   });

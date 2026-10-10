@@ -1,12 +1,16 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TransfersScreen from '../../screens/Transfers';
 import type { TransfersStackParamList } from '../types';
+import { gameweekBannerLayout } from './gameweekBannerLayout';
 
 const Stack = createNativeStackNavigator<TransfersStackParamList>();
 
 export function TransfersStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerTitleAlign: 'center' }}>
+    <Stack.Navigator
+      screenLayout={gameweekBannerLayout}
+      screenOptions={{ headerTitleAlign: 'center' }}
+    >
       <Stack.Screen
         name="Transfers"
         component={TransfersScreen}

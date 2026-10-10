@@ -8,6 +8,7 @@ import { PlayersStack } from './stacks/PlayersStack';
 import { TransfersStack } from './stacks/TransfersStack';
 import { FriendsStack } from './stacks/FriendsStack';
 import { SettingsStack } from './stacks/SettingsStack';
+import { GameweekStatusProvider } from '../gameweek/GameweekStatusProvider';
 import { useTheme } from '../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -53,77 +54,79 @@ export function MainTabs() {
   );
 
   return (
-    <Tab.Navigator initialRouteName="MyTeamTab" screenOptions={tabOptions}>
-      <Tab.Screen
-        name="MyTeamTab"
-        component={MyTeamStack}
-        options={{
-          title: 'My Team',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'shirt' : 'shirt-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="PlayersTab"
-        component={PlayersStack}
-        options={{
-          title: 'Players',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'list' : 'list-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="TransfersTab"
-        component={TransfersStack}
-        options={{
-          title: 'Transfers',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="FriendsTab"
-        component={FriendsStack}
-        options={{
-          title: 'Friends',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'people' : 'people-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="SettingsTab"
-        component={SettingsStack}
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'settings' : 'settings-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+    <GameweekStatusProvider>
+      <Tab.Navigator initialRouteName="MyTeamTab" screenOptions={tabOptions}>
+        <Tab.Screen
+          name="MyTeamTab"
+          component={MyTeamStack}
+          options={{
+            title: 'My Team',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? 'shirt' : 'shirt-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="PlayersTab"
+          component={PlayersStack}
+          options={{
+            title: 'Players',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? 'list' : 'list-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="TransfersTab"
+          component={TransfersStack}
+          options={{
+            title: 'Transfers',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="FriendsTab"
+          component={FriendsStack}
+          options={{
+            title: 'Friends',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? 'people' : 'people-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="SettingsTab"
+          component={SettingsStack}
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? 'settings' : 'settings-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+    </GameweekStatusProvider>
   );
 }

@@ -4,12 +4,16 @@ import ManageFriendsScreen from '../../screens/ManageFriendsScreen';
 import AddFriendScreen from '../../screens/AddFriendScreen';
 import ImportLeagueScreen from '../../screens/ImportLeagueScreen';
 import type { FriendsStackParamList } from '../types';
+import { gameweekBannerLayout } from './gameweekBannerLayout';
 
 const Stack = createNativeStackNavigator<FriendsStackParamList>();
 
 export function FriendsStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerTitleAlign: 'center' }}>
+    <Stack.Navigator
+      screenLayout={gameweekBannerLayout}
+      screenOptions={{ headerTitleAlign: 'center' }}
+    >
       <Stack.Screen
         name="Friends"
         component={FriendsScreen}
