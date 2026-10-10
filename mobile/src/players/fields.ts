@@ -220,13 +220,14 @@ export const FIELDS_IN_PICKER_ORDER: FieldDef[] = [
   FIELD_DEFS.cost_change_event,
 ];
 
-/** Labels the xP column with the gameweek it projects, so it's explicit
- *  that projections cover the next deadline while a gameweek is live. */
-export function xpHeaderLabels(
+/** Names the gameweek the xP column projects, under its header, so it's
+ *  explicit that projections cover the next deadline while a gameweek is
+ *  live. */
+export function xpHeaderSublabels(
   gameweek: number | null,
 ): Partial<Record<FieldKey, string>> | undefined {
   if (gameweek == null) return undefined;
-  return { xp: `${FIELD_DEFS.xp.shortLabel} GW${gameweek}` };
+  return { xp: `GW${gameweek}` };
 }
 
 /** Defaults a brand-new install gets. Picked to emphasise xP — the

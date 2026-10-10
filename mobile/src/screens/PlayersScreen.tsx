@@ -15,7 +15,7 @@ import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { ControlButton } from '../components/ControlButton';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
-import { FIELD_DEFS, xpHeaderLabels } from '../players/fields';
+import { FIELD_DEFS, xpHeaderSublabels } from '../players/fields';
 import { applyAll, activeFilterCount } from '../players/apply';
 import { POSITION_CODES } from '../players/positions';
 import type { FieldKey, JoinedPlayer } from '../players/types';
@@ -160,7 +160,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         columns={columns}
         sort={sort}
         onTapHeader={onTapColumnHeader}
-        headerLabels={xpHeaderLabels(state.data.xpGameweek)}
+        headerSublabels={xpHeaderSublabels(state.data.xpGameweek)}
         getId={(p) => p.id}
         renderNameCell={(p) => (
           <>
