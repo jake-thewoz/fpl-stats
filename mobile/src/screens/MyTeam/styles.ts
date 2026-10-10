@@ -80,24 +80,6 @@ export const makeStyles = (colors: Colors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    controlBtn: {
-      paddingHorizontal: spacing.lg2,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    controlBtnActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    controlBtnText: {
-      fontSize: fontSize.sm2,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    controlBtnTextActive: { color: colors.onAccent },
     pressed: effects.pressedSubtle,
 
     // Used by MyTeamNameCell — the pinned-name column rendered by

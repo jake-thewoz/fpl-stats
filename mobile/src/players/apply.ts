@@ -2,8 +2,14 @@
  * Pure filter + sort logic. No UI, no async — easy to reason about and
  * trivial to unit-test if the project ever adds mobile tests.
  */
-import { FIELD_DEFS } from './fields';
-import type { FilterState, JoinedPlayer, SortState } from './types';
+import { FIELD_DEFS, FIELDS_IN_PICKER_ORDER } from './fields';
+import type {
+  FieldKey,
+  FilterState,
+  JoinedPlayer,
+  RangeFilter,
+  SortState,
+} from './types';
 
 /** Apply a free-text search across name + team. Empty query returns all. */
 export function applySearch(
@@ -75,13 +81,70 @@ export function applyAll(
   return applySort(applyFilters(applySearch(players, query), filters), sort);
 }
 
-/** True when any filter is active. Drives the "Filter (n)" badge count. */
-export function activeFilterCount(f: FilterState): number {
-  let n = 0;
-  if (f.positions.length > 0) n += 1;
-  if (f.teams.length > 0) n += 1;
-  for (const range of Object.values(f.ranges)) {
-    if (range && (range.min != null || range.max != null)) n += 1;
+/** One removable chip per active filter constraint (#103). */
+export type ActiveFilterChip = {
+  /** Stable React key. */
+  id: string;
+  label: string;
+  /** Returns the filter state with only this constraint dropped. */
+  remove: (filters: FilterState) => FilterState;
+};
+
+const CATEGORY_VALUE_SEPARATOR = ', ';
+const RANGE_MIN_SYMBOL = '≥';
+const RANGE_MAX_SYMBOL = '≤';
+const RANGE_SPAN_SEPARATOR = '–';
+
+// The dialog leaves `{ min: null, max: null }` behind when a user empties
+// both inputs, so key presence alone doesn't mean the range is active.
+function isActiveRange(range: RangeFilter | undefined): range is RangeFilter {
+  return range != null && (range.min != null || range.max != null);
+}
+
+function rangeChipLabel(key: FieldKey, range: RangeFilter): string {
+  const { shortLabel, format } = FIELD_DEFS[key];
+  if (range.min != null && range.max != null) {
+    return `${shortLabel} ${format(range.min)}${RANGE_SPAN_SEPARATOR}${format(range.max)}`;
   }
-  return n;
+  if (range.min != null) return `${shortLabel} ${RANGE_MIN_SYMBOL} ${format(range.min)}`;
+  return `${shortLabel} ${RANGE_MAX_SYMBOL} ${format(range.max)}`;
+}
+
+/** Chips in the same order the filter dialog lists its sections:
+ *  position, numeric ranges, team. */
+export function activeFilterChips(f: FilterState): ActiveFilterChip[] {
+  const chips: ActiveFilterChip[] = [];
+  if (f.positions.length > 0) {
+    chips.push({
+      id: 'positions',
+      label: `Position: ${f.positions.join(CATEGORY_VALUE_SEPARATOR)}`,
+      remove: (current) => ({ ...current, positions: [] }),
+    });
+  }
+  for (const { key } of FIELDS_IN_PICKER_ORDER) {
+    const range = f.ranges[key];
+    if (!isActiveRange(range)) continue;
+    chips.push({
+      id: `range:${key}`,
+      label: rangeChipLabel(key, range),
+      remove: (current) => {
+        const { [key]: _removed, ...remainingRanges } = current.ranges;
+        return { ...current, ranges: remainingRanges };
+      },
+    });
+  }
+  if (f.teams.length > 0) {
+    chips.push({
+      id: 'teams',
+      label: `Team: ${f.teams.join(CATEGORY_VALUE_SEPARATOR)}`,
+      remove: (current) => ({ ...current, teams: [] }),
+    });
+  }
+  return chips;
+}
+
+/** Drives the "Filter (n)" badge count. Derived from the chips so the
+ *  badge and the chip strip can never disagree. */
+export function activeFilterCount(f: FilterState): number {
+  return activeFilterChips(f).length;
 }
