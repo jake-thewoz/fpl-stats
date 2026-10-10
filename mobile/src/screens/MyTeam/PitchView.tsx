@@ -1,5 +1,6 @@
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ClubBackground } from '../../components/ClubBackground';
+import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';
 import { useTheme, useThemedStyles } from '../../theme';
 import {
   formationLabel,
@@ -95,6 +96,7 @@ function PlayerTile({ slot, statText }: { slot: LineupSlot; statText: string }) 
         ) : null}
       </View>
       <Text style={styles.tileName} numberOfLines={1}>
+        <MatchStatusGlyph teamShort={slot.row.team} />
         {slot.row.name}
       </Text>
       <Text style={styles.tileStat} numberOfLines={1}>

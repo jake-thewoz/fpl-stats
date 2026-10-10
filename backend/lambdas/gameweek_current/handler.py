@@ -1,12 +1,19 @@
 """GET /gameweek/current.
 
 Reads the cached FPL bootstrap + fixtures from DynamoDB, picks the current
-gameweek (``is_current=True``), and returns it alongside the fixtures whose
-``event`` matches that gameweek's id.
+gameweek (the latest whose deadline has passed: live, or most recently
+played), and returns it alongside the fixtures whose ``event`` matches
+that gameweek's id. ``next_gameweek`` is the first GW whose deadline is
+still ahead, so the client can show the next deadline.
 
-Pre-season (no gameweek with ``is_current=True``) returns HTTP 200 with
+Both come from deadlines rather than FPL's ``is_current`` / ``is_next``
+flags, which reach our cache up to one ingest tick (30 min) after FPL
+flips them at the deadline.
+
+Pre-season (no deadline passed yet) returns HTTP 200 with
 ``gameweek: null`` and empty fixtures — a legitimate app state for the
-mobile client to render.
+mobile client to render. After the final deadline ``next_gameweek`` is
+null.
 
 Cache never populated, or schema version drift, returns HTTP 503 — those
 indicate server-side problems the client can't do anything about.
@@ -20,7 +27,8 @@ from typing import Any
 
 import boto3
 
-from schemas import SCHEMA_VERSION, Bootstrap, Fixture, Gameweek
+from schemas import SCHEMA_VERSION, Bootstrap, Fixture, utc_now
+from xp_compute import current_and_next_gameweek
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -63,12 +71,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     bootstrap = Bootstrap.model_validate(bootstrap_item["data"])
     fixtures = [Fixture.model_validate(f) for f in fixtures_item["data"]]
 
-    current = next((g for g in bootstrap.gameweeks if g.is_current), None)
+    current, upcoming = current_and_next_gameweek(bootstrap.gameweeks, utc_now())
+    next_gameweek = upcoming.model_dump() if upcoming else None
 
     if current is None:
         return _response(200, {
             "schema_version": SCHEMA_VERSION,
             "gameweek": None,
+            "next_gameweek": next_gameweek,
             "fixtures": [],
         })
 
@@ -82,6 +92,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     return _response(200, {
         "schema_version": SCHEMA_VERSION,
         "gameweek": current.model_dump(),
+        "next_gameweek": next_gameweek,
         "fixtures": current_fixtures,
     })
 

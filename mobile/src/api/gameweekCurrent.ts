@@ -27,7 +27,11 @@ export type Fixture = {
 
 export type GameweekCurrentResponse = {
   schema_version: number;
+  /** Latest GW whose deadline has passed: live, or most recently played.
+   *  Null pre-season. */
   gameweek: Gameweek | null;
+  /** First GW whose deadline is still ahead. Null after the final one. */
+  next_gameweek: Gameweek | null;
   fixtures: Fixture[];
 };
 

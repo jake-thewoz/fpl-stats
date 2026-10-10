@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,12 +14,30 @@ from handler import BOOTSTRAP_KEY, FIXTURES_KEY, lambda_handler  # noqa: E402
 from schemas import SCHEMA_VERSION  # noqa: E402
 
 
+# GW n's deadline is n weeks after SEASON_START. The default clock sits an
+# hour after GW2's deadline: GW2 is live and GW3 is next.
+SEASON_START = datetime(2025, 8, 1, 17, 30, tzinfo=timezone.utc)
+
+
+def _deadline(gw_id: int) -> datetime:
+    return SEASON_START + timedelta(weeks=gw_id)
+
+
+DURING_GW2 = _deadline(2) + timedelta(hours=1)
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock():
+    with patch("handler.utc_now", return_value=DURING_GW2) as clock:
+        yield clock
+
+
 def _gameweek(gw_id: int, *, is_current: bool = False, is_next: bool = False,
               finished: bool = False) -> dict:
     return {
         "id": gw_id,
         "name": f"Gameweek {gw_id}",
-        "deadline_time": "2025-08-15T17:30:00Z",
+        "deadline_time": _deadline(gw_id).isoformat().replace("+00:00", "Z"),
         "is_current": is_current,
         "is_next": is_next,
         "finished": finished,
@@ -117,8 +136,42 @@ def test_happy_path_returns_current_gameweek_and_its_fixtures(mock_table):
     assert body["schema_version"] == SCHEMA_VERSION
     assert body["gameweek"]["id"] == 2
     assert body["gameweek"]["is_current"] is True
+    assert body["next_gameweek"]["id"] == 3
     fixture_ids = [f["id"] for f in body["fixtures"]]
     assert fixture_ids == [200, 201]
+
+
+def test_current_follows_deadline_before_ingest_flips_flags(mock_table):
+    """GW2's deadline has passed but the cached flags still say GW1 is
+    current (the next ingest tick hasn't run). The deadline wins."""
+    _wire_get_item(
+        mock_table,
+        bootstrap=_bootstrap_item([
+            _gameweek(1, is_current=True),
+            _gameweek(2, is_next=True),
+            _gameweek(3),
+        ]),
+        fixtures=_fixtures_item([_fixture(200, event=2)]),
+    )
+
+    body = json.loads(lambda_handler({}, None)["body"])
+
+    assert body["gameweek"]["id"] == 2
+    assert body["next_gameweek"]["id"] == 3
+    assert [f["id"] for f in body["fixtures"]] == [200]
+
+
+def test_after_final_deadline_has_no_next_gameweek(mock_table):
+    _wire_get_item(
+        mock_table,
+        bootstrap=_bootstrap_item([_gameweek(1, finished=True), _gameweek(2)]),
+        fixtures=_fixtures_item([_fixture(200, event=2)]),
+    )
+
+    body = json.loads(lambda_handler({}, None)["body"])
+
+    assert body["gameweek"]["id"] == 2
+    assert body["next_gameweek"] is None
 
 
 def test_happy_path_resolves_team_info_per_fixture(mock_table):
@@ -155,7 +208,8 @@ def test_played_fixture_exposes_scores(mock_table):
     assert fixture["finished"] is True
 
 
-def test_pre_season_returns_null_gameweek_and_empty_fixtures(mock_table):
+def test_pre_season_returns_null_gameweek_and_empty_fixtures(mock_table, pinned_clock):
+    pinned_clock.return_value = _deadline(1) - timedelta(days=1)
     _wire_get_item(
         mock_table,
         bootstrap=_bootstrap_item([
@@ -171,6 +225,7 @@ def test_pre_season_returns_null_gameweek_and_empty_fixtures(mock_table):
     body = json.loads(result["body"])
     assert body["schema_version"] == SCHEMA_VERSION
     assert body["gameweek"] is None
+    assert body["next_gameweek"]["id"] == 1
     assert body["fixtures"] == []
 
 
