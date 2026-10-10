@@ -87,6 +87,9 @@ export type Colors = {
   /** Readable text/icon colors on top of warning/danger backgrounds. */
   onWarning: string;
   onDanger: string;
+  /** "Happening now" signal: the live-gameweek dot on the banner and on
+   *  players whose club is mid-match. */
+  live: string;
   /** Modal-backdrop scrim. Currently the same value in both palettes —
    *  a dim-the-world overlay reads more confidently than a theme-tinted
    *  one. Tunable per-palette if a future design wants it. */
@@ -115,6 +118,9 @@ export const lightColors: Colors = {
   // Black on warning's amber ≈ 7:1; white on danger's brick ≈ 4.6:1.
   onWarning: lightPalette.black,
   onDanger: '#ffffff',
+  // Saturated green, distinct from the sage/mint brand tones, so "live"
+  // doesn't read as a highlight or selection.
+  live: '#1f9d55',
   scrim: 'rgba(7, 7, 7, 0.45)',
   pitch: '#3f8a57',
   pitchStripe: '#46935e',
@@ -144,6 +150,8 @@ export const darkColors: Colors = {
   // (warning ~10:1 / danger ~6:1); white falls below 3:1 on warning.
   onWarning: darkPalette.black,
   onDanger: darkPalette.black,
+  // Lifted green for contrast against the near-black surface.
+  live: '#4ade80',
   // Same scrim as light — a dim-the-world overlay shouldn't shift hue
   // between modes. Tunable separately if a future design wants it.
   scrim: 'rgba(7, 7, 7, 0.45)',

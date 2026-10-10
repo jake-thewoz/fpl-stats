@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from xp_compute import (
+    current_and_next_gameweek,
     fixtures_in_gw_for_team,
     minutes_probability,
     minutes_probability_with_selection,
@@ -248,6 +249,28 @@ class TestUpcomingGameweekIds:
         just_before = _deadline(32) - timedelta(seconds=1)
         assert upcoming_gameweek_ids(gws, 1, just_before) == [32]
         assert upcoming_gameweek_ids(gws, 1, _deadline(32)) == [33]
+
+
+class TestCurrentAndNextGameweek:
+    def test_live_gameweek_is_current(self):
+        gws = [_gw(1, finished=True), _gw(2), _gw(3)]
+        current, upcoming = current_and_next_gameweek(
+            gws, _deadline(2) + timedelta(hours=1),
+        )
+        assert (current.id, upcoming.id) == (2, 3)
+
+    def test_pre_season_has_no_current(self):
+        current, upcoming = current_and_next_gameweek([_gw(1), _gw(2)], NOW)
+        assert current is None
+        assert upcoming.id == 1
+
+    def test_after_final_deadline_has_no_next(self):
+        gws = [_gw(37, finished=True), _gw(38)]
+        current, upcoming = current_and_next_gameweek(
+            gws, _deadline(38) + timedelta(hours=1),
+        )
+        assert current.id == 38
+        assert upcoming is None
 
 
 class TestOpenGameweekIds:

@@ -8,6 +8,7 @@ writer needs:
 
 - ``open_gameweek_ids`` / ``upcoming_gameweek_ids``: the GWs a manager
   can still plan for (deadline not yet passed), optionally capped to N
+- ``current_and_next_gameweek``: the live-or-latest GW and the next one
 - ``fixtures_in_gw_for_team``: filter a fixtures list to one team's GW
 - ``minutes_probability``: P(plays this GW) from FPL's ``status`` /
   ``chance_of_playing_next_round`` fields
@@ -40,6 +41,28 @@ def open_gameweek_ids(
         gw.id for gw in gameweeks
         if not gw.finished and parse_fpl_datetime(gw.deadline_time) > now
     )
+
+
+def current_and_next_gameweek(
+    gameweeks: Iterable[Gameweek],
+    now: datetime,
+) -> tuple[Gameweek | None, Gameweek | None]:
+    """The latest gameweek whose deadline has passed (live or most
+    recently played) and the first one whose deadline is still ahead.
+
+    Deadline-derived rather than FPL's ``is_current`` / ``is_next`` flags,
+    which flip at the deadline upstream but reach our cache only on the
+    next ingest tick, up to 30 minutes later.
+    """
+    by_id = sorted(gameweeks, key=lambda gw: gw.id)
+    current = None
+    upcoming = None
+    for gw in by_id:
+        if parse_fpl_datetime(gw.deadline_time) <= now:
+            current = gw
+        elif upcoming is None:
+            upcoming = gw
+    return current, upcoming
 
 
 def upcoming_gameweek_ids(

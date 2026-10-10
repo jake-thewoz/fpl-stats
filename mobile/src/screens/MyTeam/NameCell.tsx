@@ -1,5 +1,6 @@
 import { Text, View } from 'react-native';
 import { ClubBackground } from '../../components/ClubBackground';
+import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';
 import { useThemedStyles } from '../../theme';
 import { makeStyles } from './styles';
 import type { MyTeamRow } from './types';
@@ -21,6 +22,7 @@ export function MyTeamNameCell({ row }: { row: MyTeamRow }) {
       <View style={styles.nameLine}>
         <View style={styles.textBackdrop}>
           <Text style={styles.nameText} numberOfLines={1}>
+            <MatchStatusGlyph teamShort={row.team} />
             {row.name}
           </Text>
         </View>

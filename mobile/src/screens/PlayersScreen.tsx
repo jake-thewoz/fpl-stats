@@ -5,6 +5,7 @@ import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
 import { fetchMyTeam } from '../api/myTeam';
 import { getFplTeamId } from '../storage/user';
+import { MatchStatusGlyph } from '../gameweek/MatchStatusGlyph';
 import { useFetch } from '../hooks/useFetch';
 import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { ClubBackground } from '../components/ClubBackground';
@@ -167,6 +168,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
             <ClubBackground teamShort={p.team} />
             <View style={styles.textBackdrop}>
               <Text style={styles.nameText} numberOfLines={1}>
+                <MatchStatusGlyph teamShort={p.team} />
                 {p.name}
               </Text>
             </View>
