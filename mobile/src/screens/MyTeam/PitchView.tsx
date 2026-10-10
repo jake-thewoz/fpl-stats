@@ -5,6 +5,7 @@ import {
   formationLabel,
   startersByPosition,
   type Lineup,
+  type LineupChange,
   type LineupSlot,
 } from './lineup';
 import { makeStyles } from './styles';
@@ -15,6 +16,11 @@ type Props = {
   getStatText: (slot: LineupSlot) => string;
   refreshing: boolean;
   onRefresh: () => void;
+};
+
+const CHANGE_MARKERS: Record<LineupChange, { glyph: string; label: string }> = {
+  in: { glyph: '↑', label: 'moved into the starting XI' },
+  out: { glyph: '↓', label: 'dropped to the bench' },
 };
 
 /** Starting XI laid out by position on a pitch, bench strip below. */
@@ -62,11 +68,23 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
 function PlayerTile({ slot, statText }: { slot: LineupSlot; statText: string }) {
   const styles = useThemedStyles(makeStyles);
   const armband = slot.isCaptain ? 'C' : slot.isViceCaptain ? 'V' : null;
+  const marker = slot.change ? CHANGE_MARKERS[slot.change] : null;
 
   return (
     <View style={styles.tile}>
       <View style={styles.shirt}>
         <ClubBackground teamShort={slot.row.team} fade={false} />
+        {marker ? (
+          <Text
+            style={[
+              styles.changeMarker,
+              slot.change === 'in' ? styles.changeMarkerIn : styles.changeMarkerOut,
+            ]}
+            accessibilityLabel={marker.label}
+          >
+            {marker.glyph}
+          </Text>
+        ) : null}
         {armband ? (
           <Text
             style={[styles.playerBadge, styles.shirtBadge]}

@@ -25,9 +25,11 @@ import {
 import { useThemedStyles } from '../../theme';
 import { ChipBanner, Header, PicksUnavailableNote } from './Header';
 import { lineupFromPicks, type LineupSlot } from './lineup';
+import { LineupControls, type LineupSource } from './LineupControls';
 import { MyTeamNameCell } from './NameCell';
 import { PitchView } from './PitchView';
 import { makeStyles } from './styles';
+import { DEFAULT_LINEUP_METRIC, suggestLineup, type LineupMetric } from './suggestLineup';
 import type { MyTeamRow } from './types';
 
 type Props = MyTeamScreenProps;
@@ -76,7 +78,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
             s.player != null,
         )
         .map((s) => toMyTeamRow(s, xpById.get(s.player.id)));
-      return { myTeam, rows };
+      return { myTeam, rows, xpGameweek: xpResp.gameweek };
     },
     [teamId],
   );
@@ -116,7 +118,21 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     return [...set].sort();
   }, [rows]);
 
-  const lineup = useMemo(() => lineupFromPicks(rows), [rows]);
+  const [lineupSource, setLineupSource] = useState<LineupSource>('yours');
+  const [lineupMetric, setLineupMetric] = useState<LineupMetric>(DEFAULT_LINEUP_METRIC);
+  const pickedLineup = useMemo(() => lineupFromPicks(rows), [rows]);
+  const suggestion = useMemo(
+    () => suggestLineup(rows, lineupMetric),
+    [rows, lineupMetric],
+  );
+  const showSuggestion = lineupSource === 'suggested' && suggestion != null;
+  const metricText = useCallback(
+    (slot: LineupSlot) => {
+      const { accessor, format, shortLabel } = FIELD_DEFS[lineupMetric];
+      return `${format(accessor(slot.row))} ${shortLabel}`;
+    },
+    [lineupMetric],
+  );
 
   const filteredSorted = useMemo(
     // Empty search: rely only on filters + sort.
@@ -146,7 +162,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     );
   }
 
-  const { myTeam } = state.data;
+  const { myTeam, xpGameweek } = state.data;
 
   return (
     <View style={styles.container}>
@@ -171,12 +187,23 @@ function MyTeamContent({ teamId }: { teamId: string }) {
             <Text style={styles.emptyBody}>{EMPTY_SQUAD_MESSAGE}</Text>
           </View>
         ) : (
-          <PitchView
-            lineup={lineup}
-            getStatText={gameweekPointsText}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
+          <>
+            <LineupControls
+              source={lineupSource}
+              onChangeSource={setLineupSource}
+              metric={lineupMetric}
+              onChangeMetric={setLineupMetric}
+              suggestion={suggestion}
+              squadGameweek={myTeam.gameweek}
+              targetGameweek={xpGameweek}
+            />
+            <PitchView
+              lineup={showSuggestion ? suggestion.lineup : pickedLineup}
+              getStatText={showSuggestion ? metricText : gameweekPointsText}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          </>
         )
       ) : (
         <PlayerListTable

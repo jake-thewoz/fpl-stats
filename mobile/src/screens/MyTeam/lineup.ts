@@ -8,7 +8,12 @@ export type LineupSlot = {
   row: MyTeamRow;
   isCaptain: boolean;
   isViceCaptain: boolean;
+  /** Set on a suggested lineup: 'in' = benched player promoted to the XI,
+   *  'out' = starter moved to the bench. */
+  change?: LineupChange;
 };
+
+export type LineupChange = 'in' | 'out';
 
 export type Lineup = {
   /** Starting XI, in no particular order — the pitch groups by position. */

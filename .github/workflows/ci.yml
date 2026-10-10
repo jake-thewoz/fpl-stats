@@ -83,7 +83,7 @@ jobs:
       - run: python -m pytest --quiet
 
   mobile:
-    name: Mobile (types + lint + format)
+    name: Mobile (types + lint + format + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -99,3 +99,4 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm run format:check
+      - run: npm test
