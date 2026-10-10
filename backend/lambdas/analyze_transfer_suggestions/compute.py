@@ -184,7 +184,10 @@ def derive_free_transfers(
       don't affect transfer activity, so this walk treats them like any
       other GW (consume FTs, +1 rollover).
 
-    Starting balance: 1 FT (FPL convention for season start).
+    Starting balance: 0 FTs. The first GW in history is squad creation
+    (unlimited changes, none counted), and its deadline grants the 1 FT
+    for the following GW. Starting at 1 over-counted by one until a hit
+    floored the balance at 0, which is how it hid in 25/26.
 
     Caveat (not handled here): transfers made *during* the current GW
     lead-up but not yet visible in history. ``last_deadline_total_transfers``
@@ -193,7 +196,7 @@ def derive_free_transfers(
     proves necessary in practice.
     """
     chip_by_event = {c.event: c.name for c in chips}
-    ft = 1
+    ft = 0
     for entry in sorted(history_current, key=lambda h: h.event):
         chip = chip_by_event.get(entry.event)
         if chip in ("wildcard", "freehit"):

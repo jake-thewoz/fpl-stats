@@ -178,8 +178,13 @@ PICKS_CACHE = {
 # start default (1). Tests that need specific FT scenarios can override
 # via the ``free_transfers`` query param on _event(), avoiding having
 # to construct a 30+ GW history walk per test.
+# One completed GW with no transfers → derived FT = 1, the common case and
+# the one the hit-cost assertions below are written against.
 HISTORY_CACHE = {
-    "current": [],
+    "current": [
+        {"event": 1, "points": 50, "total_points": 50,
+         "event_transfers": 0, "event_transfers_cost": 0},
+    ],
     "chips": [],
 }
 
@@ -768,8 +773,7 @@ def test_response_carries_free_transfers_and_max_transfers(mock_table):
     """The response surfaces FT-related fields the mobile UI uses to
     explain bundle scoring (e.g. labelling hit cost on a card)."""
     body = _body(lambda_handler(_event(), None))
-    # Default HISTORY_CACHE has no completed GWs, so derived FT = 1
-    # (season-start convention).
+    # Default HISTORY_CACHE has one completed GW, so derived FT = 1.
     assert body["free_transfers"] == 1
     # Default max_transfers is 2 (DEFAULT_MAX_TRANSFERS).
     assert body["max_transfers_considered"] == 2

@@ -290,8 +290,14 @@ class TestIsValidBundle:
 
 
 class TestDeriveFreeTransfers:
-    def test_season_start_no_history_yields_one_ft(self):
-        assert derive_free_transfers([], []) == 1
+    def test_no_history_yields_zero_ft(self):
+        # Pre-season: no GW deadline has passed, so nothing has been granted.
+        # The handler short-circuits pre-season before this matters.
+        assert derive_free_transfers([], []) == 0
+
+    def test_first_gw_grants_one_ft(self):
+        # GW1 is squad creation; its deadline grants exactly 1 FT for GW2.
+        assert derive_free_transfers([_hist(event=1)], []) == 1
 
     def test_no_transfers_banks_up_to_cap(self):
         # 7 GWs with zero transfers should bank to the cap (5), not 8.
@@ -299,27 +305,27 @@ class TestDeriveFreeTransfers:
         assert derive_free_transfers(history, []) == MAX_BANKED_FREE_TRANSFERS
 
     def test_single_transfer_consumed_no_bank(self):
-        # Start with 1 FT, GW1 uses it (transfers=1), rollover gives 1 more.
+        # Balance floors at 0 after the transfer, rollover gives 1.
         history = [_hist(event=1, transfers=1)]
         assert derive_free_transfers(history, []) == 1
 
     def test_hit_doesnt_make_ft_negative(self):
-        # GW1: ft=1, user takes 3 transfers (2 hits). Post-GW1 ft floor at 0,
+        # User takes 3 transfers with no FTs banked. Balance floors at 0,
         # rollover to 1.
         history = [_hist(event=1, transfers=3)]
         assert derive_free_transfers(history, []) == 1
 
     def test_wildcard_preserves_ft_and_skips_rollover(self):
-        # GW1 and 2: bank to 3. GW3 uses Wildcard with 8 transfers — those
+        # GW1 and 2: bank to 2. GW3 uses Wildcard with 8 transfers — those
         # don't count against FT, AND the chip replaces the GW's +1 rollover.
-        # Post-WC GW3: ft stays at 3 (no consumption, no rollover).
+        # Post-WC GW3: ft stays at 2 (no consumption, no rollover).
         history = [
             _hist(event=1, transfers=0),
             _hist(event=2, transfers=0),
             _hist(event=3, transfers=8),
         ]
         chips = [EntryChip(name="wildcard", event=3)]
-        assert derive_free_transfers(history, chips) == 3
+        assert derive_free_transfers(history, chips) == 2
 
     def test_freehit_preserves_ft_and_skips_rollover(self):
         history = [
@@ -328,7 +334,7 @@ class TestDeriveFreeTransfers:
             _hist(event=3, transfers=11),  # FH: full team swap, doesn't consume FTs
         ]
         chips = [EntryChip(name="freehit", event=3)]
-        assert derive_free_transfers(history, chips) == 3
+        assert derive_free_transfers(history, chips) == 2
 
     def test_triple_captain_doesnt_affect_ft(self):
         # 3xc (Triple Captain) is a scoring chip, not a transfer chip — it
@@ -338,13 +344,13 @@ class TestDeriveFreeTransfers:
             _hist(event=2, transfers=1),  # TC GW with one normal transfer
         ]
         chips = [EntryChip(name="3xc", event=2)]
-        # GW1: ft 1→2; GW2 (3xc has no FT exemption): ft 2-1=1, +1 rollover = 2
-        assert derive_free_transfers(history, chips) == 2
+        # GW1: ft 0→1; GW2 (3xc has no FT exemption): ft 1-1=0, +1 rollover = 1
+        assert derive_free_transfers(history, chips) == 1
 
     def test_unordered_history_walked_in_event_order(self):
         # FPL endpoint is event-ordered, but we tolerate scrambled input.
         history = [_hist(event=2, transfers=2), _hist(event=1, transfers=0)]
-        # GW1: 1→2; GW2: 2-2=0, +1 rollover = 1
+        # GW1: 0→1; GW2: 1-2 floors at 0, +1 rollover = 1
         assert derive_free_transfers(history, []) == 1
 
     def test_jakob_team_192273_through_gw34(self):
@@ -373,6 +379,20 @@ class TestDeriveFreeTransfers:
             EntryChip(name="freehit", event=34),
         ]
         assert derive_free_transfers(history, chips) == 3
+
+    def test_jakob_team_192273_26_27_through_gw6(self):
+        """Regression: Jakob's 26/27 history through GW6. FPL UI showed 1 FT
+        going into GW7; starting the walk at 1 instead of 0 gave 2. Unlike
+        the 25/26 case above, no hit ever floored the balance to absorb the
+        extra one."""
+        per_gw = [(1, 0), (2, 1), (3, 1), (4, 1), (5, 1), (6, 0)]
+        history = [_hist(event=gw, transfers=t) for gw, t in per_gw]
+        chips = [
+            EntryChip(name="bboost", event=3),
+            EntryChip(name="3xc", event=4),
+            EntryChip(name="wildcard", event=6),
+        ]
+        assert derive_free_transfers(history, chips) == 1
 
 
 # ---------------------------------------------------------------------------
