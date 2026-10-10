@@ -1,12 +1,16 @@
-import { fetchEntry, type Entry } from './entry';
+import type { Entry, EntryResponse } from './entry';
 import {
-  fetchEntryGameweek,
   PicksNotFoundError,
   type EntryGameweek,
+  type EntryGameweekResponse,
   type Pick,
 } from './entryGameweek';
-import { fetchGameweekLive } from './gameweekLive';
-import { fetchPlayers, type Player } from './players';
+import type { GameweekLiveResponse } from './gameweekLive';
+import type { Player, PlayersResponse } from './players';
+
+export const FREE_HIT_CHIP = 'freehit';
+const FIRST_GAMEWEEK = 1;
+const STARTING_XI_SIZE = 11;
 
 export type SquadEntry = {
   pick: Pick;
@@ -37,22 +41,50 @@ export type MyTeamData = {
   showingPersistentSquad: boolean;
 };
 
-export async function fetchMyTeam(
-  teamId: string,
-  signal?: AbortSignal,
-): Promise<MyTeamData> {
-  const [entryResp, playersResp] = await Promise.all([
-    fetchEntry(teamId, signal),
-    fetchPlayers(signal),
-  ]);
+/** What the assembler needs from each query: its data, if any, and its
+ *  error, if the last fetch failed. TanStack's query results fit this. */
+export type QuerySnapshot<T> = {
+  data: T | undefined;
+  error: Error | null;
+};
 
-  const playersById = new Map<number, Player>();
-  for (const p of playersResp.players) playersById.set(p.id, p);
+export type MyTeamSources = {
+  entry: QuerySnapshot<EntryResponse>;
+  players: QuerySnapshot<PlayersResponse>;
+  picks: QuerySnapshot<EntryGameweekResponse>;
+  live: QuerySnapshot<GameweekLiveResponse>;
+  /** Previous gameweek's picks, only consulted when Free Hit is active. */
+  previousPicks: QuerySnapshot<EntryGameweekResponse>;
+};
 
-  const gw = entryResp.entry.current_event;
+function isSettled<T>(snapshot: QuerySnapshot<T>): boolean {
+  return snapshot.data !== undefined || snapshot.error != null;
+}
+
+/** Whether the previous gameweek's picks are needed to show the user's
+ *  persistent squad: true when Free Hit is active this gameweek. */
+export function needsPreviousPicks(
+  picks: EntryGameweekResponse | undefined,
+  gameweek: number,
+): boolean {
+  return picks?.entry.active_chip === FREE_HIT_CHIP && gameweek > FIRST_GAMEWEEK;
+}
+
+/**
+ * Builds the My Team view from its cached endpoint responses. Returns
+ * `undefined` while a required response is still loading, or when one
+ * failed in a way the screen can't recover from (the caller surfaces
+ * that query's error).
+ */
+export function assembleMyTeam(sources: MyTeamSources): MyTeamData | undefined {
+  const entry = sources.entry.data?.entry;
+  const players = sources.players.data?.players;
+  if (entry === undefined || players === undefined) return undefined;
+
+  const gw = entry.current_event;
   if (gw == null) {
     return {
-      entry: entryResp.entry,
+      entry,
       gameweek: null,
       picks: null,
       squad: [],
@@ -61,17 +93,12 @@ export async function fetchMyTeam(
     };
   }
 
-  // Picks + live scores in parallel — both keyed on the same gameweek.
-  const [picksResult, liveResult] = await Promise.allSettled([
-    fetchEntryGameweek(teamId, gw, signal),
-    fetchGameweekLive(gw, signal),
-  ]);
-
-  if (picksResult.status === 'rejected') {
-    const err = picksResult.reason;
+  const picksResponse = sources.picks.data;
+  if (picksResponse === undefined) {
+    const err = sources.picks.error;
     if (err instanceof PicksNotFoundError) {
       return {
-        entry: entryResp.entry,
+        entry,
         gameweek: gw,
         picks: null,
         squad: [],
@@ -79,30 +106,25 @@ export async function fetchMyTeam(
         showingPersistentSquad: false,
       };
     }
-    throw err;
+    return undefined;
   }
 
   // If live data failed (e.g. pre-kickoff 404), we still render the squad
   // — GW points just come through as null and the UI shows "—".
+  if (!isSettled(sources.live)) return undefined;
   const livePointsById = new Map<number, { points: number; minutes: number }>();
-  if (liveResult.status === 'fulfilled') {
-    for (const el of liveResult.value.elements) {
-      livePointsById.set(el.id, {
-        points: el.total_points,
-        minutes: el.minutes,
-      });
-    }
+  for (const el of sources.live.data?.elements ?? []) {
+    livePointsById.set(el.id, { points: el.total_points, minutes: el.minutes });
   }
 
-  const picks = picksResult.value.entry;
+  const picks = picksResponse.entry;
 
   // Free Hit fallback: when FH is active in the current GW, the picks
   // endpoint returns the temporary FH eleven, not the user's persistent
   // squad. That makes "browse my real team" impossible without auth.
-  // Workaround: if we detect FH and there's a previous GW to fall back
-  // to, refetch picks for ``gw - 1`` and use those for the squad list.
-  // We keep the original ``picks`` (with active_chip='freehit') so the
-  // banner still surfaces FH state.
+  // Workaround: use the previous GW's picks for the squad list. We keep
+  // the original ``picks`` (with active_chip='freehit') so the banner
+  // still surfaces FH state.
   //
   // Caveat: this won't reflect transfers the user made between gw-1 and
   // FH activation. Most users don't transfer-then-FH, and the banner
@@ -110,16 +132,19 @@ export async function fetchMyTeam(
   // gameweek"), so this is acceptable for v1.
   let squadPicks: Pick[] = picks.squad;
   let showingPersistentSquad = false;
-  if (picks.active_chip === 'freehit' && gw > 1) {
-    try {
-      const fallback = await fetchEntryGameweek(teamId, gw - 1, signal);
-      squadPicks = fallback.entry.squad;
+  if (needsPreviousPicks(picksResponse, gw)) {
+    if (!isSettled(sources.previousPicks)) return undefined;
+    // A failed previous-GW fetch (404, network) falls back to the FH
+    // temporary squad. The banner still explains the state.
+    const previous = sources.previousPicks.data;
+    if (previous !== undefined) {
+      squadPicks = previous.entry.squad;
       showingPersistentSquad = true;
-    } catch {
-      // Couldn't fetch the previous-GW picks (404, network) — fall back
-      // to the FH temporary squad. The banner still explains the state.
     }
   }
+
+  const playersById = new Map<number, Player>();
+  for (const p of players) playersById.set(p.id, p);
 
   const squad: SquadEntry[] = squadPicks.map((pick) => {
     const live = livePointsById.get(pick.element);
@@ -130,12 +155,12 @@ export async function fetchMyTeam(
       gwPointsRaw: raw,
       gwPoints: raw == null ? null : raw * pick.multiplier,
       minutes: live?.minutes ?? null,
-      isStarter: pick.position <= 11,
+      isStarter: pick.position <= STARTING_XI_SIZE,
     };
   });
 
   return {
-    entry: entryResp.entry,
+    entry,
     gameweek: gw,
     picks,
     squad,

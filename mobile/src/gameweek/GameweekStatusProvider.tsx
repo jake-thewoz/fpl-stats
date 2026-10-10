@@ -1,10 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import {
-  fetchGameweekCurrent,
-  type GameweekCurrentResponse,
-} from '../api/gameweekCurrent';
-import { useFetch } from '../hooks/useFetch';
+import { useQuery } from '@tanstack/react-query';
+import { gameweekCurrentQuery } from '../query/queries';
 import {
   STATUS_REFRESH_MAX_MS,
   STATUS_TICK_MS,
@@ -33,13 +30,10 @@ const GameweekStatusContext = createContext<GameweekStatus>(NO_STATUS);
  * deadline (or every few minutes, whichever is sooner).
  */
 export function GameweekStatusProvider({ children }: { children: ReactNode }) {
-  const { state, onRefresh } = useFetch(fetchGameweekCurrent);
-
-  // A failed refetch keeps the last good response on screen rather than
-  // blanking the banner until the next attempt.
-  const lastGood = useRef<GameweekCurrentResponse | null>(null);
-  if (state.status === 'ok') lastGood.current = state.data;
-  const data = lastGood.current;
+  // A failed refetch keeps the last good response (query data survives
+  // errors) rather than blanking the banner until the next attempt.
+  const { data, refetch, dataUpdatedAt, errorUpdatedAt } =
+    useQuery(gameweekCurrentQuery());
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -47,15 +41,16 @@ export function GameweekStatusProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Re-armed after every fetch outcome: the update timestamps change on
+  // each success or failure.
   useEffect(() => {
-    if (state.status === 'loading') return;
+    const neverFetched = data === undefined && errorUpdatedAt === 0;
+    if (neverFetched) return;
     const delay =
-      state.status === 'ok'
-        ? nextRefreshDelayMs(state.data, Date.now())
-        : STATUS_REFRESH_MAX_MS;
-    const id = setTimeout(onRefresh, delay);
+      data !== undefined ? nextRefreshDelayMs(data, Date.now()) : STATUS_REFRESH_MAX_MS;
+    const id = setTimeout(() => refetch(), delay);
     return () => clearTimeout(id);
-  }, [state, onRefresh]);
+  }, [data, refetch, dataUpdatedAt, errorUpdatedAt]);
 
   const value = useMemo<GameweekStatus>(() => {
     if (data == null) return NO_STATUS;

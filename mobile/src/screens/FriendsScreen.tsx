@@ -8,9 +8,13 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
+import { EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
-import { useParallelFetch, type ParallelFetchRowState } from '../hooks/useParallelFetch';
+import {
+  useParallelQueries,
+  type ParallelFetchRowState,
+} from '../hooks/useParallelQueries';
+import { entryQuery } from '../query/queries';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
 import { LoadingView } from '../components/LoadingView';
@@ -46,11 +50,6 @@ const COLUMNS: { key: SortColumn; label: string; defaultDir: SortDir }[] = [
   { key: 'gw', label: 'GW', defaultDir: 'desc' },
   { key: 'total', label: 'Total', defaultDir: 'desc' },
 ];
-
-const fetchEntryEntry = async (id: string, signal: AbortSignal): Promise<Entry> => {
-  const resp = await fetchEntry(id, signal);
-  return resp.entry;
-};
 
 export default function FriendsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
@@ -103,7 +102,7 @@ export default function FriendsScreen({ navigation }: Props) {
     rows: fetchedRows,
     refreshing,
     onRefresh,
-  } = useParallelFetch(targetIds, fetchEntryEntry);
+  } = useParallelQueries(targetIds, entryQuery);
 
   // Join the per-key fetch state back to the target metadata. If the
   // hook hasn't caught up to a new targets array yet, fall back to a
@@ -112,10 +111,13 @@ export default function FriendsScreen({ navigation }: Props) {
   const rows = useMemo<ComparisonRow[]>(() => {
     const t = targets ?? [];
     const byId = new Map(fetchedRows.map((r) => [r.key, r.state] as const));
-    return t.map((target) => ({
-      target,
-      state: byId.get(target.id) ?? { status: 'loading' },
-    }));
+    return t.map((target): ComparisonRow => {
+      const state = byId.get(target.id);
+      if (state?.status === 'ok') {
+        return { target, state: { status: 'ok', data: state.data.entry } };
+      }
+      return { target, state: state ?? { status: 'loading' } };
+    });
   }, [targets, fetchedRows]);
 
   function onHeaderPress(col: SortColumn) {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { fetchPlayers, type Player } from '../api/players';
-import { fetchPlayersXp } from '../api/playersXp';
-import { fetchMyTeam } from '../api/myTeam';
-import { getFplTeamId } from '../storage/user';
+import { useQuery } from '@tanstack/react-query';
+import type { Player } from '../api/players';
 import { MatchStatusGlyph } from '../gameweek/MatchStatusGlyph';
-import { useFetch } from '../hooks/useFetch';
+import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
+import { useMyTeam } from '../hooks/useMyTeam';
+import { useQueryState, useRefetchStaleOnFocus } from '../hooks/useQueryState';
+import { playersQuery, playersXpQuery } from '../query/queries';
 import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
@@ -41,19 +41,23 @@ type CombinedData = {
 export default function PlayersScreen(_props: PlayersScreenProps) {
   const styles = useThemedStyles(makeStyles);
 
-  // Combined fetch: /players + /analytics/players/xp joined by id.
-  const fetcher = useCallback(async (signal: AbortSignal): Promise<CombinedData> => {
-    const [playersResp, xpResp] = await Promise.all([
-      fetchPlayers(signal),
-      fetchPlayersXp(signal),
-    ]);
+  // /players + /analytics/players/xp joined by id.
+  const playersQueryResult = useQuery(playersQuery());
+  const xpQuery = useQuery(playersXpQuery());
+  const playersResp = playersQueryResult.data;
+  const xpResp = xpQuery.data;
+  const data = useMemo<CombinedData | undefined>(() => {
+    if (playersResp === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
     const players: JoinedPlayer[] = playersResp.players.map((p) =>
       toJoined(p, xpById.get(p.id)),
     );
     return { players, xpGameweek: xpResp.gameweek };
-  }, []);
-  const { state, refreshing, onRefresh, onRetry } = useFetch(fetcher);
+  }, [playersResp, xpResp]);
+  const { state, refreshing, onRefresh, onRetry } = useQueryState(
+    [playersQueryResult, xpQuery],
+    data,
+  );
 
   // Columns / filters / sort are shared with the My Team tab via a
   // single set of AsyncStorage keys; the hook re-reads on focus.
@@ -62,39 +66,22 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
 
   // Owned-player decoration (#99): players in the user's current squad
   // are dimmed on the Players list, mirroring FPL's own "this isn't a
-  // swap target" treatment. Re-resolved on focus so a team-ID change
-  // in Settings, or a fresh squad after a transfer, propagates without
-  // a manual refresh. Failure modes (no team ID set, fetch error) leave
+  // swap target" treatment. Shares My Team's cached queries, so a
+  // team-ID change in Settings or a fresh squad after a transfer shows
+  // up on focus. Failure modes (no team ID set, fetch error) leave
   // ownedIds null and the list renders normally.
-  const [ownedIds, setOwnedIds] = useState<Set<number> | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      (async () => {
-        const teamId = await getFplTeamId();
-        if (!alive) return;
-        if (!teamId) {
-          setOwnedIds(null);
-          return;
-        }
-        try {
-          const myTeam = await fetchMyTeam(teamId);
-          if (!alive) return;
-          const ids = new Set<number>();
-          for (const s of myTeam.squad) {
-            if (s.player) ids.add(s.player.id);
-          }
-          setOwnedIds(ids);
-        } catch {
-          // Silent — Players screen is fully usable without the dim.
-          if (alive) setOwnedIds(null);
-        }
-      })();
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
+  const teamId = useFocusedTeamId();
+  const myTeamQuery = useMyTeam(teamId ?? null);
+  useRefetchStaleOnFocus(myTeamQuery.queries);
+  const myTeam = myTeamQuery.data;
+  const ownedIds = useMemo<Set<number> | null>(() => {
+    if (myTeam === undefined) return null;
+    const ids = new Set<number>();
+    for (const s of myTeam.squad) {
+      if (s.player) ids.add(s.player.id);
+    }
+    return ids;
+  }, [myTeam]);
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
