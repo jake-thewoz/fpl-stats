@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { FlatList, LayoutAnimation, RefreshControl, Text, View } from 'react-native';
+import { FlatList, LayoutAnimation, Text, View } from 'react-native';
 import type { Player } from '../../api/players';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { BundleCard, bundleKey } from './BundleCard';
 import { makeStyles } from './styles';
 
@@ -56,7 +57,7 @@ export function SuggestionsList({
         />
       }
       contentContainerStyle={styles.listContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }

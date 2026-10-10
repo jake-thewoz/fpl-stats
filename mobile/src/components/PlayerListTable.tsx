@@ -22,7 +22,7 @@
  *   otherwise occur when `scrollToOffset` itself fires `onScroll` on the
  *   target list.
  *
- * RefreshControl lives on the **left** FlatList. The right list intentionally
+ * Pull-to-refresh lives on the **left** FlatList. The right list intentionally
  *   doesn't carry one — the spinner would render twice otherwise. Users
  *   will most often pull from the name column anyway.
  */
@@ -34,13 +34,13 @@ import {
   type NativeSyntheticEvent,
   Platform,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { FIELD_DEFS } from '../players/fields';
+import { PullToRefresh } from './PullToRefresh';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
 import { effects, fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
@@ -213,7 +213,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
           scrollEventThrottle={16}
           refreshControl={
             onRefresh != null ? (
-              <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} />
+              <PullToRefresh refreshing={refreshing ?? false} onRefresh={onRefresh} />
             ) : undefined
           }
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyMessage}</Text>}
@@ -279,7 +279,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
               getItemLayout={getItemLayout}
               onScroll={onRightScroll}
               scrollEventThrottle={16}
-              // No RefreshControl here — see file header comment.
+              // No PullToRefresh here — see file header comment.
               showsVerticalScrollIndicator={true}
               style={{ width: dataWidth, flex: 1 }}
             />

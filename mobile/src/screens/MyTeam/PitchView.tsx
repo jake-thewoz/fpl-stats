@@ -1,4 +1,5 @@
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { ClubBackground } from '../../components/ClubBackground';
 import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';
 import { useTheme, useThemedStyles } from '../../theme';
@@ -33,7 +34,7 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
   return (
     <ScrollView
       contentContainerStyle={styles.pitchScrollBody}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.pitch}>
         <Text style={styles.formationLabel}>{formationLabel(lineup)}</Text>

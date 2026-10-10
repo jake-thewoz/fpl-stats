@@ -1,4 +1,4 @@
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { Fixture, GameweekCurrentResponse } from '../api/gameweekCurrent';
 import { formatDeadline, formatKickoff } from '../format/datetime';
@@ -7,6 +7,7 @@ import { useQueryState } from '../hooks/useQueryState';
 import { gameweekCurrentQuery } from '../query/queries';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { PullToRefresh } from '../components/PullToRefresh';
 import type { GameweekScreenProps } from '../navigation/types';
 import { fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
@@ -46,7 +47,7 @@ export default function GameweekScreen(_props: Props) {
         ) : null
       }
       contentContainerStyle={styles.listContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 }
