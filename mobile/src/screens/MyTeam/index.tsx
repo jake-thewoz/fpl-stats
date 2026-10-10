@@ -7,7 +7,9 @@ import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { useFocusedPlayersConfig } from '../../hooks/useFocusedPlayersConfig';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
+import { ActiveFilterChips } from '../../components/ActiveFilterChips';
 import { ColumnPickerDialog } from '../../components/ColumnPickerDialog';
+import { ControlButton } from '../../components/ControlButton';
 import { FilterDialog } from '../../components/FilterDialog';
 import { PlayerListTable } from '../../components/PlayerListTable';
 import { SegmentedControl, type SegmentOption } from '../../components/SegmentedControl';
@@ -165,6 +167,9 @@ function MyTeamContent({ teamId }: { teamId: string }) {
         onOpenFilter={() => setFiltersOpen(true)}
         onOpenColumns={() => setColumnsOpen(true)}
       />
+      {view === 'list' ? (
+        <ActiveFilterChips filters={filters} onChange={setFilters} />
+      ) : null}
       {view === 'pitch' ? (
         rows.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -293,34 +298,6 @@ function ControlBar({
         </View>
       ) : null}
     </View>
-  );
-}
-
-function ControlButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active?: boolean;
-  onPress: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.controlBtn,
-        active && styles.controlBtnActive,
-        pressed && styles.pressed,
-      ]}
-      accessibilityRole="button"
-    >
-      <Text style={[styles.controlBtnText, active && styles.controlBtnTextActive]}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 

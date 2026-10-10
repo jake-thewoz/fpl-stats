@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchPlayers, type Player } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
@@ -10,7 +10,9 @@ import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
+import { ActiveFilterChips } from '../components/ActiveFilterChips';
 import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
+import { ControlButton } from '../components/ControlButton';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
 import { FIELD_DEFS } from '../players/fields';
@@ -19,7 +21,6 @@ import { POSITION_CODES } from '../players/positions';
 import type { FieldKey, JoinedPlayer } from '../players/types';
 import type { PlayersScreenProps } from '../navigation/types';
 import {
-  effects,
   fontSize,
   radius,
   spacing,
@@ -151,6 +152,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         onOpenFilter={() => setFiltersOpen(true)}
         onOpenColumns={() => setColumnsOpen(true)}
       />
+      <ActiveFilterChips filters={filters} onChange={setFilters} />
       <PlayerListTable
         data={filteredSorted}
         columns={columns}
@@ -294,34 +296,6 @@ function ControlBar({
   );
 }
 
-function ControlButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active?: boolean;
-  onPress: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.controlBtn,
-        active && styles.controlBtnActive,
-        pressed && styles.pressed,
-      ]}
-      accessibilityRole="button"
-    >
-      <Text style={[styles.controlBtnText, active && styles.controlBtnTextActive]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
@@ -358,25 +332,6 @@ const makeStyles = (colors: Colors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    controlBtn: {
-      paddingHorizontal: spacing.lg2,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    controlBtnActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    controlBtnText: {
-      fontSize: fontSize.sm2,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    controlBtnTextActive: { color: colors.onAccent },
-    pressed: effects.pressedSubtle,
 
     // Used by renderNameCell passed to PlayerListTable.
     nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
