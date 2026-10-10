@@ -13,7 +13,9 @@ Query params:
 - ``max_transfers=N`` — bundle size ceiling (default 2, clamped to
   MAX_BUNDLE_SIZE = 3)
 - ``free_transfers=N`` — override the FT count derived from FPL history.
-  Mostly for testing; production calls omit it and rely on derivation.
+  The app sends it when the user edits their FT count (e.g. after making
+  transfers the public history doesn't show yet). The derived count is
+  still returned as ``derived_free_transfers``.
 
 Inputs (from DDB cache, with cache-aside FPL fetches for per-team data):
 - entry#{teamId}                — bank + current_event (cache-aside)
@@ -148,8 +150,7 @@ def _parse_max_transfers(event: dict[str, Any]) -> int:
 def _parse_free_transfers(event: dict[str, Any]) -> int | None:
     """``?free_transfers=N`` → override the FT count derived from FPL
     history. Returns ``None`` when absent so the handler falls back to
-    derivation. Mostly for testing — production callers shouldn't pass it.
-    Negative values are silently dropped (treated as absent)."""
+    derivation. Negative values are silently dropped (treated as absent)."""
     params = event.get("queryStringParameters") or {}
     raw = params.get("free_transfers") if isinstance(params, dict) else None
     if not isinstance(raw, str) or not raw.isdigit():
@@ -407,6 +408,7 @@ def _empty_response(
     season_over: bool,
     preseason: bool,
     free_transfers: int,
+    derived_free_transfers: int,
     max_transfers: int,
     freehit_active: bool = False,
 ) -> dict[str, Any]:
@@ -419,6 +421,7 @@ def _empty_response(
             "season_over": season_over,
             "preseason": preseason,
             "free_transfers": free_transfers,
+            "derived_free_transfers": derived_free_transfers,
             "max_transfers_considered": max_transfers,
             "freehit_active": freehit_active,
             "bundles": [],
@@ -452,25 +455,30 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # FT derivation: walks history applying 25/26 banking rules. Falls
     # back to FALLBACK_FREE_TRANSFERS on history fetch failure (over-
     # charging hits is safer than under-charging — see the constant's
-    # comment). Override path skips derivation entirely.
-    if free_transfers_override is not None:
-        free_transfers = free_transfers_override
-    else:
-        try:
-            history = _fetch_history_with_cache(table, session, team_id)
-            free_transfers = derive_free_transfers(history.current, history.chips)
-        except (EntryNotFound, requests.RequestException, Exception):
-            log.exception(
-                "FT derivation failed for team %s, falling back to %d",
-                team_id, FALLBACK_FREE_TRANSFERS,
-            )
-            free_transfers = FALLBACK_FREE_TRANSFERS
+    # comment). Derived even when overridden so the app can show what
+    # FPL history says next to the user's edited value.
+    try:
+        history = _fetch_history_with_cache(table, session, team_id)
+        derived_free_transfers = derive_free_transfers(history.current, history.chips)
+    except (EntryNotFound, requests.RequestException, Exception):
+        log.exception(
+            "FT derivation failed for team %s, falling back to %d",
+            team_id, FALLBACK_FREE_TRANSFERS,
+        )
+        derived_free_transfers = FALLBACK_FREE_TRANSFERS
+    free_transfers = (
+        free_transfers_override
+        if free_transfers_override is not None
+        else derived_free_transfers
+    )
 
     if entry.current_event is None:
         # Pre-season: user hasn't played a GW yet, so no picks to read.
         return _empty_response(
             team_id, season_over=False, preseason=True,
-            free_transfers=free_transfers, max_transfers=max_transfers,
+            free_transfers=free_transfers,
+            derived_free_transfers=derived_free_transfers,
+            max_transfers=max_transfers,
         )
 
     try:
@@ -535,7 +543,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # Post-final-deadline: nothing left to score.
         return _empty_response(
             team_id, season_over=True, preseason=False,
-            free_transfers=free_transfers, max_transfers=max_transfers,
+            free_transfers=free_transfers,
+            derived_free_transfers=derived_free_transfers,
+            max_transfers=max_transfers,
             freehit_active=freehit_active,
         )
 
@@ -602,6 +612,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "season_over": False,
             "preseason": False,
             "free_transfers": free_transfers,
+            "derived_free_transfers": derived_free_transfers,
             "max_transfers_considered": max_transfers,
             "freehit_active": freehit_active,
             "current_squad_xp": round(

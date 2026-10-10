@@ -5,7 +5,10 @@ import { fetchGameweekCurrent } from '../api/gameweekCurrent';
 import { fetchGameweekLive } from '../api/gameweekLive';
 import { fetchPlayers } from '../api/players';
 import { fetchPlayersXp } from '../api/playersXp';
-import { fetchTransferSuggestions } from '../api/transferSuggestions';
+import {
+  fetchTransferSuggestions,
+  type TransferSuggestionsParams,
+} from '../api/transferSuggestions';
 import { INGESTED_STALE_MS, LIVE_STALE_MS } from './client';
 
 /**
@@ -58,18 +61,18 @@ export const gameweekLiveQuery = (gameweek: number) =>
 
 export const transferSuggestionsQuery = (
   teamId: string,
-  horizon: number,
-  positionFilter: readonly number[],
+  params: TransferSuggestionsParams,
 ) =>
   queryOptions({
     // Sorted so [2, 3] and [3, 2] share one cache entry.
     queryKey: [
       'transferSuggestions',
       teamId,
-      horizon,
-      [...positionFilter].sort((a, b) => a - b),
+      params.horizon,
+      [...params.positions].sort((a, b) => a - b),
+      params.maxTransfers,
+      params.freeTransfers,
     ],
-    queryFn: ({ signal }) =>
-      fetchTransferSuggestions(teamId, horizon, positionFilter, signal),
+    queryFn: ({ signal }) => fetchTransferSuggestions(teamId, params, signal),
     staleTime: INGESTED_STALE_MS,
   });

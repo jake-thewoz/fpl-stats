@@ -3,6 +3,7 @@ import { FlatList, LayoutAnimation, Text, View } from 'react-native';
 import type { Player } from '../../api/players';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
+import { pluralize } from '../../transfers/settings';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { BundleCard, bundleKey } from './BundleCard';
 import { makeStyles } from './styles';
@@ -53,6 +54,10 @@ export function SuggestionsList({
           horizonGwIds={response.horizon_gw_ids}
           currentSquadXp={response.current_squad_xp}
           freeTransfers={response.free_transfers}
+          freeTransfersEdited={
+            response.free_transfers !== response.derived_free_transfers
+          }
+          maxTransfers={response.max_transfers_considered}
           freehitActive={response.freehit_active}
         />
       }
@@ -66,11 +71,15 @@ function Header({
   horizonGwIds,
   currentSquadXp,
   freeTransfers,
+  freeTransfersEdited,
+  maxTransfers,
   freehitActive,
 }: {
   horizonGwIds: number[];
   currentSquadXp: number | undefined;
   freeTransfers: number;
+  freeTransfersEdited: boolean;
+  maxTransfers: number;
   freehitActive: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -81,12 +90,14 @@ function Header({
       ? `GW ${horizonGwIds[0]}`
       : `GWs ${horizonGwIds[0]}–${horizonGwIds[horizonGwIds.length - 1]}`;
   const ftLabel =
-    freeTransfers === 1 ? '1 free transfer' : `${freeTransfers} free transfers`;
+    pluralize(freeTransfers, 'free transfer', 'free transfers') +
+    (freeTransfersEdited ? ' (edited)' : '');
+  const movesLabel = `up to ${pluralize(maxTransfers, 'move', 'moves')}`;
   return (
     <View style={styles.header}>
       <Text style={styles.headerLine}>Top transfers across {range}</Text>
       <Text style={styles.headerSub}>
-        {ftLabel}
+        {ftLabel} · {movesLabel}
         {typeof currentSquadXp === 'number'
           ? ` · current squad projected ${currentSquadXp.toFixed(1)} xP`
           : ''}

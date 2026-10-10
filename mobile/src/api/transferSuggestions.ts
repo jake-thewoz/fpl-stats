@@ -57,9 +57,11 @@ export type TransferSuggestionsResponse = {
   preseason: boolean;
   /** Sum of horizon_xp across the user's 15. Null when no fixtures to score. */
   current_squad_xp?: number;
-  /** FT count derived from FPL history (or override). The hit_cost on
-   *  each bundle is computed against this. */
+  /** FT count the hit_cost on each bundle is computed against: the
+   *  user's override when sent, otherwise `derived_free_transfers`. */
   free_transfers: number;
+  /** FT count derived from FPL history, reported even when overridden. */
+  derived_free_transfers: number;
   /** The bundle-size ceiling actually applied (default 2, capped at 3). */
   max_transfers_considered: number;
   /** True when the current GW has Free Hit active. The server has already
@@ -90,22 +92,31 @@ export class EntryNotFoundError extends Error {
   }
 }
 
-export async function fetchTransferSuggestions(
-  teamId: string,
-  horizon: number,
+export type TransferSuggestionsParams = {
+  horizon: number;
   /** FPL element_type ids to filter to (1=GKP, 2=DEF, 3=MID, 4=FWD).
    * Empty = no filter (all positions). */
-  positions: readonly number[],
+  positions: readonly number[];
+  /** Bundle-size ceiling. */
+  maxTransfers: number;
+  /** Null → server derives the count from FPL history. */
+  freeTransfers: number | null;
+};
+
+export async function fetchTransferSuggestions(
+  teamId: string,
+  { horizon, positions, maxTransfers, freeTransfers }: TransferSuggestionsParams,
   signal?: AbortSignal,
-  /** Bundle-size ceiling. Default omitted → server picks DEFAULT_MAX_TRANSFERS=2. */
-  maxTransfers?: number,
 ): Promise<TransferSuggestionsResponse> {
-  const params = new URLSearchParams({ horizon: String(horizon) });
+  const params = new URLSearchParams({
+    horizon: String(horizon),
+    max_transfers: String(maxTransfers),
+  });
   if (positions.length > 0) {
     params.set('positions', positions.join(','));
   }
-  if (maxTransfers !== undefined) {
-    params.set('max_transfers', String(maxTransfers));
+  if (freeTransfers !== null) {
+    params.set('free_transfers', String(freeTransfers));
   }
   return requestJson<TransferSuggestionsResponse>(
     `/analytics/squad/${teamId}/transfers?${params.toString()}`,

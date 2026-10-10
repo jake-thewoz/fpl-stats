@@ -80,6 +80,13 @@ export const makeStyles = (colors: Colors) =>
       color: colors.onAccent,
     },
 
+    // Wraps a SegmentedControl inside a filter-dialog Section body.
+    dialogControlBody: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+    },
+
     // List header (above the cards).
     header: {
       paddingHorizontal: spacing.xs,
