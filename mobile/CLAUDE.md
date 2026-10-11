@@ -7,12 +7,30 @@ This codebase had a multi-PR standardization pass in 2026-05 (PRs #151–#154). 
 Use the tokens in `src/theme/`. They're re-exported from `src/theme/index.ts`.
 
 - **`spacing.*`** for padding/margin/gap. Scale: `hairline` (2), `xs` (4), `sm` (6), `md` (8), `base` (10), `lg` (12), `lg2` (14), `xl` (16), `xl2` (20), `xxl` (24), `xxxl` (32), `safeTop` (48). See `src/theme/spacing.ts`.
-- **`fontSize.*`** for type sizes. Scale: `xs` (11), `sm` (12), `sm2` (13), `md` (14), `base` (15), `lg` (16), `lg2` (17), `xl` (18), `xxl` (20). See `src/theme/typography.ts`.
+- **`fontSize.*`** for type sizes. Scale: `xs` (11), `sm` (12), `sm2` (13), `md` (14), `base` (15), `lg` (16), `lg2` (17), `xl` (18), `xxl` (20), `screenTitle` (23), `heroScore` (50). See `src/theme/typography.ts`.
 - **`radius.*`** for borderRadius. Scale: `sm` (6), `md` (8), `base` (10), `lg` (16). Same file.
 - **`effects.*`** for opacity. `pressed` (0.5), `pressedSubtle` (0.6), `dimDisabled` (0.4). See `src/theme/effects.ts`.
 - **`colors.scrim`** for modal backdrops.
 
 The scales were derived from actual usage — they're not generic Tailwind. If a value isn't on the scale and is genuinely a one-off (a 28px hero title, an 11px circle radius for a 22px square, a 0.85 card-press dim), keep it inline with a `// why` comment. The rule is "no magic numbers", not "force everything onto the scale".
+
+### Colours
+
+Pick a token by what it sits on, per the commentary in `src/theme/colors.ts`:
+
+- **Fills** — `accent`, `good` (mint), `bad` (coral), `warning` (amber) — are backgrounds, each with an `on*` text colour.
+- **`accentText` / `goodText` / `badText`** — the same hues tuned to read as text or icons on `surface`/`background`. Never use a fill colour as text; light-mode mint on white is unreadable.
+- **`accentSoft`** is a translucent grape for quiet selection (active chips, the user's own row). Text on it is `accentText`.
+- **`heatColor(value, HEAT_CEILING.x, colors)`** (`src/theme/heat.ts`) colours a number by size. Add a ceiling to `HEAT_CEILING`; don't pass a literal.
+
+### Fonts — import `Text` / `TextInput` from `src/components/Text`, never from `react-native`
+
+The app's `Text` resolves a style's font **role** plus `fontWeight` to a loaded face (Sora for `display`/`numeric`, Rubik for `body`). React Native's own `Text` doesn't, and would render a role name as an unknown family.
+
+- Spread `...fontRole.numeric` into any number read down a column (scores, xP, prices, ranks). It includes `tabular-nums`.
+- Spread `...fontRole.display` into titles. It defaults to weight 800.
+- Body text needs nothing: it's the default.
+- Never write a family name (`Rubik_600SemiBold`) in a style. Set `fontWeight` and let the role resolve it.
 
 ## API client — use `requestJson<T>`
 

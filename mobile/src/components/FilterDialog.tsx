@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './Text';
 import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
 import type { FieldKey, FilterState, RangeFilter } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';

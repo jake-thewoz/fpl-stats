@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import { fetchEntry, EntryNotFoundError, type Entry } from '../api/entry';
 import { addFriend } from '../storage/friends';
 import { isValidFplTeamId } from '../storage/user';
@@ -232,7 +233,7 @@ const makeStyles = (colors: Colors) =>
     },
     error: {
       paddingHorizontal: spacing.xs,
-      color: colors.danger,
+      color: colors.badText,
       fontSize: fontSize.sm2,
       lineHeight: 18,
     },

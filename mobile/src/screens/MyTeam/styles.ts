@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { effects, fontSize, radius, spacing, type Colors } from '../../theme';
+import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../../theme';
 
 // Tiles share a row's width up to a cap, so a five-man midfield still
 // fits a 360px phone while a two-man front line doesn't sprawl.
@@ -68,7 +68,7 @@ export const makeStyles = (colors: Colors) =>
     chipBadgeText: {
       fontSize: fontSize.sm,
       fontWeight: '600',
-      color: colors.onAccentSoft,
+      color: colors.accentText,
     },
 
     controlBar: {
@@ -199,8 +199,8 @@ export const makeStyles = (colors: Colors) =>
       borderRadius: 4,
       overflow: 'hidden',
     },
-    changeMarkerIn: { backgroundColor: colors.highlight, color: colors.onHighlight },
-    changeMarkerOut: { backgroundColor: colors.danger, color: colors.onDanger },
+    changeMarkerIn: { backgroundColor: colors.good, color: colors.onGood },
+    changeMarkerOut: { backgroundColor: colors.bad, color: colors.onBad },
 
     lineupControls: {
       paddingHorizontal: spacing.lg,
@@ -235,6 +235,7 @@ export const makeStyles = (colors: Colors) =>
       color: colors.textPrimary,
     },
     tileStat: {
+      ...fontRole.numeric,
       alignSelf: 'stretch',
       paddingHorizontal: spacing.xs,
       paddingVertical: spacing.hairline,

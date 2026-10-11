@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { activeFilterChips } from '../players/apply';
 import { EMPTY_FILTER, type FilterState } from '../players/types';
 import {
@@ -95,16 +96,16 @@ const makeStyles = (c: Colors) =>
       maxWidth: CHIP_LABEL_MAX_WIDTH,
       fontSize: fontSize.sm,
       fontWeight: '500',
-      color: c.onAccentSoft,
+      color: c.accentText,
     },
     chipRemove: {
       fontSize: fontSize.sm,
       fontWeight: '700',
-      color: c.onAccentSoft,
+      color: c.accentText,
     },
     clearAll: {
       fontSize: fontSize.sm,
       fontWeight: '600',
-      color: c.accent,
+      color: c.accentText,
     },
   });

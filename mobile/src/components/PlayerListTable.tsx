@@ -36,13 +36,20 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from './Text';
 import { FIELD_DEFS } from '../players/fields';
 import { PullToRefresh } from './PullToRefresh';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
-import { effects, fontSize, spacing, useThemedStyles, type Colors } from '../theme';
+import {
+  effects,
+  fontRole,
+  fontSize,
+  spacing,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
 
 /** Per-data-cell width. Wide enough for the longest short label
  *  (`Defcon/90 ↓`) plus comfortable padding on both sides. */
@@ -363,9 +370,10 @@ const makeStyles = (c: Colors) =>
       letterSpacing: 0.4,
       textTransform: 'uppercase',
     },
-    headerCellTextActive: { color: c.accent },
+    headerCellTextActive: { color: c.accentText },
     headerCellSubtext: { fontSize: fontSize.xs, color: c.textMuted },
     dataCell: {
+      ...fontRole.numeric,
       width: CELL_WIDTH,
       paddingHorizontal: spacing.md,
       fontSize: fontSize.md,

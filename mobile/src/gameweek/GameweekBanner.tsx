@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { formatDeadline } from '../format/datetime';
 import type { MainTabParamList } from '../navigation/types';
@@ -66,7 +67,7 @@ const makeStyles = (colors: Colors) =>
       width: LIVE_DOT_SIZE,
       height: LIVE_DOT_SIZE,
       borderRadius: LIVE_DOT_SIZE / 2,
-      backgroundColor: colors.live,
+      backgroundColor: colors.good,
     },
     label: { fontSize: fontSize.sm2, fontWeight: '600', color: colors.textPrimary },
     chevron: { fontSize: fontSize.lg, color: colors.textMuted, marginLeft: spacing.md },

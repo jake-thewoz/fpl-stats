@@ -41,7 +41,7 @@ export function MainTabs() {
   const tabOptions = useMemo(
     () => ({
       headerShown: false,
-      tabBarActiveTintColor: colors.accent,
+      tabBarActiveTintColor: colors.accentText,
       tabBarInactiveTintColor: colors.textMuted,
       tabBarStyle: {
         backgroundColor: colors.surface,

@@ -1,8 +1,8 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
-import { lightPalette } from './src/theme/colors.ts';
+import { brandPalette } from './src/theme/colors.ts';
 
 const DEV_DEFAULT_API_BASE_URL = 'http://localhost:3000';
-const BRAND_BACKGROUND_COLOR = lightPalette.eggplant;
+const BRAND_BACKGROUND_COLOR = brandPalette.eggplant;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,

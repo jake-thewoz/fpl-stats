@@ -1,4 +1,5 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { ClubBackground } from '../../components/ClubBackground';
 import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';

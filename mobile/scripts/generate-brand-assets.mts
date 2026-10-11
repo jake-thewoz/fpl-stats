@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
-import { darkColors, lightPalette } from '../src/theme/colors.ts';
+import { darkColors, brandPalette } from '../src/theme/colors.ts';
 
 const MOBILE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = join(MOBILE_ROOT, '..');
@@ -36,9 +36,9 @@ const TAGLINE_FONT_FILE = join(
 );
 const CARD_FONT_FAMILY = 'Playfair Display';
 
-const BACKGROUND_COLOR = lightPalette.eggplant;
-const BADGE_COLOR = lightPalette.mint;
-const LETTER_COLOR = lightPalette.eggplant;
+const BACKGROUND_COLOR = brandPalette.eggplant;
+const BADGE_COLOR = brandPalette.mint;
+const LETTER_COLOR = brandPalette.eggplant;
 
 // Android adaptive-icon grid: a 108-unit canvas whose centre 66-unit circle
 // survives every launcher mask. All geometry below is in these units.
@@ -174,7 +174,7 @@ const CARD_WORDMARK_WEIGHT = 600;
 const CARD_RULE_HALF_WIDTH = 32;
 const CARD_RULE_STROKE = 2;
 const CARD_WORDMARK_COLOR = darkColors.textPrimary;
-const CARD_ACCENT_COLOR = lightPalette.mint;
+const CARD_ACCENT_COLOR = brandPalette.mint;
 // Darkens the corners towards black so the centred mark and wordmark
 // sit in a soft pool of the brand colour rather than on a flat fill.
 const CARD_VIGNETTE_OPACITY = 0.35;
@@ -228,8 +228,8 @@ function cardSvg(name: string, layout: CardLayout): string {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">`,
     '<defs><radialGradient id="vignette">',
-    `<stop offset="0" stop-color="${lightPalette.black}" stop-opacity="0"/>`,
-    `<stop offset="1" stop-color="${lightPalette.black}" stop-opacity="${CARD_VIGNETTE_OPACITY}"/>`,
+    `<stop offset="0" stop-color="${brandPalette.black}" stop-opacity="0"/>`,
+    `<stop offset="1" stop-color="${brandPalette.black}" stop-opacity="${CARD_VIGNETTE_OPACITY}"/>`,
     '</radialGradient></defs>',
     `<rect width="${width}" height="${height}" rx="${cornerRadius}" fill="${BACKGROUND_COLOR}"/>`,
     `<rect width="${width}" height="${height}" rx="${cornerRadius}" fill="url(#vignette)"/>`,

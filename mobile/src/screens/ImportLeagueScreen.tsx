@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import {
   fetchLeagueMembers,
   LeagueNotFoundError,
@@ -11,6 +12,7 @@ import { getFplTeamId } from '../storage/user';
 import type { ImportLeagueScreenProps } from '../navigation/types';
 import {
   effects,
+  fontRole,
   fontSize,
   radius,
   spacing,
@@ -400,7 +402,7 @@ const makeStyles = (colors: Colors) =>
     error: {
       paddingHorizontal: spacing.xl2,
       paddingTop: spacing.lg,
-      color: colors.danger,
+      color: colors.badText,
       fontSize: fontSize.sm2,
       lineHeight: 18,
     },
@@ -410,7 +412,12 @@ const makeStyles = (colors: Colors) =>
       paddingBottom: spacing.base,
       gap: spacing.xs,
     },
-    leagueName: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
+    leagueName: {
+      ...fontRole.display,
+      fontSize: fontSize.xxl,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
     leagueMeta: { color: colors.textMuted, fontSize: fontSize.sm2 },
     selectionActions: {
       flexDirection: 'row',
@@ -419,7 +426,7 @@ const makeStyles = (colors: Colors) =>
       gap: spacing.sm,
     },
     selectLink: {
-      color: colors.accent,
+      color: colors.accentText,
       fontSize: fontSize.sm2,
       fontWeight: '600',
     },
@@ -467,7 +474,7 @@ const makeStyles = (colors: Colors) =>
       marginTop: spacing.hairline,
       color: colors.textMuted,
       fontSize: fontSize.sm,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     tag: {
       paddingHorizontal: spacing.md,

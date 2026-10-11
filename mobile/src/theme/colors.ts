@@ -2,65 +2,40 @@
  * Light + dark palettes for the app theme.
  *
  * Both export the same `Colors` shape — a set of *semantic* tokens
- * (`background`, `accent`, `textMuted`, etc.) that screens and
- * components consume through `useTheme()` / `useThemedStyles()`. Adding
- * or renaming a token is a contract change: every palette has to define
- * it, and every consumer reads it through the typed shape.
+ * (`background`, `accent`, `goodText`, etc.) that screens and components
+ * consume through `useTheme()` / `useThemedStyles()`. Adding or renaming
+ * a token is a contract change: every palette has to define it, and every
+ * consumer reads it through the typed shape.
  *
- * Light mode is the original Coolors palette: a near-black, eggplant,
- * mauve, sage, and mint on near-white surfaces. Dark mode is a
- * complementary palette on a slightly purple-cool near-black surface so
- * the eggplant/mauve hue family stays at home in both modes — see the
- * dark-palette commentary below for the per-token reasoning.
+ * The palette is saturated **grape and mint**, with coral for bad numbers.
+ * Light and dark get equal weight; dark ("Plum") is lifted and visibly
+ * purple rather than near-black, so dark mode feels colourful instead of
+ * gloomy. Design reference: https://claude.ai/artifact/FcY2ixeJRnRiHHmaLt6em3
+ *
+ * Three families of token, and the rule for picking between them:
+ *
+ * - **Fills** (`accent`, `good`, `bad`, `warning`) are backgrounds, each
+ *   paired with an `on*` colour for text sitting on top of them.
+ * - **`*Text`** (`accentText`, `goodText`, `badText`) are the same hues
+ *   tuned to read as text or icons on `surface` / `background`. Mint and
+ *   coral are bright enough to fill a chip in light mode but too light to
+ *   read as text on white, so light mode darkens them; dark mode lifts
+ *   them slightly for the same reason in reverse.
+ * - **Surfaces** (`background` < `surface` < `surfaceRaised`) step up in
+ *   lightness in dark mode and down in light mode. `surfaceRaised` is the
+ *   resting fill for chips, segmented-control tracks and empty heat cells.
+ *
+ * Every text pair is at least 4.5:1 (WCAG AA). The tightest are light
+ * `goodText` on white (4.53) and white on the dark hero gradient's start
+ * (4.71); don't lighten either.
  */
 
-export const lightPalette = {
+/** Colours of the app icon, splash and web manifest. These still carry
+ *  the original eggplant/mint brand mark until the brand assets move to
+ *  the new palette (issue #208); the in-app theme no longer uses them. */
+export const brandPalette = {
   black: '#070707',
   eggplant: '#553555',
-  mauve: '#755b69',
-  sage: '#96c5b0',
-  mint: '#adf1d2',
-} as const;
-
-/**
- * Dark-mode palette tuning notes:
- *
- * - **`background` `#0e0d12`** — slightly purple-cool near-black. A pure
- *   neutral grey would clash with the eggplant accent; pulling a hint
- *   of violet keeps the surface family-related to the brand hue.
- * - **`surface` `#171520`** — one step lighter than background, same
- *   undertone, so cards and headers separate from the page without
- *   needing a hard border.
- * - **`border`** — white-at-low-opacity. Mirrors the light palette
- *   trick of a low-opacity neutral border that harmonizes with every
- *   palette hue rather than picking one.
- * - **`accent` `#c69ab8`** — light mauve. The light-mode eggplant
- *   (`#553555`) and the original dark-mode mauve (`#755b69`) both
- *   disappear against a near-black surface; pushing further up the
- *   lightness scale keeps the mauve hue but gives enough contrast for
- *   tab-bar icons, sort arrows, and chip text to actually read.
- * - **`textMuted` `#c2b3be`** — bright desaturated mauve. A
- *   neutral grey on a purple-cool surface looks dingy; keeping a hint
- *   of the brand hue makes muted text feel intentional. Tuned upward
- *   from the original `#a394a0` for legibility on small UI like the
- *   tab bar's inactive-tab labels.
- * - **`accentSoft`** — sage stays put (it already reads well on dark).
- * - **`highlight`** — mint stays put for the same reason.
- * - **`onAccent`** stays black-on-light-mauve. The brighter dark-mode
- *   accent is too light for white text to read confidently against;
- *   black gives a clean, high-contrast pairing.
- * - **`danger`/`warning`** brighter variants. The light-mode
- *   `#c0495c` red drowns on a dark background; `#e0667a` lifts it.
- *   Same logic for `warning`.
- */
-export const darkPalette = {
-  black: '#070707',
-  eggplant: '#553555',
-  // Light mauve — the dark-mode-specific accent variant. Bright enough
-  // to read against `surface` and `background` while staying in the
-  // brand hue family.
-  mauveLight: '#c69ab8',
-  sage: '#96c5b0',
   mint: '#adf1d2',
 } as const;
 
@@ -69,95 +44,114 @@ export const darkPalette = {
 export type Colors = {
   background: string;
   surface: string;
+  /** Chips, segmented-control tracks, and the empty end of the heat scale. */
+  surfaceRaised: string;
   border: string;
   textPrimary: string;
   textMuted: string;
-  /** Primary brand color — used for interactive accents and selected state. */
+  /** Grape. Interactive accents, selected state, primary buttons. */
   accent: string;
-  /** Softer secondary accent — good for non-critical highlights. */
-  accentSoft: string;
-  /** Lightest brand tone — good for subtle backgrounds or hover states. */
-  highlight: string;
-  /** Readable text/icon colors on top of the respective accent backgrounds. */
   onAccent: string;
-  onAccentSoft: string;
-  onHighlight: string;
-  danger: string;
+  /** Translucent grape for quiet selection: the selected-tab pill, active
+   *  filter chips, the user's own row in a table. Text on it uses
+   *  `accentText`. */
+  accentSoft: string;
+  /** Accent used as text or an icon on a surface. */
+  accentText: string;
+  /** Mint. A good number: heat fills, the LIVE pill, positive deltas. */
+  good: string;
+  onGood: string;
+  goodText: string;
+  /** Coral. A bad number: hard fixtures, negative deltas, destructive
+   *  actions, errors. */
+  bad: string;
+  onBad: string;
+  badText: string;
+  /** Amber. Cautions that aren't a bad number, e.g. the Free Hit notice. */
   warning: string;
-  /** Readable text/icon colors on top of warning/danger backgrounds. */
   onWarning: string;
-  onDanger: string;
-  /** "Happening now" signal: the live-gameweek dot on the banner and on
-   *  players whose club is mid-match. */
-  live: string;
-  /** Modal-backdrop scrim. Currently the same value in both palettes —
-   *  a dim-the-world overlay reads more confidently than a theme-tinted
-   *  one. Tunable per-palette if a future design wants it. */
+  /** Hero card gradient, start → end, always carrying white text. A tuple
+   *  so it drops straight into `LinearGradient`'s `colors` prop. */
+  heroGradient: readonly [string, string];
+  onHero: string;
+  /** Modal-backdrop scrim. The same value in both palettes — a
+   *  dim-the-world overlay reads more confidently than a theme-tinted one. */
   scrim: string;
-  /** My Team pitch view: grass, the alternate mowing-stripe band, and
-   *  the white-ish touchline/halfway markings. */
+  /** My Team pitch view: grass, the alternate mowing-stripe band, the
+   *  touchline/halfway markings, and the name plate under each shirt. */
   pitch: string;
   pitchStripe: string;
   pitchLine: string;
+  pitchTile: string;
 };
 
+const WHITE = '#ffffff';
+const MINT = '#3ef0b4';
+const ON_MINT = '#04261a';
+const CORAL = '#ff6b81';
+const ON_CORAL = '#2b0610';
+// Amber is shared between modes like mint and coral: a saturated fill
+// with dark text reads in both, so only the text-on-surface variants
+// need per-mode tuning.
+const AMBER = '#ffc24b';
+const ON_AMBER = '#2a1a00';
+const SCRIM = 'rgba(7, 7, 7, 0.45)';
+
 export const lightColors: Colors = {
-  background: '#fbfbfc',
-  surface: '#ffffff',
-  border: 'rgba(7, 7, 7, 0.08)',
-  textPrimary: lightPalette.black,
-  textMuted: lightPalette.mauve,
-  accent: lightPalette.eggplant,
-  accentSoft: lightPalette.sage,
-  highlight: lightPalette.mint,
-  onAccent: '#ffffff',
-  onAccentSoft: lightPalette.black,
-  onHighlight: lightPalette.black,
-  danger: '#c0495c',
-  warning: '#e0b340',
-  // Black on warning's amber ≈ 7:1; white on danger's brick ≈ 4.6:1.
-  onWarning: lightPalette.black,
-  onDanger: '#ffffff',
-  // Saturated green, distinct from the sage/mint brand tones, so "live"
-  // doesn't read as a highlight or selection.
-  live: '#1f9d55',
-  scrim: 'rgba(7, 7, 7, 0.45)',
-  pitch: '#3f8a57',
-  pitchStripe: '#46935e',
-  pitchLine: 'rgba(255, 255, 255, 0.45)',
+  background: '#fbf8fd',
+  surface: WHITE,
+  surfaceRaised: '#f0e8f5',
+  border: 'rgba(26, 16, 32, 0.09)',
+  textPrimary: '#1a1020',
+  textMuted: '#6f5a7c',
+  accent: '#7b2cbf',
+  onAccent: WHITE,
+  accentSoft: 'rgba(123, 44, 191, 0.12)',
+  accentText: '#6a1fae',
+  good: MINT,
+  onGood: ON_MINT,
+  goodText: '#08875e',
+  bad: CORAL,
+  onBad: ON_CORAL,
+  badText: '#c92a43',
+  warning: AMBER,
+  onWarning: ON_AMBER,
+  heroGradient: ['#8a35dc', '#5a1a9e'],
+  onHero: WHITE,
+  scrim: SCRIM,
+  pitch: '#2f9a62',
+  pitchStripe: '#35a56a',
+  pitchLine: 'rgba(255, 255, 255, 0.5)',
+  pitchTile: '#1a1020',
 };
 
 export const darkColors: Colors = {
-  background: '#0e0d12',
-  surface: '#171520',
-  border: 'rgba(255, 255, 255, 0.10)',
-  textPrimary: '#f4f1f7',
-  textMuted: '#c2b3be',
-  // Light mauve — bright enough to read against the near-black surface
-  // for tab-bar icons, sort arrows, and chip text.
-  accent: darkPalette.mauveLight,
-  accentSoft: darkPalette.sage,
-  highlight: darkPalette.mint,
-  // Black on light-mauve gives crisp 8.4:1 contrast; white drops to ~3:1
-  // and makes filled buttons feel washed out.
-  onAccent: darkPalette.black,
-  onAccentSoft: darkPalette.black,
-  onHighlight: darkPalette.black,
-  // Lifted versions of light-mode danger/warning for legibility on dark.
-  danger: '#e0667a',
-  warning: '#f0c860',
-  // Both lifted tones land light enough that black text wins on contrast
-  // (warning ~10:1 / danger ~6:1); white falls below 3:1 on warning.
-  onWarning: darkPalette.black,
-  onDanger: darkPalette.black,
-  // Lifted green for contrast against the near-black surface.
-  live: '#4ade80',
-  // Same scrim as light — a dim-the-world overlay shouldn't shift hue
-  // between modes. Tunable separately if a future design wants it.
-  scrim: 'rgba(7, 7, 7, 0.45)',
-  // Deeper, desaturated grass so the pitch doesn't glow against the
-  // near-black page; lines dimmed to match.
-  pitch: '#1f4a31',
-  pitchStripe: '#235237',
-  pitchLine: 'rgba(255, 255, 255, 0.25)',
+  background: '#1a1124',
+  surface: '#251832',
+  surfaceRaised: '#332342',
+  border: 'rgba(255, 255, 255, 0.09)',
+  textPrimary: '#f8f3fb',
+  textMuted: '#c6b5d1',
+  accent: '#c77dff',
+  // White on the light grape is under 3:1; near-black grape is crisp.
+  onAccent: '#160b20',
+  accentSoft: 'rgba(199, 125, 255, 0.20)',
+  accentText: '#d9a6ff',
+  good: MINT,
+  onGood: ON_MINT,
+  goodText: MINT,
+  bad: CORAL,
+  onBad: ON_CORAL,
+  badText: '#ff8fa0',
+  warning: AMBER,
+  onWarning: ON_AMBER,
+  heroGradient: ['#9a46ec', '#6420b0'],
+  onHero: WHITE,
+  scrim: SCRIM,
+  // Darker grass than light mode so the pitch doesn't glow against the
+  // plum page; lines dimmed to match.
+  pitch: '#1f6b45',
+  pitchStripe: '#237550',
+  pitchLine: 'rgba(255, 255, 255, 0.35)',
+  pitchTile: '#1a1022',
 };
