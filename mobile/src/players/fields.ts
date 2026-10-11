@@ -2,6 +2,7 @@
  * Field metadata shared by both screens. Adding a new column/filter is one
  * entry here — both screens pick it up automatically.
  */
+import { gameweekRangeLabel } from '../fixtures/upcoming';
 import { HEAT_CEILING } from '../theme/heat';
 import type { FieldKey, JoinedPlayer, SortDir } from './types';
 
@@ -59,6 +60,16 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     description: 'Expected points added up over the next five gameweeks.',
     defaultSortDir: 'desc',
     accessor: (p) => p.xp_h5,
+    format: fmtNumber,
+  },
+  fixtures: {
+    key: 'fixtures',
+    label: 'Fixtures (next 3 GWs)',
+    shortLabel: 'Next 3',
+    description:
+      "The next three opponents, coloured by FPL's difficulty rating from easy (mint) to hard (coral). Capitals mean a home game. Sorting and filtering use the average rating, with a blank gameweek counted as the hardest.",
+    defaultSortDir: 'asc',
+    accessor: (p) => p.fixture_difficulty,
     format: fmtNumber,
   },
   form: {
@@ -232,6 +243,7 @@ export const FIELDS_IN_PICKER_ORDER: FieldDef[] = [
   FIELD_DEFS.xp,
   FIELD_DEFS.xp_h3,
   FIELD_DEFS.xp_h5,
+  FIELD_DEFS.fixtures,
   FIELD_DEFS.defcon,
   FIELD_DEFS.defcon_per_90,
   FIELD_DEFS.form,
@@ -251,14 +263,18 @@ export const FIELDS_IN_PICKER_ORDER: FieldDef[] = [
   FIELD_DEFS.cost_change_event,
 ];
 
-/** Names the gameweek the xP column projects, under its header, so it's
- *  explicit that projections cover the next deadline while a gameweek is
- *  live. */
-export function xpHeaderSublabels(
-  gameweek: number | null,
-): Partial<Record<FieldKey, string>> | undefined {
-  if (gameweek == null) return undefined;
-  return { xp: `GW${gameweek}` };
+/** Names the gameweeks the xP and fixtures columns cover, under their
+ *  headers, so it's explicit that both look past a live gameweek to the
+ *  next deadline. */
+export function columnHeaderSublabels(
+  xpGameweek: number | null,
+  fixtureGameweeks: readonly number[] | undefined,
+): Partial<Record<FieldKey, string>> {
+  const sublabels: Partial<Record<FieldKey, string>> = {};
+  if (xpGameweek != null) sublabels.xp = `GW${xpGameweek}`;
+  const fixturesLabel = gameweekRangeLabel(fixtureGameweeks ?? []);
+  if (fixturesLabel != null) sublabels.fixtures = fixturesLabel;
+  return sublabels;
 }
 
 /**
@@ -323,7 +339,13 @@ export function gameweeksPlayedBefore(xpGameweek: number | null): number | null 
 }
 
 /** Defaults a brand-new install gets. Picked to emphasise xP — the
- *  newest signal, what the unified rebuild is for. */
-export const DEFAULT_COLUMNS: FieldKey[] = ['xp', 'form', 'price'];
+ *  newest signal, what the unified rebuild is for — and the fixture run
+ *  that drives it. */
+export const DEFAULT_COLUMNS: FieldKey[] = ['xp', 'fixtures', 'form', 'price'];
+
+/** Columns added to the defaults after release, oldest first. Each is
+ *  added once to columns a user saved before it existed; removing it
+ *  afterwards sticks. */
+export const INTRODUCED_COLUMNS: FieldKey[] = ['fixtures'];
 
 export const DEFAULT_SORT = { field: 'xp' as FieldKey, dir: 'desc' as SortDir };

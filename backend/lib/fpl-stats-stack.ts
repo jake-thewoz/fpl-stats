@@ -155,6 +155,17 @@ export class FplStatsStack extends cdk.Stack {
     });
     cacheTable.grantReadData(gameweekCurrentFn);
 
+    const fixturesUpcomingFn = new FplPythonFunction(this, 'FixturesUpcoming', {
+      name: 'fixtures_upcoming',
+      description:
+        'Read API — every club\'s fixtures and FPL difficulty for the next three gameweeks.',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+      },
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadData(fixturesUpcomingFn);
+
     const playersFn = new FplPythonFunction(this, 'Players', {
       name: 'players',
       description: 'Read API — returns a summarized player list, filterable by team/position.',
@@ -473,6 +484,15 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'GameweekCurrentIntegration',
         gameweekCurrentFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/fixtures/upcoming',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'FixturesUpcomingIntegration',
+        fixturesUpcomingFn,
       ),
     });
 

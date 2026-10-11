@@ -6,7 +6,12 @@ import type { Player } from '../api/players';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { useMyTeam } from '../hooks/useMyTeam';
 import { useQueryState, useRefetchStaleOnFocus } from '../hooks/useQueryState';
-import { playersQuery, playersXpQuery } from '../query/queries';
+import { fixturesUpcomingQuery, playersQuery, playersXpQuery } from '../query/queries';
+import {
+  indexUpcomingFixtures,
+  playerFixtureFields,
+  type UpcomingFixtures,
+} from '../fixtures/upcoming';
 import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
@@ -16,7 +21,11 @@ import { ControlButton } from '../components/ControlButton';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
 import { PlayerNameCell } from '../components/PlayerNameCell';
-import { FIELD_DEFS, gameweeksPlayedBefore, xpHeaderSublabels } from '../players/fields';
+import {
+  FIELD_DEFS,
+  columnHeaderSublabels,
+  gameweeksPlayedBefore,
+} from '../players/fields';
 import { applyAll, activeFilterCount } from '../players/apply';
 import { POSITION_CODES } from '../players/positions';
 import type { FieldKey, JoinedPlayer } from '../players/types';
@@ -36,6 +45,8 @@ type CombinedData = {
   players: JoinedPlayer[];
   /** Gameweek the xP column projects (the next deadline). */
   xpGameweek: number | null;
+  /** Gameweeks the fixtures column covers; undefined until they load. */
+  fixtureGameweeks: readonly number[] | undefined;
 };
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
@@ -49,16 +60,26 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   // /players + /analytics/players/xp joined by id.
   const playersQueryResult = useQuery(playersQuery());
   const xpQuery = useQuery(playersXpQuery());
+  // Fixtures decorate the list but don't gate it: the screen renders
+  // without them and fills the strip in when they arrive.
+  const fixturesQuery = useQuery(fixturesUpcomingQuery());
+  useRefetchStaleOnFocus([fixturesQuery]);
   const playersResp = playersQueryResult.data;
   const xpResp = xpQuery.data;
+  const fixturesResp = fixturesQuery.data;
   const data = useMemo<CombinedData | undefined>(() => {
     if (playersResp === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
+    const upcoming = fixturesResp && indexUpcomingFixtures(fixturesResp);
     const players: JoinedPlayer[] = playersResp.players.map((p) =>
-      toJoined(p, xpById.get(p.id)),
+      toJoined(p, xpById.get(p.id), upcoming),
     );
-    return { players, xpGameweek: xpResp.gameweek };
-  }, [playersResp, xpResp]);
+    return {
+      players,
+      xpGameweek: xpResp.gameweek,
+      fixtureGameweeks: upcoming?.gameweeks,
+    };
+  }, [playersResp, xpResp, fixturesResp]);
   const { state, refreshing, onRefresh, onRetry } = useQueryState(
     [playersQueryResult, xpQuery],
     data,
@@ -154,7 +175,10 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         columns={columns}
         sort={sort}
         onTapHeader={onTapColumnHeader}
-        headerSublabels={xpHeaderSublabels(state.data.xpGameweek)}
+        headerSublabels={columnHeaderSublabels(
+          state.data.xpGameweek,
+          state.data.fixtureGameweeks,
+        )}
         gameweeksPlayed={gameweeksPlayedBefore(state.data.xpGameweek)}
         getId={(p) => p.id}
         renderNameCell={(p) => (
@@ -203,6 +227,7 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
 function toJoined(
   p: Player,
   xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
+  upcoming: UpcomingFixtures | undefined,
 ): JoinedPlayer {
   // FPL ships `form` as a stringified decimal; coerce to number for sort.
   const formNum = parseFloat(p.form);
@@ -231,6 +256,7 @@ function toJoined(
     expected_goals: p.expected_goals,
     expected_assists: p.expected_assists,
     cost_change_event: p.cost_change_event,
+    ...playerFixtureFields(upcoming, p.team),
   };
 }
 

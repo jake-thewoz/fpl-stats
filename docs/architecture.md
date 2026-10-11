@@ -65,7 +65,7 @@ Every writer **prunes what it didn't produce** (`ddb_prune` in the layer): depar
 | `pk` | `sk` | Written by | Read by | Freshness |
 | --- | --- | --- | --- | --- |
 | `fpl#bootstrap` | `latest` | `ingest_fpl` | almost everything | ≤ 30 min |
-| `fpl#fixtures` | `latest` | `ingest_fpl` | `gameweek_current`, match-window guard, analyzers, transfers | ≤ 30 min |
+| `fpl#fixtures` | `latest` | `ingest_fpl` | `gameweek_current`, `fixtures_upcoming`, match-window guard, analyzers, transfers | ≤ 30 min |
 | `fpl#player_history#{id}` | `gw#{round:03d}#fixture#{fixture}`, `season_summary#{season}` | `ingest_player_history` | xP analyzer, transfers, offline fit scripts | weekly |
 | `analytics#player_form` | `{player_id}` | `analyze_player_form` | `analytics_player_form`, transfers | daily |
 | `analytics#player_xp_v2` | `{player_id}` | `analyze_player_xp_v2` | `analytics_players_xp`, transfers | daily |
@@ -92,6 +92,7 @@ All routes are `GET`. Lambdas marked **cache-aside** call FPL on a miss; the res
 | --- | --- | --- | --- |
 | `/health` | `health` | no table access | nothing in the app; smoke tests |
 | `/gameweek/current` | `gameweek_current` | cache only | every tab (gameweek banner, ● / ✓ markers), Gameweek fixtures screen |
+| `/fixtures/upcoming` | `fixtures_upcoming` | cache only | Players and My Team (fixture strip), Friends (favourite club shirts) |
 | `/players` | `players` | cache only | My Team, Players, Transfers, Friend Team |
 | `/entry/{teamId}` | `entry` | cache-aside, 15 s timeout | My Team, Players, Friends |
 | `/entry/{teamId}/gameweek/{gw}` | `entry_gameweek` | cache-aside, 15 s | My Team, Players, Friend Team |

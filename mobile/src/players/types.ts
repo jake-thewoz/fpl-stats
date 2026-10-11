@@ -6,6 +6,7 @@
  * behave identically on both — that's the whole point of the rebuild
  * (#73).
  */
+import type { GameweekFixtures } from '../fixtures/upcoming';
 
 /** Common per-player view model used on both Players and My Team. */
 export type JoinedPlayer = {
@@ -48,6 +49,11 @@ export type JoinedPlayer = {
   expected_assists: number | null;
   /** Cost change this GW in £m units (positive = price up). */
   cost_change_event: number | null;
+  /** The club's next few gameweeks of fixtures, one slot per gameweek.
+   *  null while fixtures load or if the club is missing from them. */
+  fixtures: readonly GameweekFixtures[] | null;
+  /** Average FPL difficulty of `fixtures`, for sorting and filtering. */
+  fixture_difficulty: number | null;
 };
 
 /** The set of column/filter keys the UI knows about. */
@@ -55,6 +61,7 @@ export type FieldKey =
   | 'xp'
   | 'xp_h3'
   | 'xp_h5'
+  | 'fixtures'
   | 'form'
   | 'price'
   | 'total_points'

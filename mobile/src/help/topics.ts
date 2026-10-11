@@ -67,6 +67,31 @@ const GAMEWEEK_BANNER_SECTION: HelpSection = {
   ],
 };
 
+const FIXTURES_SECTION: HelpSection = {
+  title: 'Fixtures',
+  intro:
+    "The Next 3 column shows each player's next three opponents, coloured by FPL's difficulty rating: mint is easy, coral is hard. The gameweeks are under the heading.",
+  entries: [
+    {
+      term: 'MUN / mun',
+      meaning: 'Capitals are a home game, lower case an away game.',
+    },
+    {
+      term: 'Two stacked chips',
+      meaning: 'A double gameweek: two matches in one gameweek.',
+    },
+    {
+      term: '—',
+      meaning: 'A blank gameweek: no match, so no points.',
+    },
+    {
+      term: 'Sorting',
+      meaning:
+        'Sorts by the average rating, easiest run first. A blank counts as the hardest fixture.',
+    },
+  ],
+};
+
 export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
   myTeam: {
     title: 'My Team',
@@ -107,6 +132,7 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
       },
       MATCH_STATUS_SECTION,
       XP_SECTION,
+      FIXTURES_SECTION,
       GAMEWEEK_BANNER_SECTION,
     ],
   },
@@ -142,6 +168,7 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
         ],
       },
       XP_SECTION,
+      FIXTURES_SECTION,
       {
         title: 'Other stats',
         intro: 'All of these are available from Columns.',

@@ -4,8 +4,9 @@ import { Text } from '../../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import { FREE_HIT_CHIP } from '../../api/myTeam';
 import { useMyTeam } from '../../hooks/useMyTeam';
-import { useQueryState } from '../../hooks/useQueryState';
-import { playersXpQuery } from '../../query/queries';
+import { useQueryState, useRefetchStaleOnFocus } from '../../hooks/useQueryState';
+import { indexUpcomingFixtures } from '../../fixtures/upcoming';
+import { fixturesUpcomingQuery, playersXpQuery } from '../../query/queries';
 import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { useFocusedPlayersConfig } from '../../hooks/useFocusedPlayersConfig';
 import { LoadingView } from '../../components/LoadingView';
@@ -20,7 +21,7 @@ import {
   FIELD_DEFS,
   gameweeksPlayedBefore,
   heatCeiling,
-  xpHeaderSublabels,
+  columnHeaderSublabels,
 } from '../../players/fields';
 import { applyAll, activeFilterCount } from '../../players/apply';
 import { POSITION_CODES } from '../../players/positions';
@@ -68,14 +69,25 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 
   const myTeamQuery = useMyTeam(teamId);
   const xpQuery = useQuery(playersXpQuery());
+  // Fixtures decorate the list but don't gate it: the screen renders
+  // without them and fills the strip in when they arrive.
+  const fixturesQuery = useQuery(fixturesUpcomingQuery());
+  useRefetchStaleOnFocus([fixturesQuery]);
   const myTeamData = myTeamQuery.data;
   const xpResp = xpQuery.data;
+  const fixturesResp = fixturesQuery.data;
   const data = useMemo(() => {
     if (myTeamData === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
-    const rows = squadRows(myTeamData.squad, xpById);
-    return { myTeam: myTeamData, rows, xpGameweek: xpResp.gameweek };
-  }, [myTeamData, xpResp]);
+    const upcoming = fixturesResp && indexUpcomingFixtures(fixturesResp);
+    const rows = squadRows(myTeamData.squad, xpById, upcoming);
+    return {
+      myTeam: myTeamData,
+      rows,
+      xpGameweek: xpResp.gameweek,
+      fixtureGameweeks: upcoming?.gameweeks,
+    };
+  }, [myTeamData, xpResp, fixturesResp]);
   const { state, refreshing, onRefresh, onRetry } = useQueryState(
     [...myTeamQuery.queries, xpQuery],
     data,
@@ -165,7 +177,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     );
   }
 
-  const { myTeam, xpGameweek } = state.data;
+  const { myTeam, xpGameweek, fixtureGameweeks } = state.data;
 
   return (
     <View style={styles.container}>
@@ -218,7 +230,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
           columns={columns}
           sort={sort}
           onTapHeader={onTapColumnHeader}
-          headerSublabels={xpHeaderSublabels(xpGameweek)}
+          headerSublabels={columnHeaderSublabels(xpGameweek, fixtureGameweeks)}
           gameweeksPlayed={gameweeksPlayed}
           getId={(r) => r.id}
           renderNameCell={(row) => <MyTeamNameCell row={row} />}
