@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { fetchEntry } from '../api/entry';
 import { fetchEntryGameweek } from '../api/entryGameweek';
+import { fetchFixturesUpcoming } from '../api/fixturesUpcoming';
 import { fetchGameweekCurrent } from '../api/gameweekCurrent';
 import { fetchGameweekLive } from '../api/gameweekLive';
 import { fetchPlayers } from '../api/players';
@@ -28,6 +29,13 @@ export const playersQuery = () =>
   queryOptions({
     queryKey: ['players'],
     queryFn: ({ signal }) => fetchPlayers(signal),
+    staleTime: INGESTED_STALE_MS,
+  });
+
+export const fixturesUpcomingQuery = () =>
+  queryOptions({
+    queryKey: ['fixturesUpcoming'],
+    queryFn: ({ signal }) => fetchFixturesUpcoming(signal),
     staleTime: INGESTED_STALE_MS,
   });
 

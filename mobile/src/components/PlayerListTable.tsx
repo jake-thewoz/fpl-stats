@@ -26,7 +26,7 @@
  *   doesn't carry one — the spinner would render twice otherwise. Users
  *   will most often pull from the name column anyway.
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
   type LayoutChangeEvent,
@@ -40,6 +40,7 @@ import {
 } from 'react-native';
 import { Text } from './Text';
 import { FIELD_DEFS, heatCeiling } from '../players/fields';
+import { FixtureStrip } from './FixtureStrip';
 import { PullToRefresh } from './PullToRefresh';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
 import {
@@ -57,6 +58,17 @@ import {
 /** Per-data-cell width. Wide enough for the longest short label
  *  (`Defcon/90 ↓`) plus comfortable padding on both sides. */
 const CELL_WIDTH = 72;
+/** The fixture strip's three chips need room for a three-letter
+ *  opponent code each. */
+const FIXTURE_STRIP_WIDTH = 116;
+/** Columns wider than `CELL_WIDTH`. */
+const COLUMN_WIDTHS: Partial<Record<FieldKey, number>> = {
+  fixtures: FIXTURE_STRIP_WIDTH,
+};
+
+function columnWidth(key: FieldKey): number {
+  return COLUMN_WIDTHS[key] ?? CELL_WIDTH;
+}
 /** Pinned name column width. Fits the longest realistic web_name
  *  (e.g. `Bruno Fernandes`) plus the team · pos sub-line on a second
  *  line, plus C/V badge inline. */
@@ -155,7 +167,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
     // the measurement actually changed to avoid a render loop.
     setRightAreaWidth((prev) => (prev === w ? prev : w));
   }, []);
-  const cellsTotalWidth = columns.length * CELL_WIDTH;
+  const cellsTotalWidth = columns.reduce((total, c) => total + columnWidth(c), 0);
   const cellsFitInViewport = rightAreaWidth > 0 && cellsTotalWidth < rightAreaWidth;
   /** On native, when cells fit with room to spare, stretch them to fill
    *  (flex: 1, minWidth keeps short labels readable) — without this a
@@ -167,9 +179,15 @@ export function PlayerListTable<T extends JoinedPlayer>({
    *  on the row distribute slack between and around the cells so each
    *  reads as visually balanced instead. */
   const stretchCellsToFill = cellsFitInViewport && Platform.OS !== 'web';
-  const cellLayout = useMemo(
-    () =>
-      stretchCellsToFill ? { flex: 1, minWidth: CELL_WIDTH } : { width: CELL_WIDTH },
+  // Stretched cells grow in proportion to their width, so a wide column
+  // stays wide.
+  const cellLayout = useCallback(
+    (key: FieldKey) => {
+      const width = columnWidth(key);
+      return stretchCellsToFill
+        ? { flex: width / CELL_WIDTH, minWidth: width }
+        : { width };
+    },
     [stretchCellsToFill],
   );
   const dataWidth = cellsFitInViewport ? rightAreaWidth : cellsTotalWidth;
@@ -193,12 +211,19 @@ export function PlayerListTable<T extends JoinedPlayer>({
       return (
         <View style={[styles.rightRow, { width: dataWidth }, rowStyle]}>
           {columns.map((c) => {
+            if (c === 'fixtures') {
+              return (
+                <View key={c} style={[styles.fixtureCellSlot, cellLayout(c)]}>
+                  <FixtureStrip fixtures={item.fixtures} />
+                </View>
+              );
+            }
             const def = FIELD_DEFS[c];
             const value = def.accessor(item);
             if (c === sort.field && sortedColumnCeiling != null && value != null) {
               const heat = heatColor(value, sortedColumnCeiling, colors);
               return (
-                <View key={c} style={[styles.heatCellSlot, cellLayout]}>
+                <View key={c} style={[styles.heatCellSlot, cellLayout(c)]}>
                   <Text
                     style={[
                       styles.heatCell,
@@ -212,7 +237,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
               );
             }
             return (
-              <Text key={c} style={[styles.dataCell, cellLayout]} numberOfLines={1}>
+              <Text key={c} style={[styles.dataCell, cellLayout(c)]} numberOfLines={1}>
                 {def.format(value)}
               </Text>
             );
@@ -291,7 +316,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
                     onPress={() => onTapHeader(c)}
                     style={({ pressed }) => [
                       styles.headerCell,
-                      cellLayout,
+                      cellLayout(c),
                       pressed && styles.pressed,
                     ]}
                     accessibilityRole="button"
@@ -419,6 +444,10 @@ const makeStyles = (c: Colors) =>
     },
     heatCellSlot: {
       width: CELL_WIDTH,
+      paddingHorizontal: spacing.xs,
+    },
+    fixtureCellSlot: {
+      width: FIXTURE_STRIP_WIDTH,
       paddingHorizontal: spacing.xs,
     },
     heatCell: {

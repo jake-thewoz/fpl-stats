@@ -14,11 +14,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FieldKey, FilterState, SortState } from './types';
 import { EMPTY_FILTER } from './types';
-import { DEFAULT_COLUMNS, DEFAULT_SORT, FIELD_DEFS } from './fields';
+import { DEFAULT_COLUMNS, DEFAULT_SORT, FIELD_DEFS, INTRODUCED_COLUMNS } from './fields';
 
 const KEY_COLUMNS = 'mobile.columns.v1';
 const KEY_FILTERS = 'mobile.filters.v1';
 const KEY_SORT = 'mobile.sort.v1';
+const KEY_INTRODUCED_COLUMNS = 'mobile.columns.introduced.v1';
 
 function isFieldKey(value: unknown): value is FieldKey {
   return typeof value === 'string' && value in FIELD_DEFS;
@@ -27,14 +28,52 @@ function isFieldKey(value: unknown): value is FieldKey {
 export async function loadColumns(): Promise<FieldKey[]> {
   try {
     const raw = await AsyncStorage.getItem(KEY_COLUMNS);
+    const introduced = await takeUnseenIntroducedColumns();
     if (!raw) return DEFAULT_COLUMNS;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_COLUMNS;
     const valid = parsed.filter(isFieldKey);
-    return valid.length > 0 ? valid : DEFAULT_COLUMNS;
+    if (valid.length === 0) return DEFAULT_COLUMNS;
+    const added = introduced.filter((key) => !valid.includes(key));
+    if (added.length === 0) return valid;
+    const withIntroduced = insertAtDefaultPositions(valid, added);
+    await saveColumns(withIntroduced);
+    return withIntroduced;
   } catch {
     return DEFAULT_COLUMNS;
   }
+}
+
+/** Introduced columns this install hasn't been given yet, marked as given
+ *  from now on. A fresh install gets them through `DEFAULT_COLUMNS`. */
+async function takeUnseenIntroducedColumns(): Promise<FieldKey[]> {
+  const raw = await AsyncStorage.getItem(KEY_INTRODUCED_COLUMNS);
+  const parsed: unknown = raw ? JSON.parse(raw) : [];
+  const seen = Array.isArray(parsed) ? parsed.filter(isFieldKey) : [];
+  const unseen = INTRODUCED_COLUMNS.filter((key) => !seen.includes(key));
+  if (unseen.length > 0) {
+    await AsyncStorage.setItem(
+      KEY_INTRODUCED_COLUMNS,
+      JSON.stringify(INTRODUCED_COLUMNS),
+    );
+  }
+  return unseen;
+}
+
+/** Places each added column after the column that precedes it in
+ *  `DEFAULT_COLUMNS`, or first when none of its predecessors are shown. */
+export function insertAtDefaultPositions(
+  columns: readonly FieldKey[],
+  added: readonly FieldKey[],
+): FieldKey[] {
+  const result = [...columns];
+  for (const key of added) {
+    const defaultIndex = DEFAULT_COLUMNS.indexOf(key);
+    const predecessors = DEFAULT_COLUMNS.slice(0, Math.max(defaultIndex, 0));
+    const anchor = [...predecessors].reverse().find((p) => result.includes(p));
+    result.splice(anchor == null ? 0 : result.indexOf(anchor) + 1, 0, key);
+  }
+  return result;
 }
 
 export async function saveColumns(columns: FieldKey[]): Promise<void> {

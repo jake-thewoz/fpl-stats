@@ -1,9 +1,9 @@
 import { View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { HeroCard } from '../../components/HeroCard';
 import { Text } from '../../components/Text';
 import type { Entry } from '../../api/entry';
 import { formatInt, formatRank } from '../../format/rank';
-import { useTheme, useThemedStyles } from '../../theme';
+import { useThemedStyles } from '../../theme';
 import { makeStyles } from './styles';
 
 // FPL chip identifiers as returned by /entry/.../event/.../picks/ on
@@ -14,10 +14,6 @@ const CHIP_LABELS: Record<string, string> = {
   '3xc': 'Triple Captain',
   bboost: 'Bench Boost',
 };
-
-// The gradient runs corner to corner, top-left to bottom-right.
-const HERO_GRADIENT_START = { x: 0, y: 0 };
-const HERO_GRADIENT_END = { x: 1, y: 1 };
 
 /**
  * Scoreboard card at the top of a team: team name, any active chip, the
@@ -34,15 +30,9 @@ export function Header({
   activeChip?: string | null;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
 
   return (
-    <LinearGradient
-      colors={colors.heroGradient}
-      start={HERO_GRADIENT_START}
-      end={HERO_GRADIENT_END}
-      style={styles.hero}
-    >
+    <HeroCard style={styles.hero}>
       <View style={styles.heroTopLine}>
         <Text style={styles.heroTeamName} numberOfLines={1}>
           {entry.name}
@@ -66,7 +56,7 @@ export function Header({
           <HeroStat label="GW rank" value={formatRank(entry.summary_event_rank)} />
         </View>
       </View>
-    </LinearGradient>
+    </HeroCard>
   );
 }
 

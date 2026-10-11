@@ -67,6 +67,31 @@ const GAMEWEEK_BANNER_SECTION: HelpSection = {
   ],
 };
 
+const FIXTURES_SECTION: HelpSection = {
+  title: 'Fixtures',
+  intro:
+    "The Next 3 column shows each player's next three opponents, coloured by FPL's difficulty rating: mint is easy, coral is hard. The gameweeks are under the heading.",
+  entries: [
+    {
+      term: 'MUN / mun',
+      meaning: 'Capitals are a home game, lower case an away game.',
+    },
+    {
+      term: 'Two stacked chips',
+      meaning: 'A double gameweek: two matches in one gameweek.',
+    },
+    {
+      term: '—',
+      meaning: 'A blank gameweek: no match, so no points.',
+    },
+    {
+      term: 'Sorting',
+      meaning:
+        'Sorts by the average rating, easiest run first. A blank counts as the hardest fixture.',
+    },
+  ],
+};
+
 export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
   myTeam: {
     title: 'My Team',
@@ -107,6 +132,7 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
       },
       MATCH_STATUS_SECTION,
       XP_SECTION,
+      FIXTURES_SECTION,
       GAMEWEEK_BANNER_SECTION,
     ],
   },
@@ -142,6 +168,7 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
         ],
       },
       XP_SECTION,
+      FIXTURES_SECTION,
       {
         title: 'Other stats',
         intro: 'All of these are available from Columns.',
@@ -263,6 +290,21 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
           },
           { term: 'GW', meaning: 'Points scored in the current gameweek.' },
           { term: 'Total', meaning: 'Points scored this season.' },
+          {
+            term: 'Cards at the top',
+            meaning:
+              "Swipe between them: everyone's score this gameweek on one line (you in mint, the tick is your friends' average), the season's standouts, and how you did against your friends' average.",
+          },
+          {
+            term: 'Tags',
+            meaning:
+              'Mark who stands out: top score this gameweek, best overall rank, biggest squad value, and the most and fewest transfers this season.',
+          },
+          {
+            term: 'Shirt',
+            meaning:
+              'The club each manager supports, as set on FPL. It says nothing about their squad.',
+          },
           {
             term: 'Tap a row',
             meaning: "See that manager's squad for this gameweek.",

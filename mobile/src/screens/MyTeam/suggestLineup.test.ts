@@ -41,6 +41,8 @@ function squad(specs: RowSpec[]): MyTeamRow[] {
     expected_goals: 0,
     expected_assists: 0,
     cost_change_event: 0,
+    fixtures: null,
+    fixture_difficulty: null,
     squadSlot: index + 1,
     isStarter: spec.starter ?? false,
     isCaptain: spec.captain ?? false,
