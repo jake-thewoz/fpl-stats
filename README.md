@@ -1,0 +1,3 @@
+# PR assets
+
+Screenshots referenced from PR descriptions. Not part of the app; safe to delete once the PRs merge.
