@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><img src="https://img.shields.io/badge/open_the_app-553555?style=for-the-badge&logo=googlechrome&logoColor=adf1d2" alt="Open the app"></a>
+  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><img src="https://img.shields.io/badge/open_the_app-553555?style=for-the-badge" alt="Open the app"></a>
   <a href="https://github.com/jake-thewoz/fpl-stats/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jake-thewoz/fpl-stats/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=553555&color=96c5b0" alt="CI status"></a>
 </p>
 
@@ -18,8 +18,6 @@
 </p>
 
 <p align="center">
-  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><b>Open the app</b></a>
-  &nbsp;·&nbsp;
   <a href="docs/friends-onboarding.md">Get started</a>
   &nbsp;·&nbsp;
   <a href="docs/architecture.md">Architecture</a>
