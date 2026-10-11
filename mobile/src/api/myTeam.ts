@@ -11,6 +11,9 @@ import type { Player, PlayersResponse } from './players';
 export const FREE_HIT_CHIP = 'freehit';
 const FIRST_GAMEWEEK = 1;
 const STARTING_XI_SIZE = 11;
+// FPL gives bench picks a multiplier of 0: their points don't count
+// towards the team total unless Bench Boost or an auto-sub brings them in.
+const BENCH_MULTIPLIER = 0;
 
 export type SquadEntry = {
   pick: Pick;
@@ -18,7 +21,9 @@ export type SquadEntry = {
   // Raw per-player points the player scored this gameweek, before the
   // captain multiplier.
   gwPointsRaw: number | null;
-  // Points contribution = raw × multiplier. Sums to the team's GW total.
+  // Points to show for the player: raw × multiplier, so a captain's are
+  // doubled. A benched player shows what they scored, as FPL's own app
+  // does, rather than the 0 they contribute.
   gwPoints: number | null;
   minutes: number | null;
   isStarter: boolean;
@@ -156,7 +161,7 @@ export function assembleMyTeam(sources: MyTeamSources): MyTeamData | undefined {
       pick,
       player: playersById.get(pick.element) ?? null,
       gwPointsRaw: raw,
-      gwPoints: raw == null ? null : raw * pick.multiplier,
+      gwPoints: raw == null ? null : displayedPoints(raw, pick.multiplier),
       minutes: live?.minutes ?? null,
       isStarter: pick.position <= STARTING_XI_SIZE,
     };
@@ -170,4 +175,8 @@ export function assembleMyTeam(sources: MyTeamSources): MyTeamData | undefined {
     picksError: null,
     showingPersistentSquad,
   };
+}
+
+function displayedPoints(raw: number, multiplier: number): number {
+  return multiplier === BENCH_MULTIPLIER ? raw : raw * multiplier;
 }
