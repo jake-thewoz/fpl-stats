@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Text, TextInput } from '../components/Text';
+import { TextInput } from '../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import type { Player } from '../api/players';
-import { MatchStatusGlyph } from '../gameweek/MatchStatusGlyph';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { useMyTeam } from '../hooks/useMyTeam';
 import { useQueryState, useRefetchStaleOnFocus } from '../hooks/useQueryState';
 import { playersQuery, playersXpQuery } from '../query/queries';
 import { useFocusedPlayersConfig } from '../hooks/useFocusedPlayersConfig';
-import { ClubBackground } from '../components/ClubBackground';
 import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { ActiveFilterChips } from '../components/ActiveFilterChips';
@@ -17,7 +15,8 @@ import { ColumnPickerDialog } from '../components/ColumnPickerDialog';
 import { ControlButton } from '../components/ControlButton';
 import { FilterDialog } from '../components/FilterDialog';
 import { PlayerListTable } from '../components/PlayerListTable';
-import { FIELD_DEFS, xpHeaderSublabels } from '../players/fields';
+import { PlayerNameCell } from '../components/PlayerNameCell';
+import { FIELD_DEFS, gameweeksPlayedBefore, xpHeaderSublabels } from '../players/fields';
 import { applyAll, activeFilterCount } from '../players/apply';
 import { POSITION_CODES } from '../players/positions';
 import type { FieldKey, JoinedPlayer } from '../players/types';
@@ -41,6 +40,11 @@ type CombinedData = {
 
 export default function PlayersScreen(_props: PlayersScreenProps) {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  const ownedRowStyle = useMemo(
+    () => ({ backgroundColor: colors.accentSoft }),
+    [colors.accentSoft],
+  );
 
   // /players + /analytics/players/xp joined by id.
   const playersQueryResult = useQuery(playersQuery());
@@ -65,9 +69,10 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   const { columns, filters, sort, setColumns, setFilters, setSort } =
     useFocusedPlayersConfig();
 
-  // Owned-player decoration (#99): players in the user's current squad
-  // are dimmed on the Players list, mirroring FPL's own "this isn't a
-  // swap target" treatment. Shares My Team's cached queries, so a
+  // Owned-player decoration (#99): rows for players in the user's current
+  // squad are tinted, so they're easy to skip when hunting for a transfer.
+  // A tint rather than a check mark, which would sit next to the live
+  // gameweek's "match finished" check. Shares My Team's cached queries, so a
   // team-ID change in Settings or a fresh squad after a transfer shows
   // up on focus. Failure modes (no team ID set, fetch error) leave
   // ownedIds null and the list renders normally.
@@ -150,31 +155,19 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
         sort={sort}
         onTapHeader={onTapColumnHeader}
         headerSublabels={xpHeaderSublabels(state.data.xpGameweek)}
+        gameweeksPlayed={gameweeksPlayedBefore(state.data.xpGameweek)}
         getId={(p) => p.id}
         renderNameCell={(p) => (
-          <>
-            <ClubBackground teamShort={p.team} />
-            <View style={styles.textBackdrop}>
-              <Text style={styles.nameText} numberOfLines={1}>
-                <MatchStatusGlyph teamShort={p.team} />
-                {p.name}
-              </Text>
-            </View>
-            <View style={styles.textBackdrop}>
-              <Text style={styles.subText} numberOfLines={1}>
-                {p.team} · {p.position}
-              </Text>
-            </View>
-          </>
+          <PlayerNameCell
+            team={p.team}
+            name={p.name}
+            subline={`${p.team} · ${p.position}`}
+          />
         )}
         getRowStyle={
           ownedIds == null
             ? undefined
-            : // Dim rows for players already in the user's squad (#99).
-              // 0.5 matches the pressed-state dim by coincidence, but the
-              // semantics are different — keeping it literal so future
-              // tuning of one doesn't accidentally move the other.
-              (p) => (ownedIds.has(p.id) ? { opacity: 0.5 } : undefined)
+            : (p) => (ownedIds.has(p.id) ? ownedRowStyle : undefined)
         }
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -300,18 +293,15 @@ const makeStyles = (colors: Colors) =>
     searchRow: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.base,
-      paddingBottom: spacing.sm,
-      backgroundColor: colors.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      paddingBottom: spacing.xs,
     },
     searchInput: {
       fontSize: fontSize.base,
       color: colors.textPrimary,
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: colors.background,
-      borderRadius: radius.sm,
+      paddingVertical: spacing.base,
+      backgroundColor: colors.surface,
+      borderRadius: radius.base,
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -321,29 +311,5 @@ const makeStyles = (colors: Colors) =>
       justifyContent: 'space-between',
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
-      backgroundColor: colors.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-
-    // Used by renderNameCell passed to PlayerListTable.
-    nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
-    subText: {
-      fontSize: fontSize.sm,
-      color: colors.textMuted,
-      marginTop: spacing.hairline,
-    },
-    // Surface-coloured backdrop sits behind the text so it stays legible
-    // against the club gradient. Self-shrinks to the text width via
-    // ``alignSelf: 'flex-start'``; the slight horizontal padding gives the
-    // rounded chip-style halo the brief asked for. Where the gradient
-    // has already faded to surface, the backdrop is invisible (same
-    // colour as the row), so it only "appears" where contrast is needed.
-    textBackdrop: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.xs,
-      // 3px is a tight chip halo; below the named scale on purpose.
-      borderRadius: 3,
     },
   });

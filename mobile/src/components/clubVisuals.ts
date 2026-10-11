@@ -1,40 +1,36 @@
 /**
- * Club kit colours + pattern variants for the player-row gradient
- * background. Keyed by FPL's ``team.short_name`` (3-letter code), which
- * is what ``JoinedPlayer.team`` ships on every list row.
+ * Club home-kit colours and patterns, drawn by `ClubShirt`. Keyed by FPL's
+ * ``team.short_name`` (3-letter code), which is what ``JoinedPlayer.team``
+ * ships on every list row.
  *
- * The three pattern variants the renderer knows about:
+ * The pattern variants the shirt knows how to draw:
  *
- * - ``solid``: single dominant kit colour. Most clubs.
- * - ``framed``: two colours arranged as a centred main-colour band with
- *   secondary-colour edges either side, mimicking sleeve trim (Arsenal-
- *   style red shirt with white sleeves, Villa's claret with sky-blue
- *   sleeves, etc.).
- * - ``stripes``: alternating vertical bands of two colours, mimicking a
- *   striped kit (Brentford red+white, Newcastle black+white, Brighton
- *   blue+white, Crystal Palace red+blue).
+ * - ``solid``: one colour. Most clubs.
+ * - ``framed``: primary body with secondary sleeves (Arsenal's red with
+ *   white sleeves, Villa's claret with sky-blue sleeves).
+ * - ``stripes``: alternating vertical bands of two colours (Brentford,
+ *   Newcastle, Brighton, Bournemouth, Crystal Palace).
+ * - ``trimmed``: primary body with a secondary collar and outline. For
+ *   white kits (Spurs, Fulham, Leeds), where the trim is what tells them
+ *   apart.
  *
- * Notes on a few specific calls:
+ * The shirt carries its own outline, so white and pale kits stay visible
+ * on light surfaces; no club needs a substitute colour for contrast.
  *
- * - **Tottenham / Fulham**: kits are mostly white. A "solid white" gradient
- *   would be invisible on the off-white surface, so we use a darker accent
- *   (Spurs navy, Fulham black) as the dominant colour. Loses some kit
- *   accuracy but keeps the row visually identifiable.
- * - **Closely-similar pairs** (Liverpool / Forest / Bournemouth red,
- *   Burnley / Villa claret-with-sky-blue, Man City / Brighton blue-ish):
- *   accepted per the original brief. Kit identity over distinguishability.
+ * Similar pairs (Liverpool / Forest / Man Utd red, Man City / Coventry sky
+ * blue) are accepted: kit accuracy over distinguishability. Clubs outside
+ * the current season stay in the map so they render if promoted again.
  *
- * Hex values are best-effort renderings of common-knowledge primary and
- * secondary kit colours; nudge any one freely if a club ships looking
- * off — they're per-club tunables.
+ * Hex values are best-effort renderings of each club's home kit; nudge any
+ * one freely if a club ships looking off.
  */
 
-export type ClubPatternVariant = 'solid' | 'framed' | 'stripes';
+export type ClubPatternVariant = 'solid' | 'framed' | 'stripes' | 'trimmed';
 
 export type ClubVisual = {
   pattern: ClubPatternVariant;
-  /** Pattern colour(s). Length depends on variant: ``solid`` → 1,
-   *  ``framed`` → 2 (primary, secondary), ``stripes`` → 2 (alternating). */
+  /** Pattern colour(s). ``solid`` → 1; ``framed`` → body, sleeves;
+   *  ``stripes`` → the two alternating bands; ``trimmed`` → body, trim. */
   colors: readonly string[];
 };
 
@@ -42,24 +38,24 @@ export const CLUB_VISUALS: Record<string, ClubVisual> = {
   ARS: { pattern: 'framed', colors: ['#ef0107', '#ffffff'] },
   AVL: { pattern: 'framed', colors: ['#670e36', '#95bfe5'] },
   BHA: { pattern: 'stripes', colors: ['#0057b8', '#ffffff'] },
-  BOU: { pattern: 'solid', colors: ['#da291c'] },
+  BOU: { pattern: 'stripes', colors: ['#da291c', '#000000'] },
   BRE: { pattern: 'stripes', colors: ['#e30613', '#ffffff'] },
   BUR: { pattern: 'framed', colors: ['#6c1d45', '#99d6ea'] },
   CHE: { pattern: 'solid', colors: ['#034694'] },
   COV: { pattern: 'solid', colors: ['#6cb4e4'] },
   CRY: { pattern: 'stripes', colors: ['#1b458f', '#c4122e'] },
   EVE: { pattern: 'solid', colors: ['#003399'] },
-  FUL: { pattern: 'framed', colors: ['#000000', '#ffffff'] },
+  FUL: { pattern: 'trimmed', colors: ['#ffffff', '#000000'] },
   HUL: { pattern: 'stripes', colors: ['#f5a12d', '#000000'] },
   IPS: { pattern: 'framed', colors: ['#0044a9', '#ffffff'] },
-  LEE: { pattern: 'solid', colors: ['#ffe14a'] },
+  LEE: { pattern: 'trimmed', colors: ['#ffffff', '#1d428a'] },
   LIV: { pattern: 'solid', colors: ['#c8102e'] },
   MCI: { pattern: 'solid', colors: ['#6cabdd'] },
   MUN: { pattern: 'solid', colors: ['#da291c'] },
   NEW: { pattern: 'stripes', colors: ['#000000', '#ffffff'] },
   NFO: { pattern: 'solid', colors: ['#dd0000'] },
   SUN: { pattern: 'stripes', colors: ['#eb1a22', '#ffffff'] },
-  TOT: { pattern: 'solid', colors: ['#132257'] },
+  TOT: { pattern: 'trimmed', colors: ['#ffffff', '#132257'] },
   WHU: { pattern: 'framed', colors: ['#7a263a', '#1bb1e7'] },
   WOL: { pattern: 'solid', colors: ['#fdb913'] },
 };

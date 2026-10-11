@@ -264,15 +264,15 @@ export const makeStyles = (colors: Colors) =>
     playerBlock: {
       flex: 1,
       minWidth: 0, // lets numberOfLines + flex work together correctly
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
-    playerBlockLeft: {
-      alignItems: 'flex-start',
-      paddingRight: spacing.md,
-    },
-    playerBlockRight: {
-      alignItems: 'flex-end',
-      paddingLeft: spacing.md,
-    },
+    playerBlockLeft: { paddingRight: spacing.md },
+    playerBlockRight: { flexDirection: 'row-reverse', paddingLeft: spacing.md },
+    playerText: { flex: 1, minWidth: 0 },
+    playerTextLeft: { alignItems: 'flex-start' },
+    playerTextRight: { alignItems: 'flex-end' },
     playerName: {
       fontSize: fontSize.lg,
       fontWeight: '600',
@@ -282,18 +282,6 @@ export const makeStyles = (colors: Colors) =>
       fontSize: fontSize.sm,
       color: colors.textMuted,
       marginTop: spacing.hairline,
-    },
-    // Surface-coloured halo behind the name + subtitle text on each
-    // PlayerBlock. ``alignSelf: auto`` lets each backdrop inherit the
-    // parent block's ``alignItems`` (flex-start for the left block,
-    // flex-end for the right one) so the backdrop hugs the text on
-    // whichever side the text aligns to. Invisible where the gradient
-    // has faded to surface.
-    playerTextBackdrop: {
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.xs,
-      // 3px is a tight chip halo; below the named scale on purpose.
-      borderRadius: 3,
     },
 
     // Center column: arrow + delta xp + bank delta.

@@ -11,7 +11,7 @@ import {
 
 type Props = {
   label: string;
-  /** Accent fill, e.g. Filter while any filter is applied. */
+  /** Soft accent fill, e.g. Filter while any filter is applied. */
   active?: boolean;
   onPress: () => void;
 };
@@ -41,18 +41,13 @@ const makeStyles = (c: Colors) =>
       paddingHorizontal: spacing.lg2,
       paddingVertical: spacing.sm,
       borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.background,
+      backgroundColor: c.surfaceRaised,
     },
-    buttonActive: {
-      backgroundColor: c.accent,
-      borderColor: c.accent,
-    },
+    buttonActive: { backgroundColor: c.accentSoft },
     text: {
       fontSize: fontSize.sm2,
       color: c.textPrimary,
-      fontWeight: '500',
+      fontWeight: '600',
     },
-    textActive: { color: c.onAccent },
+    textActive: { color: c.accentText },
   });

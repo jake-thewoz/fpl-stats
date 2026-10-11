@@ -1,14 +1,14 @@
 import { View } from 'react-native';
 import { Text } from '../../components/Text';
-import { ClubBackground } from '../../components/ClubBackground';
+import { ClubShirt, CLUB_SHIRT_SIZE } from '../../components/ClubShirt';
 import type { Player } from '../../api/players';
 import { useThemedStyles } from '../../theme';
 import { makeStyles } from './styles';
 
 /**
- * Left or right "name + team · pos · price" block in a move row.
- * Carries the club-coloured gradient backdrop; the right-aligned variant
- * mirrors the gradient so both halves of the row fade toward the centre.
+ * Left or right "shirt + name + team · pos · price" block in a move row.
+ * The right-aligned variant mirrors the layout, so both shirts sit on the
+ * outer edges of the row.
  */
 export function PlayerBlock({
   align,
@@ -36,13 +36,16 @@ export function PlayerBlock({
         align === 'right' ? styles.playerBlockRight : styles.playerBlockLeft,
       ]}
     >
-      {team ? <ClubBackground teamShort={team} mirror={align === 'right'} /> : null}
-      <View style={styles.playerTextBackdrop}>
+      <ClubShirt teamShort={team} size={CLUB_SHIRT_SIZE.listRow} />
+      <View
+        style={[
+          styles.playerText,
+          align === 'right' ? styles.playerTextRight : styles.playerTextLeft,
+        ]}
+      >
         <Text style={styles.playerName} numberOfLines={1}>
           {name}
         </Text>
-      </View>
-      <View style={styles.playerTextBackdrop}>
         <Text style={styles.playerSub} numberOfLines={1}>
           {sub}
         </Text>

@@ -4,7 +4,7 @@ import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../..
 // Tiles share a row's width up to a cap, so a five-man midfield still
 // fits a 360px phone while a two-man front line doesn't sprawl.
 const TILE_MAX_WIDTH = 88;
-const SHIRT_SIZE = 40;
+const SHIRT_SLOT_SIZE = 40;
 // Keeps the pitch from stretching into a letterbox on wide web layouts.
 const PITCH_MAX_WIDTH = 520;
 
@@ -84,29 +84,6 @@ export const makeStyles = (colors: Colors) =>
 
     // Used by MyTeamNameCell — the pinned-name column rendered by
     // PlayerListTable.
-    nameLine: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    nameText: { fontSize: fontSize.base, color: colors.textPrimary, fontWeight: '500' },
-    subText: {
-      fontSize: fontSize.sm,
-      color: colors.textMuted,
-      marginTop: spacing.hairline,
-    },
-    // Surface-coloured halo behind name + subtitle so they remain legible
-    // against the club gradient. Invisible where the gradient has faded
-    // to surface (same colour); only appears in the coloured-band area
-    // where contrast is needed. ``alignSelf: 'flex-start'`` keeps the
-    // backdrop hugging the text width rather than spanning the row.
-    textBackdrop: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.xs,
-      // 3px is a tight chip halo; below the named scale on purpose.
-      borderRadius: 3,
-    },
     // Same accent-coloured pill for both captain (C) and vice (V) — only
     // the letter differentiates. Matches FPL's own visual treatment.
     playerBadge: {
@@ -176,14 +153,13 @@ export const makeStyles = (colors: Colors) =>
       paddingHorizontal: spacing.xs,
     },
     tile: { flex: 1, maxWidth: TILE_MAX_WIDTH, alignItems: 'center' },
+    // Wider than the shirt so the armband and change marker sit on its
+    // shoulders rather than covering the crest area.
     shirt: {
-      width: SHIRT_SIZE,
-      height: SHIRT_SIZE,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: 'hidden',
-      backgroundColor: colors.surface,
+      width: SHIRT_SLOT_SIZE,
+      height: SHIRT_SLOT_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     shirtBadge: { position: 'absolute', top: spacing.hairline, right: spacing.hairline },
     // Mirrors playerBadge's compact pill, pinned to the opposite corner

@@ -83,6 +83,9 @@ export type Colors = {
   pitchStripe: string;
   pitchLine: string;
   pitchTile: string;
+  /** Edge around club shirts, so white and pale kits stay visible on
+   *  light surfaces and dark kits on dark ones. */
+  kitOutline: string;
 };
 
 const WHITE = '#ffffff';
@@ -123,6 +126,7 @@ export const lightColors: Colors = {
   pitchStripe: '#35a56a',
   pitchLine: 'rgba(255, 255, 255, 0.5)',
   pitchTile: '#1a1020',
+  kitOutline: 'rgba(26, 16, 32, 0.45)',
 };
 
 export const darkColors: Colors = {
@@ -154,4 +158,5 @@ export const darkColors: Colors = {
   pitchStripe: '#237550',
   pitchLine: 'rgba(255, 255, 255, 0.35)',
   pitchTile: '#1a1022',
+  kitOutline: 'rgba(255, 255, 255, 0.55)',
 };
