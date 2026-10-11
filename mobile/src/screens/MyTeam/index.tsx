@@ -6,7 +6,12 @@ import { FREE_HIT_CHIP } from '../../api/myTeam';
 import { useMyTeam } from '../../hooks/useMyTeam';
 import { useQueryState, useRefetchStaleOnFocus } from '../../hooks/useQueryState';
 import { indexUpcomingFixtures } from '../../fixtures/upcoming';
-import { fixturesUpcomingQuery, playersXpQuery } from '../../query/queries';
+import {
+  fixturesUpcomingQuery,
+  playerStatsQuery,
+  playersXpQuery,
+} from '../../query/queries';
+import { indexPlayerStats } from '../../api/playerStats';
 import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
 import { useFocusedPlayersConfig } from '../../hooks/useFocusedPlayersConfig';
 import { LoadingView } from '../../components/LoadingView';
@@ -69,25 +74,28 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 
   const myTeamQuery = useMyTeam(teamId);
   const xpQuery = useQuery(playersXpQuery());
-  // Fixtures decorate the list but don't gate it: the screen renders
-  // without them and fills the strip in when they arrive.
+  // Fixtures and the extra stats decorate the list but don't gate it: the
+  // screen renders without them and fills them in when they arrive.
   const fixturesQuery = useQuery(fixturesUpcomingQuery());
-  useRefetchStaleOnFocus([fixturesQuery]);
+  const statsQuery = useQuery(playerStatsQuery());
+  useRefetchStaleOnFocus([fixturesQuery, statsQuery]);
   const myTeamData = myTeamQuery.data;
   const xpResp = xpQuery.data;
   const fixturesResp = fixturesQuery.data;
+  const statsResp = statsQuery.data;
   const data = useMemo(() => {
     if (myTeamData === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
     const upcoming = fixturesResp && indexUpcomingFixtures(fixturesResp);
-    const rows = squadRows(myTeamData.squad, xpById, upcoming);
+    const statsById = statsResp && indexPlayerStats(statsResp);
+    const rows = squadRows(myTeamData.squad, xpById, upcoming, statsById);
     return {
       myTeam: myTeamData,
       rows,
       xpGameweek: xpResp.gameweek,
       fixtureGameweeks: upcoming?.gameweeks,
     };
-  }, [myTeamData, xpResp, fixturesResp]);
+  }, [myTeamData, xpResp, fixturesResp, statsResp]);
   const { state, refreshing, onRefresh, onRetry } = useQueryState(
     [...myTeamQuery.queries, xpQuery],
     data,

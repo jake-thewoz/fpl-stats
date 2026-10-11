@@ -1,4 +1,5 @@
 import type { SquadEntry } from '../../api/myTeam';
+import type { PlayerStatValues } from '../../api/playerStats';
 import { playerFixtureFields, type UpcomingFixtures } from '../../fixtures/upcoming';
 import { HEAT_CEILING } from '../../theme/heat';
 import type { LineupSlot, PitchStat } from './lineup';
@@ -18,22 +19,26 @@ export function gameweekPointsStat(slot: LineupSlot): PitchStat {
 }
 
 /** Squad entries as table/pitch rows. Players missing from `/players`
- *  are dropped; xP and fixture columns stay empty when their data is
- *  omitted. */
+ *  are dropped; xP, fixture and extra stat columns stay empty when their
+ *  data is omitted. */
 export function squadRows(
   squad: readonly SquadEntry[],
   xpById?: ReadonlyMap<number, PlayerXp>,
   upcoming?: UpcomingFixtures,
+  statsById?: ReadonlyMap<number, PlayerStatValues>,
 ): MyTeamRow[] {
   return squad
     .filter((s): s is KnownPlayerEntry => s.player != null)
-    .map((s) => toMyTeamRow(s, xpById?.get(s.player.id), upcoming));
+    .map((s) =>
+      toMyTeamRow(s, xpById?.get(s.player.id), upcoming, statsById?.get(s.player.id)),
+    );
 }
 
 function toMyTeamRow(
   s: KnownPlayerEntry,
   xp: PlayerXp | undefined,
   upcoming: UpcomingFixtures | undefined,
+  stats: PlayerStatValues | undefined,
 ): MyTeamRow {
   const { player } = s;
   const formNum = parseFloat(player.form);
@@ -63,6 +68,7 @@ function toMyTeamRow(
     expected_assists: player.expected_assists,
     cost_change_event: player.cost_change_event,
     ...playerFixtureFields(upcoming, player.team),
+    stats: stats ?? null,
     squadSlot: s.pick.position,
     isStarter: s.isStarter,
     isCaptain: s.pick.is_captain,

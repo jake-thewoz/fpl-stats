@@ -11,6 +11,11 @@ export const RANK_MILLIONS_MIN = 1_000_000;
 export const RANK_THOUSANDS_MIN = 10_000;
 
 export function formatRank(n: number | null): string {
+  return formatCompact(n);
+}
+
+/** Any large count (e.g. transfers in), compacted like a rank. */
+export function formatCompact(n: number | null): string {
   if (n == null) return '—';
   if (n >= RANK_MILLIONS_MIN) return `${(n / RANK_MILLIONS_MIN).toFixed(1)}M`;
   if (n >= RANK_THOUSANDS_MIN) return `${Math.round(n / 1000)}k`;

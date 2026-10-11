@@ -97,7 +97,7 @@ const RANGE_SPAN_SEPARATOR = '–';
 
 // The dialog leaves `{ min: null, max: null }` behind when a user empties
 // both inputs, so key presence alone doesn't mean the range is active.
-function isActiveRange(range: RangeFilter | undefined): range is RangeFilter {
+export function isActiveRange(range: RangeFilter | undefined): range is RangeFilter {
   return range != null && (range.min != null || range.max != null);
 }
 

@@ -48,6 +48,7 @@ function squad(specs: RowSpec[]): MyTeamRow[] {
     isCaptain: spec.captain ?? false,
     isViceCaptain: spec.vice ?? false,
     gwPoints: null,
+    stats: null,
   }));
 }
 
