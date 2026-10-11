@@ -78,7 +78,7 @@ export function BundleCard({
 function BundleSummary({ bundle }: { bundle: TransferBundle }) {
   const styles = useThemedStyles(makeStyles);
   const positive = bundle.delta_xp_net >= 0;
-  const netStr = `${positive ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP`;
+  const netStr = `${positive ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
   return (
     <View style={styles.bundleSummary}>
       {/* Net xP gets the same sign-coloured-pill treatment as the
@@ -108,7 +108,7 @@ function BundleSummary({ bundle }: { bundle: TransferBundle }) {
           transfer count is implicit from the move stack rendered
           below, so the previous "N transfers" text has been dropped. */}
       <View style={styles.bundleSummaryDetailRow}>
-        <BankDeltaPill costChange={bundle.total_cost_change} />
+        <BankDeltaPill costChange={bundle.total_cost_change} label="Bank" />
         {bundle.hit_cost > 0 ? <HitPill hitCost={bundle.hit_cost} /> : null}
       </View>
     </View>
@@ -123,7 +123,7 @@ function HitPill({ hitCost }: { hitCost: number }) {
   return (
     <View style={[styles.bankDeltaPill, styles.bankDeltaPillNegative]}>
       <Text style={[styles.bankDeltaPillText, styles.bankDeltaPillTextNegative]}>
-        −{hitCost} pts
+        Hit −{hitCost} pts
       </Text>
     </View>
   );

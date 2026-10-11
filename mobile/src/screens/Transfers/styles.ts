@@ -103,6 +103,11 @@ export const makeStyles = (colors: Colors) =>
       color: colors.textMuted,
       marginTop: spacing.hairline,
     },
+    headerHint: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      marginTop: spacing.sm,
+    },
     // FH note: small but visually distinct so the user sees that
     // suggestions are computed against the persistent squad, not the
     // FH eleven. Mirrors the louder banner on the My Team screen but
@@ -222,6 +227,14 @@ export const makeStyles = (colors: Colors) =>
     compareLabel: {
       flex: 2,
       fontSize: fontSize.sm2,
+      color: colors.textMuted,
+    },
+    compareColumnHeading: {
+      flex: 1,
+      marginHorizontal: spacing.hairline,
+      textAlign: 'center',
+      fontSize: fontSize.sm,
+      fontWeight: '600',
       color: colors.textMuted,
     },
     compareCell: {

@@ -104,13 +104,21 @@ export function CenterBadge({
  * - £0.0 → muted text without a tinted background, since neither
  *   "good" nor "bad" applies to a wash trade.
  */
-export function BankDeltaPill({ costChange }: { costChange: number }) {
+export function BankDeltaPill({
+  costChange,
+  label,
+}: {
+  costChange: number;
+  /** Prefix naming the pill, e.g. "Bank", where it stands alone. */
+  label?: string;
+}) {
   const styles = useThemedStyles(makeStyles);
   const bankDelta = -costChange / 10;
-  const text =
+  const amount =
     bankDelta === 0
       ? '£0.0'
       : `${bankDelta > 0 ? '+' : '−'}£${Math.abs(bankDelta).toFixed(1)}m`;
+  const text = label ? `${label} ${amount}` : amount;
   if (bankDelta === 0) {
     return <Text style={styles.bankDeltaNeutral}>{text}</Text>;
   }

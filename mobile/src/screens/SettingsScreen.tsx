@@ -7,6 +7,8 @@ import {
   setFplTeamId,
 } from '../storage/user';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { HelpDialog } from '../help/HelpDialog';
+import { ALL_HELP_TOPICS } from '../help/topics';
 import type { SettingsScreenProps } from '../navigation/types';
 import {
   effects,
@@ -30,6 +32,7 @@ export default function SettingsScreen(_props: Props) {
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     getFplTeamId().then(setCurrentId);
@@ -124,6 +127,24 @@ export default function SettingsScreen(_props: Props) {
           </View>
         )}
 
+        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>HELP</Text>
+        <View style={styles.card}>
+          <Pressable
+            onPress={() => setGuideOpen(true)}
+            style={({ pressed }) => [styles.linkRow, pressed && styles.themeRowPressed]}
+            accessibilityRole="button"
+          >
+            <View style={styles.linkRowText}>
+              <Text style={styles.themeRowLabel}>How the app works</Text>
+              <Text style={styles.linkRowHint}>
+                What xP means, the symbols, and every tab explained. Each tab also has a ?
+                button at the top.
+              </Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        </View>
+
         <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
         <View style={styles.card}>
           <ThemeRow label="Dark" value="dark" active={mode} onSelect={setMode} />
@@ -136,6 +157,12 @@ export default function SettingsScreen(_props: Props) {
           />
         </View>
       </View>
+      <HelpDialog
+        visible={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        title="How the app works"
+        topics={ALL_HELP_TOPICS}
+      />
       <ConfirmDialog
         visible={clearConfirmOpen}
         title="Clear team ID?"
@@ -270,6 +297,10 @@ const makeStyles = (colors: Colors) =>
     },
     themeRowPressed: effects.pressedSubtle,
     themeRowLabel: { fontSize: fontSize.lg, color: colors.textPrimary },
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    linkRowText: { flex: 1, gap: spacing.xs },
+    linkRowHint: { fontSize: fontSize.sm, color: colors.textMuted },
+    chevron: { fontSize: fontSize.xl, color: colors.textMuted },
     radio: {
       width: 22,
       height: 22,

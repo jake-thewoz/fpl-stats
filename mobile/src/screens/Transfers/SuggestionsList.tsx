@@ -99,8 +99,11 @@ function Header({
       <Text style={styles.headerSub}>
         {ftLabel} · {movesLabel}
         {typeof currentSquadXp === 'number'
-          ? ` · current squad projected ${currentSquadXp.toFixed(1)} xP`
+          ? ` · your squad as it is: ${currentSquadXp.toFixed(1)} xP`
           : ''}
+      </Text>
+      <Text style={styles.headerHint}>
+        Tap a card to compare the players. Net gains already include any points hit.
       </Text>
       {freehitActive ? (
         <Text style={styles.headerFreehitNote}>

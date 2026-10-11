@@ -16,6 +16,15 @@ export function CompareTable({ move }: { move: TransferMove }) {
   return (
     <View style={styles.compareTable}>
       <View style={styles.compareDivider} />
+      <View style={styles.compareRow}>
+        <Text style={styles.compareLabel} />
+        <Text style={styles.compareColumnHeading} numberOfLines={1}>
+          {out.web_name}
+        </Text>
+        <Text style={styles.compareColumnHeading} numberOfLines={1}>
+          {inP.web_name}
+        </Text>
+      </View>
       <Row
         label="Form"
         outText={fmt(out.form_score, 1)}

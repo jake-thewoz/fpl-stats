@@ -2,6 +2,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MyTeamScreen from '../../screens/MyTeam';
 import GameweekScreen from '../../screens/GameweekScreen';
 import type { MyTeamStackParamList } from '../types';
+import { HelpButton } from '../../help/HelpButton';
 import { gameweekBannerLayout } from './gameweekBannerLayout';
 
 const Stack = createNativeStackNavigator<MyTeamStackParamList>();
@@ -15,7 +16,7 @@ export function MyTeamStack() {
       <Stack.Screen
         name="MyTeam"
         component={MyTeamScreen}
-        options={{ title: 'My Team' }}
+        options={{ title: 'My Team', headerRight: () => <HelpButton topic="myTeam" /> }}
       />
       <Stack.Screen
         name="Gameweek"
