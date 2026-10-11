@@ -10,6 +10,8 @@ export type FieldDef = {
   label: string;
   /** Short label for column headers ("xP"). */
   shortLabel: string;
+  /** One plain-English sentence for someone new to FPL stats. */
+  description: string;
   /** Default sort direction the first time the user taps this column. */
   defaultSortDir: SortDir;
   /** Read the value off a JoinedPlayer for sort/filter/format. */
@@ -35,6 +37,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'xp',
     label: 'Expected points (next GW)',
     shortLabel: 'xP',
+    description: 'Points our model expects the player to score in the next gameweek.',
     defaultSortDir: 'desc',
     accessor: (p) => p.xp,
     format: fmtNumber,
@@ -43,6 +46,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'xp_h3',
     label: 'Expected points (next 3 GWs)',
     shortLabel: 'xP·3',
+    description: 'Expected points added up over the next three gameweeks.',
     defaultSortDir: 'desc',
     accessor: (p) => p.xp_h3,
     format: fmtNumber,
@@ -51,6 +55,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'xp_h5',
     label: 'Expected points (next 5 GWs)',
     shortLabel: 'xP·5',
+    description: 'Expected points added up over the next five gameweeks.',
     defaultSortDir: 'desc',
     accessor: (p) => p.xp_h5,
     format: fmtNumber,
@@ -59,6 +64,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'form',
     label: 'Form',
     shortLabel: 'Form',
+    description: "FPL's average points per game over the last 30 days.",
     defaultSortDir: 'desc',
     accessor: (p) => p.form,
     format: fmtNumber,
@@ -67,6 +73,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'price',
     label: 'Price',
     shortLabel: 'Price',
+    description: 'Current FPL price, in millions.',
     defaultSortDir: 'desc',
     accessor: (p) => p.price,
     format: fmtPrice,
@@ -75,6 +82,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'total_points',
     label: 'Total points',
     shortLabel: 'Points',
+    description: 'FPL points scored so far this season.',
     defaultSortDir: 'desc',
     accessor: (p) => p.total_points,
     format: fmtInt,
@@ -83,6 +91,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'defcon',
     label: 'Defensive contributions',
     shortLabel: 'Defcon',
+    description:
+      'Defensive contributions this season: tackles, blocks, interceptions and clearances (plus recoveries for midfielders and forwards). Enough in one match earns 2 points.',
     defaultSortDir: 'desc',
     accessor: (p) => p.defcon,
     format: fmtInt,
@@ -91,6 +101,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'defcon_per_90',
     label: 'Defcon per 90',
     shortLabel: 'Defcon/90',
+    description:
+      'Defensive contributions per 90 minutes played, so part-time players compare fairly.',
     defaultSortDir: 'desc',
     accessor: (p) => p.defcon_per_90,
     format: fmtNumber,
@@ -99,6 +111,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'points_per_game',
     label: 'Points per game',
     shortLabel: 'PPG',
+    description: 'Average FPL points per appearance this season.',
     defaultSortDir: 'desc',
     accessor: (p) => p.points_per_game,
     format: fmtNumber,
@@ -107,6 +120,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'selected_by_percent',
     label: 'Selected by %',
     shortLabel: 'Sel %',
+    description: 'Share of all FPL managers who own the player.',
     defaultSortDir: 'desc',
     accessor: (p) => p.selected_by_percent,
     format: fmtPercent,
@@ -115,6 +129,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'minutes',
     label: 'Minutes',
     shortLabel: 'Mins',
+    description: 'Minutes played this season.',
     defaultSortDir: 'desc',
     accessor: (p) => p.minutes,
     format: fmtInt,
@@ -123,6 +138,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'goals_scored',
     label: 'Goals',
     shortLabel: 'G',
+    description: 'Goals scored this season.',
     defaultSortDir: 'desc',
     accessor: (p) => p.goals_scored,
     format: fmtInt,
@@ -131,6 +147,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'assists',
     label: 'Assists',
     shortLabel: 'A',
+    description: 'Assists this season.',
     defaultSortDir: 'desc',
     accessor: (p) => p.assists,
     format: fmtInt,
@@ -139,6 +156,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'clean_sheets',
     label: 'Clean sheets',
     shortLabel: 'CS',
+    description:
+      "Matches this season where the player's team conceded nothing while they played 60+ minutes.",
     defaultSortDir: 'desc',
     accessor: (p) => p.clean_sheets,
     format: fmtInt,
@@ -147,6 +166,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'bonus',
     label: 'Bonus points',
     shortLabel: 'Bonus',
+    description:
+      'Bonus points earned this season. The top three performers in each match get 3, 2 and 1.',
     defaultSortDir: 'desc',
     accessor: (p) => p.bonus,
     format: fmtInt,
@@ -155,6 +176,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'bps',
     label: 'BPS',
     shortLabel: 'BPS',
+    description:
+      "Bonus Points System score: FPL's per-match performance rating that decides who gets bonus points.",
     defaultSortDir: 'desc',
     accessor: (p) => p.bps,
     format: fmtInt,
@@ -163,6 +186,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'ict_index',
     label: 'ICT index',
     shortLabel: 'ICT',
+    description:
+      "FPL's Influence, Creativity and Threat index, a rating of attacking involvement.",
     defaultSortDir: 'desc',
     accessor: (p) => p.ict_index,
     format: fmtNumber,
@@ -171,6 +196,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'expected_goals',
     label: 'Expected goals',
     shortLabel: 'xG',
+    description:
+      "Expected goals: how many goals the player's shots would usually produce.",
     defaultSortDir: 'desc',
     accessor: (p) => p.expected_goals,
     format: fmtNumber,
@@ -179,6 +206,8 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'expected_assists',
     label: 'Expected assists',
     shortLabel: 'xA',
+    description:
+      "Expected assists: how many assists the player's passes would usually produce.",
     defaultSortDir: 'desc',
     accessor: (p) => p.expected_assists,
     format: fmtNumber,
@@ -187,6 +216,7 @@ export const FIELD_DEFS: Record<FieldKey, FieldDef> = {
     key: 'cost_change_event',
     label: 'Price change (this GW)',
     shortLabel: 'Δ£',
+    description: 'How much the price has moved this gameweek.',
     defaultSortDir: 'desc',
     accessor: (p) => p.cost_change_event,
     format: fmtCostChange,

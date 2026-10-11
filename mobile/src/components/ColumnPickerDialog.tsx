@@ -28,7 +28,7 @@ export function ColumnPickerDialog({ visible, onClose, selected, onToggle }: Pro
             <CheckRow
               key={f.key}
               label={f.label}
-              hint={`shown as “${f.shortLabel}”`}
+              hint={`“${f.shortLabel}” · ${f.description}`}
               checked={selected.includes(f.key)}
               onPress={() => onToggle(f.key)}
             />

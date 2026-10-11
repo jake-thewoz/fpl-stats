@@ -99,18 +99,24 @@ function SuggestionSummary({
     // Anything that rounds to 0.0 on screen reads as "no change".
     format(gain) === format(0) ? 'same as yours' : `+${format(gain)} vs yours`;
 
+  const { starters, bench } = suggestion.lineup;
+  const hasChanges = [...starters, ...bench].some((slot) => slot.change != null);
+  const notes = [
+    hasChanges ? '↑ starts a bench player, ↓ benches a starter.' : null,
+    squadGameweek != null
+      ? `Picked from your GW ${squadGameweek} squad, so transfers made since then aren't included.`
+      : null,
+  ].filter(Boolean);
+
   return (
     <>
       <Text style={styles.lineupSummary}>
-        {targetGameweek != null ? `GW ${targetGameweek}  ·  ` : ''}
+        Best XI by {shortLabel}
+        {targetGameweek != null ? ` for GW ${targetGameweek}` : ''} ·{' '}
         {formationLabel(suggestion.lineup)} · {format(suggestion.suggestedScore)}{' '}
         {shortLabel} ({gainText})
       </Text>
-      {squadGameweek != null ? (
-        <Text style={styles.lineupSummaryNote}>
-          {`Picked from your GW ${squadGameweek} squad. Transfers made since then aren't visible.`}
-        </Text>
-      ) : null}
+      <Text style={styles.lineupSummaryNote}>{notes.join(' ')}</Text>
     </>
   );
 }

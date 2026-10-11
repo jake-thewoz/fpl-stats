@@ -41,6 +41,7 @@ const makeStyles = (c: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: spacing.lg,
       paddingHorizontal: spacing.xl,
       paddingVertical: spacing.lg2,
       borderBottomWidth: StyleSheet.hairlineWidth,

@@ -10,6 +10,7 @@ import {
 import { entryQuery } from '../query/queries';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
+import { HelpButton } from '../help/HelpButton';
 import { LoadingView } from '../components/LoadingView';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { formatInt, formatRank } from '../format/rank';
@@ -57,13 +58,16 @@ export default function FriendsScreen({ navigation }: Props) {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <HeaderButton
-          label="Manage"
-          onPress={() => navigation.navigate('ManageFriends')}
-        />
+        <View style={styles.headerActions}>
+          <HelpButton topic="friends" />
+          <HeaderButton
+            label="Manage"
+            onPress={() => navigation.navigate('ManageFriends')}
+          />
+        </View>
       ),
     });
-  }, [navigation]);
+  }, [navigation, styles]);
 
   // Re-read the friends list every time the screen gains focus so a
   // friend added on Manage shows up on return.
@@ -163,6 +167,14 @@ export default function FriendsScreen({ navigation }: Props) {
           onHeaderPress={onHeaderPress}
         />
       }
+      ListFooterComponent={
+        friends?.length === 0 ? (
+          <InviteFriends
+            onAddFriend={() => navigation.navigate('AddFriend')}
+            onImportLeague={() => navigation.navigate('ImportLeague')}
+          />
+        ) : null
+      }
       contentContainerStyle={styles.listContent}
       stickyHeaderIndices={[0]}
       refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
@@ -229,6 +241,42 @@ function EmptyState({
         accessibilityRole="button"
       >
         <Text style={styles.secondaryBtnText}>Set your team ID</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** Shown under the user's own row until they've added anyone, so the
+ *  tab explains itself instead of showing a one-row table. */
+function InviteFriends({
+  onAddFriend,
+  onImportLeague,
+}: {
+  onAddFriend: () => void;
+  onImportLeague: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <View style={styles.inviteWrap}>
+      <Text style={styles.inviteTitle}>Compare with your friends</Text>
+      <Text style={styles.emptyBody}>
+        Add a friend by their FPL team ID, or import everyone from a mini-league you
+        share. Tap anyone in the table to see their squad.
+      </Text>
+      <Pressable
+        onPress={onImportLeague}
+        style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.primaryBtnText}>Import a league</Text>
+      </Pressable>
+      <Pressable
+        onPress={onAddFriend}
+        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryBtnText}>Add one friend</Text>
       </Pressable>
     </View>
   );
@@ -428,6 +476,7 @@ const COL_NUMERIC_WIDTH = 62;
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     listContent: { paddingBottom: spacing.xxxl, backgroundColor: colors.background },
     emptyWrap: {
       flex: 1,
@@ -437,6 +486,12 @@ const makeStyles = (colors: Colors) =>
       gap: spacing.lg,
       backgroundColor: colors.background,
     },
+    inviteWrap: {
+      alignItems: 'center',
+      padding: spacing.xxl,
+      gap: spacing.lg,
+    },
+    inviteTitle: { fontSize: fontSize.xl, fontWeight: '700', color: colors.textPrimary },
     emptyTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
     emptyBody: {
       color: colors.textMuted,

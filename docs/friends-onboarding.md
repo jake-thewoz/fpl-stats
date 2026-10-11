@@ -12,6 +12,8 @@ There's no password and no account. Your team ID and settings are stored only on
 
 ## What the tabs do
 
+Tap the **?** at the top of any tab for a plain-English explanation of what's on it, and *Settings → How the app works* for the whole guide.
+
 - **My Team.** Your squad on a pitch (or as a list), with each player's expected points (xP) for the next gameweek. Switch between *Yours* and *Suggested* to see the best XI and captain by xP. A banner shows the next deadline, or during a gameweek which matches are live; players show ● while their club plays and ✓ once it's done. Tap the banner for the fixture list.
 - **Players.** Every player, sortable and filterable by xP, price, form and more. Active filters show as chips you can tap to remove. Players you already own are dimmed.
 - **Transfers.** Ranked transfer plans for your squad over the next few gameweeks: who goes out, who comes in, the net xP gain, your bank, and any −4 hit. You can choose how many gameweeks to plan over and the most transfers to consider, and correct your free-transfer count if it's wrong (for example, right after you've made transfers).

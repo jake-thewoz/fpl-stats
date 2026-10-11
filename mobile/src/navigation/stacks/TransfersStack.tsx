@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TransfersScreen from '../../screens/Transfers';
 import type { TransfersStackParamList } from '../types';
+import { HelpButton } from '../../help/HelpButton';
 import { gameweekBannerLayout } from './gameweekBannerLayout';
 
 const Stack = createNativeStackNavigator<TransfersStackParamList>();
@@ -14,7 +15,10 @@ export function TransfersStack() {
       <Stack.Screen
         name="Transfers"
         component={TransfersScreen}
-        options={{ title: 'Transfers' }}
+        options={{
+          title: 'Transfers',
+          headerRight: () => <HelpButton topic="transfers" />,
+        }}
       />
     </Stack.Navigator>
   );

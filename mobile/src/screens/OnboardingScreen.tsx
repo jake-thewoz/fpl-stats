@@ -17,6 +17,13 @@ type Props = OnboardingScreenProps;
 
 const FPL_POINTS_URL = 'https://fantasy.premierleague.com/my-team';
 
+const FEATURES = [
+  'pick your best starting XI and captain',
+  'find the transfers worth making',
+  'search and compare every player',
+  'keep score against your friends',
+] as const;
+
 export default function OnboardingScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -54,8 +61,18 @@ export default function OnboardingScreen({ navigation }: Props) {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to {APP_NAME}</Text>
       <Text style={styles.body}>
-        Enter your Fantasy Premier League team ID so we can pull your team and compare
-        with friends.
+        A Fantasy Premier League companion. Every player gets an expected-points (xP)
+        prediction for the coming gameweeks, and the app uses it to help you:
+      </Text>
+      <View style={styles.featureList}>
+        {FEATURES.map((feature) => (
+          <Text key={feature} style={styles.feature}>
+            {`•  ${feature}`}
+          </Text>
+        ))}
+      </View>
+      <Text style={styles.body}>
+        Enter your FPL team ID to start. No password or account needed.
       </Text>
 
       <TextInput
@@ -131,6 +148,8 @@ const makeStyles = (c: Colors) =>
     // shared type scale.
     title: { fontSize: 28, fontWeight: '700', color: c.textPrimary },
     body: { fontSize: fontSize.base, color: c.textMuted, lineHeight: 22 },
+    featureList: { gap: spacing.xs, paddingLeft: spacing.xs },
+    feature: { fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22 },
     input: {
       marginTop: spacing.md,
       paddingHorizontal: spacing.lg2,
