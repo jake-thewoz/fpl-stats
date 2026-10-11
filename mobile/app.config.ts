@@ -9,6 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: config.name ?? 'mobile',
   slug: config.slug ?? 'mobile',
   splash: { ...config.splash, backgroundColor: BRAND_BACKGROUND_COLOR },
+  web: { ...config.web, themeColor: BRAND_BACKGROUND_COLOR },
   android: {
     ...config.android,
     adaptiveIcon: {

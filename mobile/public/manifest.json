@@ -1,6 +1,12 @@
 {
+  "id": "/",
   "name": "Captain's Log",
   "short_name": "Captain's Log",
+  "description": "Plan your Fantasy Premier League season with expected points for every player, smarter transfer suggestions, and your mini-league at a glance.",
+  "lang": "en",
+  "categories": [
+    "sports"
+  ],
   "start_url": "/",
   "display": "standalone",
   "background_color": "#553555",

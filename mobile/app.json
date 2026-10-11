@@ -22,7 +22,9 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "lang": "en",
+      "description": "Plan your Fantasy Premier League season with expected points for every player, smarter transfer suggestions, and your mini-league at a glance."
     }
   }
 }
