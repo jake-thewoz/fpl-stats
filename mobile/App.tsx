@@ -12,6 +12,7 @@ import { MainTabs } from './src/navigation/MainTabs';
 import type { RootStackParamList } from './src/navigation/types';
 import { ThemeProvider, useTheme } from './src/theme';
 import { persistOptions, queryClient, subscribeToAppFocus } from './src/query/client';
+import { APP_NAME } from './src/config';
 
 // Re-export so screens can keep importing param-list types from `'../../App'`
 // during the transition without churn. (`./src/navigation/types` is the
@@ -19,6 +20,15 @@ import { persistOptions, queryClient, subscribeToAppFocus } from './src/query/cl
 export type { RootStackParamList } from './src/navigation/types';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+const ONBOARDING_TITLE = 'Welcome';
+const DOCUMENT_TITLE_SEPARATOR = ' · ';
+
+// Browser tab and history titles on web, e.g. "Players · Captain's Log".
+const documentTitle = {
+  formatter: (options?: { title?: string }) =>
+    options?.title ? `${options.title}${DOCUMENT_TITLE_SEPARATOR}${APP_NAME}` : APP_NAME,
+};
 
 type BootstrapState =
   | { status: 'loading' }
@@ -84,12 +94,16 @@ function ThemedAppRoot() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} documentTitle={documentTitle}>
       <RootStack.Navigator
         initialRouteName={bootstrap.initialRoute}
         screenOptions={{ headerShown: false }}
       >
-        <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
+        <RootStack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
+          options={{ title: ONBOARDING_TITLE }}
+        />
         <RootStack.Screen name="Main" component={MainTabs} />
       </RootStack.Navigator>
       {/* Status bar inverts with the theme — light glyphs on dark bg,
