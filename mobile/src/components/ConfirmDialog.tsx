@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import {
   effects,
   fontSize,
@@ -113,7 +114,7 @@ const makeStyles = (c: Colors) =>
     },
     btnPrimary: { backgroundColor: c.accent },
     btnPrimaryText: { color: c.onAccent, fontSize: fontSize.base, fontWeight: '600' },
-    btnDanger: { backgroundColor: c.danger },
-    btnDangerText: { color: c.onDanger, fontSize: fontSize.base, fontWeight: '600' },
+    btnDanger: { backgroundColor: c.bad },
+    btnDangerText: { color: c.onBad, fontSize: fontSize.base, fontWeight: '600' },
     pressed: effects.pressedSubtle,
   });

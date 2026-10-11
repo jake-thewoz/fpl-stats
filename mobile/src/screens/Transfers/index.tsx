@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, Text, UIManager, View } from 'react-native';
+import { Platform, Pressable, UIManager, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import type { Player } from '../../api/players';

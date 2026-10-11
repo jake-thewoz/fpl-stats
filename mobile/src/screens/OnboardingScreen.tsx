@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import { isValidFplTeamId, setFplTeamId, setOnboardingSeen } from '../storage/user';
 import { APP_NAME } from '../config';
 import type { OnboardingScreenProps } from '../navigation/types';
 import {
   effects,
+  fontRole,
   fontSize,
   radius,
   spacing,
@@ -146,7 +148,7 @@ const makeStyles = (c: Colors) =>
     },
     // 28px is the welcome-screen hero title; one call site, above the
     // shared type scale.
-    title: { fontSize: 28, fontWeight: '700', color: c.textPrimary },
+    title: { ...fontRole.display, fontSize: 28, color: c.textPrimary },
     body: { fontSize: fontSize.base, color: c.textMuted, lineHeight: 22 },
     featureList: { gap: spacing.xs, paddingLeft: spacing.xs },
     feature: { fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22 },
@@ -161,7 +163,7 @@ const makeStyles = (c: Colors) =>
       color: c.textPrimary,
       fontSize: fontSize.lg2,
     },
-    error: { color: c.danger, fontSize: fontSize.sm2 },
+    error: { color: c.badText, fontSize: fontSize.sm2 },
     primaryBtn: {
       marginTop: spacing.md,
       backgroundColor: c.accent,
@@ -185,7 +187,7 @@ const makeStyles = (c: Colors) =>
     },
     helperGroup: { marginTop: spacing.xl, gap: spacing.xs },
     helperLink: {
-      color: c.accent,
+      color: c.accentText,
       fontSize: fontSize.base,
       fontWeight: '600',
       textAlign: 'center',
@@ -197,6 +199,6 @@ const makeStyles = (c: Colors) =>
       textAlign: 'center',
     },
     helperEmphasis: { color: c.textPrimary, fontWeight: '700' },
-    mono: { fontVariant: ['tabular-nums'], fontWeight: '600' },
+    mono: { ...fontRole.numeric, fontWeight: '600' },
     pressed: effects.pressed,
   });

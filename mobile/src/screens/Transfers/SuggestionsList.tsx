@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { FlatList, LayoutAnimation, Text, View } from 'react-native';
+import { FlatList, LayoutAnimation, View } from 'react-native';
+import { Text } from '../../components/Text';
 import type { Player } from '../../api/players';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';

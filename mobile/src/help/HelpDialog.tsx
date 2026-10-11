@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { DialogShell } from '../components/dialog/DialogShell';
 import { Section } from '../components/dialog/Section';
 import { fontSize, spacing, useThemedStyles, type Colors } from '../theme';

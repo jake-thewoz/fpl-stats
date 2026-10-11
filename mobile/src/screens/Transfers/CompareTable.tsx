@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../../components/Text';
 import type { TransferMove } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
 import { difficultyTone, type ColorTone } from '../../transfers/scoring';
@@ -7,7 +8,7 @@ import { makeStyles } from './styles';
 /**
  * Expanded comparison panel under a move row (#97). Three columns:
  * metric label / out value / in value. Cells with a fixture-quality
- * tone tint background + text on the sage/warning/danger scale.
+ * tone tint background + text on the good/warning/bad scale.
  */
 export function CompareTable({ move }: { move: TransferMove }) {
   const styles = useThemedStyles(makeStyles);

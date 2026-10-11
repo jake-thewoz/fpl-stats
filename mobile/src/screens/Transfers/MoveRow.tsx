@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../../components/Text';
 import { ClubBackground } from '../../components/ClubBackground';
 import type { Player } from '../../api/players';
 import { useThemedStyles } from '../../theme';
@@ -69,7 +70,7 @@ export function CenterBadge({
       <View style={styles.arrowRow}>
         <Text style={styles.arrowText}>→</Text>
       </View>
-      {/* xP delta pill is sign-coloured: sage for positive moves, red
+      {/* xP delta pill is sign-coloured: mint for positive moves, coral
           for negative. Mostly the bundle-net positives, but per-move
           deltas inside a multi-move bundle can go negative — the pill
           colour gives that move's contribution at a glance. */}
@@ -99,8 +100,8 @@ export function CenterBadge({
  * money). We negate for display so the pill reads as the user's bank
  * delta: positive = "you gained money".
  *
- * - Gain → sage / accentSoft (matches the positive delta-xP pill).
- * - Loss → red / danger.
+ * - Gain → mint / good (matches the positive delta-xP pill).
+ * - Loss → coral / bad.
  * - £0.0 → muted text without a tinted background, since neither
  *   "good" nor "bad" applies to a wash trade.
  */

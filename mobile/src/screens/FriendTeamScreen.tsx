@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../components/Text';
 import { useMyTeam } from '../hooks/useMyTeam';
 import { useQueryState } from '../hooks/useQueryState';
 import { LoadingView } from '../components/LoadingView';

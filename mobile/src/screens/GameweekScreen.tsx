@@ -1,4 +1,5 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import type { Fixture, GameweekCurrentResponse } from '../api/gameweekCurrent';
 import { formatDeadline, formatKickoff } from '../format/datetime';
@@ -9,7 +10,7 @@ import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import { PullToRefresh } from '../components/PullToRefresh';
 import type { GameweekScreenProps } from '../navigation/types';
-import { fontSize, spacing, useThemedStyles, type Colors } from '../theme';
+import { fontRole, fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
 type Props = GameweekScreenProps;
 
@@ -109,7 +110,12 @@ const makeStyles = (colors: Colors) =>
     },
     // 24px is a hero gameweek title size, above the standard scale; one
     // call site so it stays inline rather than promoted.
-    headerTitle: { fontSize: 24, fontWeight: '600', color: colors.textPrimary },
+    headerTitle: {
+      ...fontRole.display,
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
     headerSubtitle: { marginTop: spacing.xs, color: colors.textMuted },
     fixtureRow: {
       flexDirection: 'row',
@@ -130,8 +136,8 @@ const makeStyles = (colors: Colors) =>
     fixtureScore: {
       paddingHorizontal: spacing.lg,
       color: colors.textPrimary,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
-    liveMarker: { color: colors.live },
+    liveMarker: { color: colors.goodText },
     emptyBody: { padding: spacing.xl2, color: colors.textMuted, textAlign: 'center' },
   });

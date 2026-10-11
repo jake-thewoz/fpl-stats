@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../../components/Text';
 import type { Player } from '../../api/players';
 import type { TransferBundle } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';

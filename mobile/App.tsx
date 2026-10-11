@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,7 +12,15 @@ import { WebShell } from './src/components/WebShell';
 import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
 import { MainTabs } from './src/navigation/MainTabs';
 import type { RootStackParamList } from './src/navigation/types';
-import { ThemeProvider, useTheme } from './src/theme';
+import {
+  CustomFontsContext,
+  FONT_ASSETS,
+  ThemeProvider,
+  resolveFontFace,
+  useCustomFontsLoaded,
+  useTheme,
+  type FontRole,
+} from './src/theme';
 import { persistOptions, queryClient, subscribeToAppFocus } from './src/query/client';
 import { APP_NAME } from './src/config';
 
@@ -30,12 +40,50 @@ const documentTitle = {
     options?.title ? `${options.title}${DOCUMENT_TITLE_SEPARATOR}${APP_NAME}` : APP_NAME,
 };
 
+// Hold the native splash until the fonts settle, so the first frame
+// isn't drawn in the system font. A no-op on web.
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Already hidden (e.g. after a fast refresh) — nothing to hold.
+});
+
+// Each face already is its weight, so the navigator's own weight stays
+// regular rather than asking for a bolder variant of a bold face.
+const FACE_WEIGHT = '400';
+
+function navigationFont(role: FontRole, weight: number) {
+  return { fontFamily: resolveFontFace(role, weight), fontWeight: FACE_WEIGHT } as const;
+}
+
+// Header titles take the display font; tab labels and back buttons body.
+const NAVIGATION_FONTS: Theme['fonts'] = {
+  regular: navigationFont('body', 400),
+  medium: navigationFont('body', 500),
+  bold: navigationFont('display', 700),
+  heavy: navigationFont('display', 800),
+};
+
 type BootstrapState =
   | { status: 'loading' }
   | { status: 'ready'; initialRoute: keyof RootStackParamList };
 
 export default function App() {
   useEffect(subscribeToAppFocus, []);
+  const [fontsLoaded, fontsError] = useFonts(FONT_ASSETS);
+  // A failed load still lets the app start; `Text` falls back to the
+  // system font when the context below says the fonts aren't there.
+  const fontsSettled = fontsLoaded || fontsError != null;
+
+  useEffect(() => {
+    if (fontsSettled) {
+      SplashScreen.hideAsync().catch(() => {
+        // Already hidden — nothing to do.
+      });
+    }
+  }, [fontsSettled]);
+
+  if (!fontsSettled) {
+    return null;
+  }
 
   // SafeAreaProvider must wrap anything that calls useSafeAreaInsets()
   // (notably the bottom tab bar in MainTabs.tsx). Without it, insets fall
@@ -45,9 +93,11 @@ export default function App() {
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <WebShell>
-            <ThemedAppRoot />
-          </WebShell>
+          <CustomFontsContext.Provider value={fontsLoaded}>
+            <WebShell>
+              <ThemedAppRoot />
+            </WebShell>
+          </CustomFontsContext.Provider>
         </ThemeProvider>
       </SafeAreaProvider>
     </PersistQueryClientProvider>
@@ -58,6 +108,7 @@ export default function App() {
  *  React Navigation theme + status bar style reactively. */
 function ThemedAppRoot() {
   const { colors, effectiveMode } = useTheme();
+  const customFontsLoaded = useCustomFontsLoaded();
   const [bootstrap, setBootstrap] = useState<BootstrapState>({ status: 'loading' });
 
   useEffect(() => {
@@ -76,6 +127,7 @@ function ThemedAppRoot() {
     () => ({
       ...DefaultTheme,
       dark: effectiveMode === 'dark',
+      fonts: customFontsLoaded ? NAVIGATION_FONTS : DefaultTheme.fonts,
       colors: {
         ...DefaultTheme.colors,
         background: colors.background,
@@ -86,7 +138,7 @@ function ThemedAppRoot() {
         notification: colors.accent,
       },
     }),
-    [colors, effectiveMode],
+    [colors, effectiveMode, customFontsLoaded],
   );
 
   if (bootstrap.status === 'loading') {

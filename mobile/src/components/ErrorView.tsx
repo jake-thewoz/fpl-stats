@@ -1,5 +1,7 @@
-import { Button, StyleSheet, Text, View } from 'react-native';
-import { fontSize, spacing, useTheme, useThemedStyles, type Colors } from '../theme';
+import { StyleSheet, View } from 'react-native';
+import { ControlButton } from './ControlButton';
+import { Text } from './Text';
+import { fontRole, fontSize, spacing, useThemedStyles, type Colors } from '../theme';
 
 type Props = {
   title: string;
@@ -8,13 +10,12 @@ type Props = {
 };
 
 export function ErrorView({ title, message, onRetry }: Props) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.centered}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{message}</Text>
-      <Button title="Retry" onPress={onRetry} color={colors.accent} />
+      <ControlButton label="Retry" active onPress={onRetry} />
     </View>
   );
 }
@@ -29,6 +30,11 @@ const makeStyles = (c: Colors) =>
       gap: spacing.lg,
       backgroundColor: c.background,
     },
-    title: { fontSize: fontSize.xl, fontWeight: '600', color: c.textPrimary },
-    body: { color: c.danger, textAlign: 'center' },
+    title: {
+      ...fontRole.display,
+      fontSize: fontSize.xl,
+      fontWeight: '700',
+      color: c.textPrimary,
+    },
+    body: { color: c.badText, textAlign: 'center' },
   });

@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useFocusEffect } from '@react-navigation/native';
 import { getFriends, removeFriend, type Friend } from '../storage/friends';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { ManageFriendsScreenProps } from '../navigation/types';
 import {
   effects,
+  fontRole,
   fontSize,
   radius,
   spacing,
@@ -168,7 +170,12 @@ const makeStyles = (colors: Colors) =>
       padding: spacing.xxxl,
       gap: spacing.lg,
     },
-    emptyTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
+    emptyTitle: {
+      ...fontRole.display,
+      fontSize: fontSize.xxl,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
     emptyBody: {
       color: colors.textMuted,
       textAlign: 'center',
@@ -215,17 +222,17 @@ const makeStyles = (colors: Colors) =>
       marginTop: spacing.hairline,
       color: colors.textMuted,
       fontSize: fontSize.sm2,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     removeBtn: {
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
       borderRadius: radius.sm,
       borderWidth: 1,
-      borderColor: colors.danger,
+      borderColor: colors.bad,
       backgroundColor: 'transparent',
     },
-    removeBtnText: { color: colors.danger, fontSize: fontSize.sm2, fontWeight: '600' },
+    removeBtnText: { color: colors.badText, fontSize: fontSize.sm2, fontWeight: '600' },
     footerWrap: {
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.xl,

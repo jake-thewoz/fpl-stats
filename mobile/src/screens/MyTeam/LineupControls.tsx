@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../../components/Text';
 import { SegmentedControl, type SegmentOption } from '../../components/SegmentedControl';
 import { FIELD_DEFS } from '../../players/fields';
 import { useThemedStyles } from '../../theme';

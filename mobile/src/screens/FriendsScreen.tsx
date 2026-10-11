@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useFocusEffect } from '@react-navigation/native';
 import { EntryNotFoundError, type Entry } from '../api/entry';
 import { getFriends, type Friend } from '../storage/friends';
@@ -17,6 +18,7 @@ import { formatInt, formatRank } from '../format/rank';
 import type { FriendsScreenProps } from '../navigation/types';
 import {
   effects,
+  fontRole,
   fontSize,
   radius,
   spacing,
@@ -491,8 +493,18 @@ const makeStyles = (colors: Colors) =>
       padding: spacing.xxl,
       gap: spacing.lg,
     },
-    inviteTitle: { fontSize: fontSize.xl, fontWeight: '700', color: colors.textPrimary },
-    emptyTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.textPrimary },
+    inviteTitle: {
+      ...fontRole.display,
+      fontSize: fontSize.xl,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    emptyTitle: {
+      ...fontRole.display,
+      fontSize: fontSize.xxl,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
     emptyBody: {
       color: colors.textMuted,
       textAlign: 'center',
@@ -541,7 +553,7 @@ const makeStyles = (colors: Colors) =>
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
-    colHeaderActive: { color: colors.accent },
+    colHeaderActive: { color: colors.accentText },
     colHeaderBtn: { width: COL_NUMERIC_WIDTH, paddingVertical: spacing.xs },
     row: {
       flexDirection: 'row',
@@ -567,17 +579,17 @@ const makeStyles = (colors: Colors) =>
       marginTop: spacing.hairline,
       color: colors.textMuted,
       fontSize: fontSize.sm,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     rowError: {
       marginTop: spacing.hairline,
-      color: colors.danger,
+      color: colors.badText,
       fontSize: fontSize.sm,
     },
     colNumeric: {
       width: COL_NUMERIC_WIDTH,
       textAlign: 'right',
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     rowCell: { color: colors.textPrimary, fontSize: fontSize.md },
     youBadge: {

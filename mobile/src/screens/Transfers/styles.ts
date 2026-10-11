@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { effects, fontSize, radius, spacing, type Colors } from '../../theme';
+import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../../theme';
 
 /**
  * Shared makeStyles for every component in the Transfers folder.
@@ -169,15 +169,15 @@ export const makeStyles = (colors: Colors) =>
       paddingVertical: 3,
       borderRadius: 12,
     },
-    bundleSummaryNetPillPositive: { backgroundColor: colors.accentSoft },
-    bundleSummaryNetPillNegative: { backgroundColor: colors.danger },
+    bundleSummaryNetPillPositive: { backgroundColor: colors.good },
+    bundleSummaryNetPillNegative: { backgroundColor: colors.bad },
     bundleSummaryNetPillText: {
       fontSize: fontSize.lg,
       fontWeight: '700',
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
-    bundleSummaryNetPillTextPositive: { color: colors.onAccentSoft },
-    bundleSummaryNetPillTextNegative: { color: colors.onDanger },
+    bundleSummaryNetPillTextPositive: { color: colors.onGood },
+    bundleSummaryNetPillTextNegative: { color: colors.onBad },
     // Detail row holds the bank + (optional) hit pills inline below
     // the net-xP pill. Centered alignment keeps the small pills
     // baseline-matched.
@@ -210,7 +210,7 @@ export const makeStyles = (colors: Colors) =>
     // Expanded comparison table (#97). Sits below the main row when the
     // user taps to expand. Three columns: metric label / out value / in
     // value. Values are right-aligned; cells with a fixture-quality tone
-    // tint background + text on the sage/warning/danger scale.
+    // tint background + text on the good/warning/bad scale.
     compareTable: {
       marginTop: spacing.xs,
     },
@@ -248,18 +248,18 @@ export const makeStyles = (colors: Colors) =>
     compareCellText: {
       fontSize: fontSize.md,
       fontWeight: '600',
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     // Three-stop tone scale for fixture-quality cells. Solid colour
     // backgrounds with high-contrast text, on a heat-map model: easy
-    // fixtures = sage, mid = warning, hard = danger. Conventionally
-    // sage/yellow take dark text; the deeper red takes white.
-    toneCellGood: { backgroundColor: colors.accentSoft },
+    // fixtures = mint, mid = amber, hard = coral. All three fills are
+    // bright, so each takes its dark `on*` text.
+    toneCellGood: { backgroundColor: colors.good },
     toneCellMid: { backgroundColor: colors.warning },
-    toneCellBad: { backgroundColor: colors.danger },
-    toneTextGood: { color: colors.onAccentSoft },
+    toneCellBad: { backgroundColor: colors.bad },
+    toneTextGood: { color: colors.onGood },
     toneTextMid: { color: colors.onWarning },
-    toneTextBad: { color: colors.onDanger },
+    toneTextBad: { color: colors.onBad },
     toneTextNeutral: { color: colors.textPrimary },
     playerBlock: {
       flex: 1,
@@ -313,14 +313,14 @@ export const makeStyles = (colors: Colors) =>
       paddingVertical: spacing.hairline,
       borderRadius: radius.base,
     },
-    deltaXpPillPositive: { backgroundColor: colors.accentSoft },
-    deltaXpPillNegative: { backgroundColor: colors.danger },
+    deltaXpPillPositive: { backgroundColor: colors.good },
+    deltaXpPillNegative: { backgroundColor: colors.bad },
     deltaXpPillText: {
       fontSize: fontSize.sm2,
       fontWeight: '700',
     },
-    deltaXpPillTextPositive: { color: colors.onAccentSoft },
-    deltaXpPillTextNegative: { color: colors.onDanger },
+    deltaXpPillTextPositive: { color: colors.onGood },
+    deltaXpPillTextNegative: { color: colors.onBad },
     // Bank-delta pill (used by both CenterBadge and BundleSummary) and
     // the matching hit pill. Smaller than the xP delta so the headline
     // pill stays the dominant visual element.
@@ -332,22 +332,22 @@ export const makeStyles = (colors: Colors) =>
       borderRadius: radius.md,
       marginTop: spacing.hairline,
     },
-    bankDeltaPillPositive: { backgroundColor: colors.accentSoft },
-    bankDeltaPillNegative: { backgroundColor: colors.danger },
+    bankDeltaPillPositive: { backgroundColor: colors.good },
+    bankDeltaPillNegative: { backgroundColor: colors.bad },
     bankDeltaPillText: {
       fontSize: fontSize.xs,
       fontWeight: '600',
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
-    bankDeltaPillTextPositive: { color: colors.onAccentSoft },
-    bankDeltaPillTextNegative: { color: colors.onDanger },
+    bankDeltaPillTextPositive: { color: colors.onGood },
+    bankDeltaPillTextNegative: { color: colors.onBad },
     // Wash trade — neutral muted text instead of a pill. Avoids slapping
     // a green/red verdict on a no-bank-impact swap.
     bankDeltaNeutral: {
       fontSize: fontSize.xs,
       color: colors.textMuted,
       marginTop: spacing.hairline,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
 
     // Empty / message states.

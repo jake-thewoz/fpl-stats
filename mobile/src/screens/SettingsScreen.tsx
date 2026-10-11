@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import {
   clearFplTeamId,
   getFplTeamId,
@@ -12,6 +13,7 @@ import { ALL_HELP_TOPICS } from '../help/topics';
 import type { SettingsScreenProps } from '../navigation/types';
 import {
   effects,
+  fontRole,
   fontSize,
   radius,
   spacing,
@@ -230,7 +232,7 @@ const makeStyles = (colors: Colors) =>
       fontSize: 22,
       fontWeight: '700',
       color: colors.textPrimary,
-      fontVariant: ['tabular-nums'],
+      ...fontRole.numeric,
     },
     input: {
       paddingHorizontal: spacing.lg2,
@@ -242,7 +244,7 @@ const makeStyles = (colors: Colors) =>
       color: colors.textPrimary,
       fontSize: fontSize.lg2,
     },
-    error: { color: colors.danger, fontSize: fontSize.sm2 },
+    error: { color: colors.badText, fontSize: fontSize.sm2 },
     actions: { flexDirection: 'row', gap: spacing.base, marginTop: spacing.xs },
     primaryBtn: {
       flex: 1,
@@ -276,10 +278,10 @@ const makeStyles = (colors: Colors) =>
       borderRadius: radius.md,
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: colors.danger,
+      borderColor: colors.bad,
       backgroundColor: colors.background,
     },
-    dangerBtnText: { color: colors.danger, fontSize: fontSize.base, fontWeight: '600' },
+    dangerBtnText: { color: colors.badText, fontSize: fontSize.base, fontWeight: '600' },
     pressed: effects.pressed,
 
     // Appearance section

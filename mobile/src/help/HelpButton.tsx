@@ -24,7 +24,7 @@ export function HelpButton({ topic }: { topic: HelpTopicKey }) {
         accessibilityLabel={`Help: ${title}`}
         style={({ pressed }) => pressed && styles.pressed}
       >
-        <Ionicons name="help-circle-outline" size={ICON_SIZE} color={colors.accent} />
+        <Ionicons name="help-circle-outline" size={ICON_SIZE} color={colors.accentText} />
       </Pressable>
       <HelpDialog
         visible={open}

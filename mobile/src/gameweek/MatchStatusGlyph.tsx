@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import { Text } from '../components/Text';
 import { useTheme } from '../theme';
 import { useClubMatchStatus } from './GameweekStatusProvider';
 import type { MatchStatus } from './status';
@@ -19,7 +19,7 @@ export function MatchStatusGlyph({ teamShort }: { teamShort: string }) {
   const glyph = status ? GLYPHS[status] : undefined;
   if (glyph == null) return null;
   return (
-    <Text style={{ color: status === 'live' ? colors.live : colors.textMuted }}>
+    <Text style={{ color: status === 'live' ? colors.goodText : colors.textMuted }}>
       {`${glyph} `}
     </Text>
   );

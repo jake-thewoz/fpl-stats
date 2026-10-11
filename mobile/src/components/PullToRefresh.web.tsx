@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
-  Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { Text } from './Text';
 import { spacing, useTheme, useThemedStyles, type Colors } from '../theme';
 import type { PullToRefreshProps } from './PullToRefresh';
 
@@ -148,5 +148,5 @@ const makeStyles = (colors: Colors) =>
       borderColor: colors.border,
     },
     arrow: { color: colors.textMuted, fontWeight: '700' },
-    arrowArmed: { color: colors.accent, transform: [{ rotate: '180deg' }] },
+    arrowArmed: { color: colors.accentText, transform: [{ rotate: '180deg' }] },
   });

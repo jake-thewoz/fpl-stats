@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import type { Player } from '../api/players';
 import { MatchStatusGlyph } from '../gameweek/MatchStatusGlyph';
