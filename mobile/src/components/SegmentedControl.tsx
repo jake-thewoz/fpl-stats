@@ -17,7 +17,9 @@ type Props<T extends string | number> = {
   onChange: (next: T) => void;
 };
 
-/** Pill-shaped single-choice toggle (e.g. List | Pitch). */
+/** Single-choice toggle (e.g. Pitch | List): a raised track with the
+ *  selected segment filled in the accent. Segments share any width the
+ *  parent gives the track. */
 export function SegmentedControl<T extends string | number>({
   options,
   value,
@@ -52,19 +54,22 @@ export function SegmentedControl<T extends string | number>({
 
 const makeStyles = (c: Colors) =>
   StyleSheet.create({
+    // Inner radius = track radius − track padding, so the selected fill
+    // sits concentric with the track.
     track: {
       flexDirection: 'row',
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.background,
-      overflow: 'hidden',
+      borderRadius: radius.base,
+      padding: spacing.hairline,
+      backgroundColor: c.surfaceRaised,
     },
     segment: {
+      flexGrow: 1,
+      alignItems: 'center',
       paddingHorizontal: spacing.lg2,
       paddingVertical: spacing.sm,
+      borderRadius: radius.md,
     },
     segmentSelected: { backgroundColor: c.accent },
-    label: { fontSize: fontSize.sm2, color: c.textPrimary, fontWeight: '500' },
+    label: { fontSize: fontSize.sm2, color: c.textMuted, fontWeight: '600' },
     labelSelected: { color: c.onAccent },
   });

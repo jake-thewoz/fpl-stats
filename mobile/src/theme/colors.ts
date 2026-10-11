@@ -30,15 +30,6 @@
  * (4.71); don't lighten either.
  */
 
-/** Colours of the app icon, splash and web manifest. These still carry
- *  the original eggplant/mint brand mark until the brand assets move to
- *  the new palette (issue #208); the in-app theme no longer uses them. */
-export const brandPalette = {
-  black: '#070707',
-  eggplant: '#553555',
-  mint: '#adf1d2',
-} as const;
-
 /** Semantic token shape every palette must implement. Adding a token
  *  here is a contract change — palettes need to fill it in. */
 export type Colors = {
@@ -90,6 +81,8 @@ export type Colors = {
 
 const WHITE = '#ffffff';
 const MINT = '#3ef0b4';
+// The deep end of the light hero gradient, and the brand background.
+const GRAPE_DEEP = '#5a1a9e';
 const ON_MINT = '#04261a';
 const CORAL = '#ff6b81';
 const ON_CORAL = '#2b0610';
@@ -99,6 +92,14 @@ const ON_CORAL = '#2b0610';
 const AMBER = '#ffc24b';
 const ON_AMBER = '#2a1a00';
 const SCRIM = 'rgba(7, 7, 7, 0.45)';
+
+/** Colours of the app icon, splash, web manifest and share cards: the
+ *  mint "C" badge on deep grape. */
+export const brandPalette = {
+  black: '#070707',
+  grape: GRAPE_DEEP,
+  mint: MINT,
+} as const;
 
 export const lightColors: Colors = {
   background: '#fbf8fd',
@@ -119,7 +120,7 @@ export const lightColors: Colors = {
   badText: '#c92a43',
   warning: AMBER,
   onWarning: ON_AMBER,
-  heroGradient: ['#8a35dc', '#5a1a9e'],
+  heroGradient: ['#8a35dc', GRAPE_DEEP],
   onHero: WHITE,
   scrim: SCRIM,
   pitch: '#2f9a62',

@@ -4,19 +4,20 @@ import GameweekScreen from '../../screens/GameweekScreen';
 import type { MyTeamStackParamList } from '../types';
 import { HelpButton } from '../../help/HelpButton';
 import { gameweekBannerLayout } from './gameweekBannerLayout';
+import { useStackHeaderOptions } from './headerOptions';
 
 const Stack = createNativeStackNavigator<MyTeamStackParamList>();
 
 export function MyTeamStack() {
+  const header = useStackHeaderOptions();
   return (
-    <Stack.Navigator
-      screenLayout={gameweekBannerLayout}
-      screenOptions={{ headerTitleAlign: 'center' }}
-    >
+    <Stack.Navigator screenLayout={gameweekBannerLayout} screenOptions={header.stack}>
       <Stack.Screen
         name="MyTeam"
         component={MyTeamScreen}
-        options={{ title: 'My Team', headerRight: () => <HelpButton topic="myTeam" /> }}
+        options={header.tabRoot('My Team', () => (
+          <HelpButton topic="myTeam" />
+        ))}
       />
       <Stack.Screen
         name="Gameweek"

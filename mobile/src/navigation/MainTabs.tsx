@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, type ComponentProps, type ComponentType } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +10,69 @@ import { TransfersStack } from './stacks/TransfersStack';
 import { FriendsStack } from './stacks/FriendsStack';
 import { SettingsStack } from './stacks/SettingsStack';
 import { GameweekStatusProvider } from '../gameweek/GameweekStatusProvider';
-import { useTheme } from '../theme';
+import { Text } from '../components/Text';
+import {
+  fontSize,
+  radius,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type Colors,
+} from '../theme';
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+type TabDefinition = {
+  name: keyof MainTabParamList;
+  title: string;
+  component: ComponentType;
+  icon: IconName;
+  focusedIcon: IconName;
+};
+
+const TABS: readonly TabDefinition[] = [
+  {
+    name: 'MyTeamTab',
+    title: 'My Team',
+    component: MyTeamStack,
+    icon: 'shirt-outline',
+    focusedIcon: 'shirt',
+  },
+  {
+    name: 'PlayersTab',
+    title: 'Players',
+    component: PlayersStack,
+    icon: 'list-outline',
+    focusedIcon: 'list',
+  },
+  {
+    name: 'TransfersTab',
+    title: 'Transfers',
+    component: TransfersStack,
+    icon: 'swap-horizontal-outline',
+    focusedIcon: 'swap-horizontal',
+  },
+  {
+    name: 'FriendsTab',
+    title: 'Friends',
+    component: FriendsStack,
+    icon: 'people-outline',
+    focusedIcon: 'people',
+  },
+  {
+    name: 'SettingsTab',
+    title: 'Settings',
+    component: SettingsStack,
+    icon: 'settings-outline',
+    focusedIcon: 'settings',
+  },
+];
+
+// Material 3 navigation-bar proportions: a capsule wider than tall
+// behind the active icon.
+const ICON_SIZE = 22;
+const CAPSULE_WIDTH = 56;
+const CAPSULE_HEIGHT = 30;
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -41,8 +104,6 @@ export function MainTabs() {
   const tabOptions = useMemo(
     () => ({
       headerShown: false,
-      tabBarActiveTintColor: colors.accentText,
-      tabBarInactiveTintColor: colors.textMuted,
       tabBarStyle: {
         backgroundColor: colors.surface,
         borderTopColor: colors.border,
@@ -56,77 +117,63 @@ export function MainTabs() {
   return (
     <GameweekStatusProvider>
       <Tab.Navigator initialRouteName="MyTeamTab" screenOptions={tabOptions}>
-        <Tab.Screen
-          name="MyTeamTab"
-          component={MyTeamStack}
-          options={{
-            title: 'My Team',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={focused ? 'shirt' : 'shirt-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="PlayersTab"
-          component={PlayersStack}
-          options={{
-            title: 'Players',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={focused ? 'list' : 'list-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="TransfersTab"
-          component={TransfersStack}
-          options={{
-            title: 'Transfers',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="FriendsTab"
-          component={FriendsStack}
-          options={{
-            title: 'Friends',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={focused ? 'people' : 'people-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="SettingsTab"
-          component={SettingsStack}
-          options={{
-            title: 'Settings',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={focused ? 'settings' : 'settings-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
+        {TABS.map((tab) => (
+          <Tab.Screen
+            key={tab.name}
+            name={tab.name}
+            component={tab.component}
+            options={{
+              title: tab.title,
+              tabBarIcon: ({ focused }) => <TabIcon tab={tab} focused={focused} />,
+              tabBarLabel: ({ focused }) => (
+                <TabLabel title={tab.title} focused={focused} />
+              ),
+            }}
+          />
+        ))}
       </Tab.Navigator>
     </GameweekStatusProvider>
   );
 }
+
+function TabIcon({ tab, focused }: { tab: TabDefinition; focused: boolean }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={[styles.capsule, focused && styles.capsuleFocused]}>
+      <Ionicons
+        name={focused ? tab.focusedIcon : tab.icon}
+        size={ICON_SIZE}
+        color={focused ? colors.accentText : colors.textMuted}
+      />
+    </View>
+  );
+}
+
+function TabLabel({ title, focused }: { title: string; focused: boolean }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Text style={[styles.label, focused && styles.labelFocused]} numberOfLines={1}>
+      {title}
+    </Text>
+  );
+}
+
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
+    capsule: {
+      width: CAPSULE_WIDTH,
+      height: CAPSULE_HEIGHT,
+      borderRadius: radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    capsuleFocused: { backgroundColor: colors.accentSoft },
+    label: {
+      fontSize: fontSize.xs,
+      fontWeight: '500',
+      color: colors.textMuted,
+      marginTop: spacing.hairline,
+    },
+    labelFocused: { fontWeight: '700', color: colors.textPrimary },
+  });

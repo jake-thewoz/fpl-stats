@@ -12,6 +12,7 @@ import { entryQuery } from '../query/queries';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { HeaderButton } from '../components/HeaderButton';
 import { HelpButton } from '../help/HelpButton';
+import { HEADER_EDGE_INSET } from '../navigation/stacks/headerOptions';
 import { LoadingView } from '../components/LoadingView';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { formatInt, formatRank } from '../format/rank';
@@ -478,7 +479,12 @@ const COL_NUMERIC_WIDTH = 62;
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.lg,
+      paddingEnd: HEADER_EDGE_INSET,
+    },
     listContent: { paddingBottom: spacing.xxxl, backgroundColor: colors.background },
     emptyWrap: {
       flex: 1,
