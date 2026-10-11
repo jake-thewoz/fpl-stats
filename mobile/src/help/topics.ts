@@ -291,6 +291,21 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
           { term: 'GW', meaning: 'Points scored in the current gameweek.' },
           { term: 'Total', meaning: 'Points scored this season.' },
           {
+            term: 'Cards at the top',
+            meaning:
+              "Swipe between them: everyone's score this gameweek on one line (you in mint, the tick is your friends' average), the season's standouts, and how you did against your friends' average.",
+          },
+          {
+            term: 'Tags',
+            meaning:
+              'Mark who stands out: top score this gameweek, best overall rank, biggest squad value, and the most and fewest transfers this season.',
+          },
+          {
+            term: 'Shirt',
+            meaning:
+              'The club each manager supports, as set on FPL. It says nothing about their squad.',
+          },
+          {
             term: 'Tap a row',
             meaning: "See that manager's squad for this gameweek.",
           },

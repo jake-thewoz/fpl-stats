@@ -1,12 +1,11 @@
 import { StyleSheet } from 'react-native';
+import { HERO_SECONDARY_OPACITY } from '../../components/HeroCard';
 import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../../theme';
 
 // Tiles share a row's width up to a cap, so a five-man midfield still
 // fits a 360px phone while a two-man front line doesn't sprawl.
 const TILE_MAX_WIDTH = 88;
 const SHIRT_SLOT_SIZE = 40;
-// Labels and the score's unit sit a step back from the white numbers.
-const HERO_SECONDARY_OPACITY = 0.8;
 // Small uppercase labels need a little tracking to stay legible.
 const CAPS_LETTER_SPACING = 0.6;
 // Captain / vice disc on the pitch shirt; a one-off size below the type scale.

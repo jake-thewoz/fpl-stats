@@ -1,31 +1,39 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../components/Text';
+import { Text } from '../../components/Text';
 import { useFocusEffect } from '@react-navigation/native';
-import { EntryNotFoundError, type Entry } from '../api/entry';
-import { getFriends, type Friend } from '../storage/friends';
+import { useQuery } from '@tanstack/react-query';
+import { ClubShirt, CLUB_SHIRT_SIZE } from '../../components/ClubShirt';
+import { indexUpcomingFixtures } from '../../fixtures/upcoming';
+import { EntryNotFoundError, type Entry } from '../../api/entry';
+import { getFriends, type Friend } from '../../storage/friends';
 import {
   useParallelQueries,
   type ParallelFetchRowState,
-} from '../hooks/useParallelQueries';
-import { entryQuery } from '../query/queries';
-import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
-import { HeaderButton } from '../components/HeaderButton';
-import { HelpButton } from '../help/HelpButton';
-import { HEADER_EDGE_INSET } from '../navigation/stacks/headerOptions';
-import { LoadingView } from '../components/LoadingView';
-import { PullToRefresh } from '../components/PullToRefresh';
-import { formatInt, formatRank } from '../format/rank';
-import type { FriendsScreenProps } from '../navigation/types';
+} from '../../hooks/useParallelQueries';
+import { entryQuery, fixturesUpcomingQuery } from '../../query/queries';
+import { FriendsHero } from './Hero';
+import { awardsByTeam, type AwardKind, type LoadedTeam } from './summary';
+import { useFocusedTeamId } from '../../hooks/useFocusedTeamId';
+import { HeaderButton } from '../../components/HeaderButton';
+import { HelpButton } from '../../help/HelpButton';
+import { HEADER_EDGE_INSET } from '../../navigation/stacks/headerOptions';
+import { LoadingView } from '../../components/LoadingView';
+import { PullToRefresh } from '../../components/PullToRefresh';
+import { formatInt, formatRank } from '../../format/rank';
+import type { FriendsScreenProps } from '../../navigation/types';
 import {
   effects,
   fontRole,
   fontSize,
+  heatColor,
+  HEAT_CEILING,
   radius,
   spacing,
+  useTheme,
   useThemedStyles,
   type Colors,
-} from '../theme';
+} from '../../theme';
 
 type Props = FriendsScreenProps;
 
@@ -39,6 +47,13 @@ type ComparisonRow = {
   target: Target;
   state: ParallelFetchRowState<Entry>;
 };
+
+/** The column header rides along as the list's first item so it can
+ *  stick under the hero as the table scrolls. */
+const TABLE_HEADER = 'tableHeader' as const;
+type ListItem = typeof TABLE_HEADER | ComparisonRow;
+/** Index 0 is the hero (the list header), so the column header is 1. */
+const STICKY_TABLE_HEADER_INDEX = 1;
 
 type SortColumn = 'rank' | 'gw' | 'total';
 type SortDir = 'asc' | 'desc';
@@ -136,6 +151,38 @@ export default function FriendsScreen({ navigation }: Props) {
     () => sortRows(rows, sortColumn, sortDir),
     [rows, sortColumn, sortDir],
   );
+  const listItems = useMemo<ListItem[]>(
+    () => [TABLE_HEADER, ...sortedRows],
+    [sortedRows],
+  );
+
+  const loadedTeams = useMemo<LoadedTeam[]>(
+    () =>
+      rows.flatMap((row) =>
+        row.state.status === 'ok'
+          ? [{ id: row.target.id, isMe: row.target.isMe, entry: row.state.data }]
+          : [],
+      ),
+    [rows],
+  );
+  const awards = useMemo(() => awardsByTeam(loadedTeams), [loadedTeams]);
+  const gameweek = loadedTeams.find((t) => t.entry.current_event != null)?.entry
+    .current_event;
+
+  // Favourite clubs arrive as FPL ids; the fixtures response carries the
+  // id → club mapping. Until it loads, rows simply show no shirt.
+  const fixturesResp = useQuery(fixturesUpcomingQuery()).data;
+  const clubShortNameById = useMemo(
+    () => (fixturesResp ? indexUpcomingFixtures(fixturesResp).clubShortNameById : null),
+    [fixturesResp],
+  );
+  const favouriteClub = useCallback(
+    (entry: Entry) =>
+      entry.favourite_team == null
+        ? null
+        : (clubShortNameById?.get(entry.favourite_team) ?? null),
+    [clubShortNameById],
+  );
 
   if (targets === null) return <LoadingView />;
 
@@ -152,22 +199,32 @@ export default function FriendsScreen({ navigation }: Props) {
 
   return (
     <FlatList
-      data={sortedRows}
-      keyExtractor={(r) => r.target.id}
-      renderItem={({ item }) => (
-        <Row
-          row={item}
-          onRetry={onRetry}
-          onOpenTeam={(teamId, name) =>
-            navigation.navigate('FriendTeam', { teamId, name })
-          }
-        />
-      )}
+      data={listItems}
+      keyExtractor={(item) => (item === TABLE_HEADER ? TABLE_HEADER : item.target.id)}
+      renderItem={({ item }) =>
+        item === TABLE_HEADER ? (
+          <TableHeader
+            sortColumn={sortColumn}
+            sortDir={sortDir}
+            onHeaderPress={onHeaderPress}
+          />
+        ) : (
+          <Row
+            row={item}
+            club={item.state.status === 'ok' ? favouriteClub(item.state.data) : null}
+            awards={awards.get(item.target.id)}
+            onRetry={onRetry}
+            onOpenTeam={(teamId, name) =>
+              navigation.navigate('FriendTeam', { teamId, name })
+            }
+          />
+        )
+      }
       ListHeaderComponent={
-        <TableHeader
-          sortColumn={sortColumn}
-          sortDir={sortDir}
-          onHeaderPress={onHeaderPress}
+        <FriendsHero
+          teams={loadedTeams}
+          gameweek={gameweek ?? null}
+          favouriteClub={favouriteClub}
         />
       }
       ListFooterComponent={
@@ -179,7 +236,7 @@ export default function FriendsScreen({ navigation }: Props) {
         ) : null
       }
       contentContainerStyle={styles.listContent}
-      stickyHeaderIndices={[0]}
+      stickyHeaderIndices={[STICKY_TABLE_HEADER_INDEX]}
       refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
@@ -251,6 +308,12 @@ function EmptyState({
 
 /** Shown under the user's own row until they've added anyone, so the
  *  tab explains itself instead of showing a one-row table. */
+const BODY_LINE_HEIGHT = 22;
+const GHOST_ROW_CLUBS = ['ARS', 'LIV', 'NEW'] as const;
+const GHOST_BAR_HEIGHT = 9;
+const GHOST_VALUE_WIDTH = 34;
+const GHOST_ROWS_OPACITY = 0.55;
+
 function InviteFriends({
   onAddFriend,
   onImportLeague,
@@ -262,11 +325,21 @@ function InviteFriends({
 
   return (
     <View style={styles.inviteWrap}>
-      <Text style={styles.inviteTitle}>Compare with your friends</Text>
-      <Text style={styles.emptyBody}>
-        Add a friend by their FPL team ID, or import everyone from a mini-league you
-        share. Tap anyone in the table to see their squad.
+      <Text style={styles.inviteTitle}>Compare with everyone you know in FPL</Text>
+      <Text style={styles.inviteBody}>
+        Add friends from any of your leagues, or import a whole mini-league at once.
+        You&apos;ll see who topped the week, whose rank is best, and how you stack up.
       </Text>
+      {/* Faded placeholder rows hint at the table this will become. */}
+      <View style={styles.ghostRows}>
+        {GHOST_ROW_CLUBS.map((club) => (
+          <View key={club} style={styles.ghostRow}>
+            <ClubShirt teamShort={club} size={CLUB_SHIRT_SIZE.listRow} />
+            <View style={styles.ghostName} />
+            <View style={styles.ghostValue} />
+          </View>
+        ))}
+      </View>
       <Pressable
         onPress={onImportLeague}
         style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
@@ -298,7 +371,7 @@ function TableHeader({
 
   return (
     <View style={styles.tableHeader}>
-      <Text style={[styles.colHeader, styles.colAlias]}>Alias</Text>
+      <Text style={[styles.colHeader, styles.colAlias]}>Team</Text>
       {COLUMNS.map((c) => (
         <ColumnHeaderButton
           key={c.key}
@@ -345,10 +418,15 @@ function ColumnHeaderButton({
 
 function Row({
   row,
+  club,
+  awards,
   onRetry,
   onOpenTeam,
 }: {
   row: ComparisonRow;
+  /** The manager's favourite club, drawn as a shirt by the name. */
+  club: string | null;
+  awards: readonly AwardKind[] | undefined;
   onRetry: (teamId: string) => void;
   onOpenTeam: (teamId: string, name: string) => void;
 }) {
@@ -381,13 +459,26 @@ function Row({
       accessibilityHint={action ? ROW_ACTION_HINTS[action] : undefined}
     >
       <View style={styles.colAlias}>
-        <View style={styles.aliasLine}>
-          <Text style={styles.rowAlias} numberOfLines={1}>
-            {displayAlias(row)}
-          </Text>
-          {aliasBadge}
+        {/* An empty slot keeps names aligned when a manager has no
+            favourite club. */}
+        {club ? (
+          <ClubShirt teamShort={club} size={CLUB_SHIRT_SIZE.listRow} />
+        ) : (
+          <View style={styles.shirtSlot} />
+        )}
+        <View style={styles.aliasText}>
+          <View style={styles.aliasLine}>
+            <Text style={styles.rowAlias} numberOfLines={1}>
+              {displayAlias(row)}
+            </Text>
+            {aliasBadge}
+          </View>
+          {awards && awards.length > 0 && state.status === 'ok' ? (
+            <AwardTags awards={awards} />
+          ) : (
+            <RowSubtext state={state} teamId={target.id} />
+          )}
         </View>
-        <RowSubtext state={state} teamId={target.id} />
       </View>
       <CellValue state={state} field="rank" />
       <CellValue state={state} field="gw" />
@@ -466,6 +557,9 @@ function CellValue({
     return <Text style={[styles.rowCell, styles.colNumeric]}>—</Text>;
   }
   const d = state.data;
+  if (field === 'gw' && d.summary_event_points != null) {
+    return <GameweekPoints points={d.summary_event_points} />;
+  }
   const value =
     field === 'rank'
       ? formatRank(d.summary_overall_rank)
@@ -475,7 +569,63 @@ function CellValue({
   return <Text style={[styles.rowCell, styles.colNumeric]}>{value}</Text>;
 }
 
+function GameweekPoints({ points }: { points: number }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  const heat = heatColor(points, HEAT_CEILING.teamPoints, colors);
+  return (
+    <View style={styles.colNumeric}>
+      <Text
+        style={[styles.heatPill, { backgroundColor: heat.background, color: heat.text }]}
+      >
+        {formatInt(points)}
+      </Text>
+    </View>
+  );
+}
+
+const AWARD_LABELS: Record<AwardKind, string> = {
+  topGameweek: 'Top GW',
+  bestRank: 'Best rank',
+  biggestSquad: 'Biggest squad',
+  mostTransfers: 'Most transfers',
+  fewestTransfers: 'Fewest transfers',
+};
+
+/** Tags that replace the manager line on a standout's row. They sit on
+ *  one line; on a narrow screen the later ones are clipped. */
+function AwardTags({ awards }: { awards: readonly AwardKind[] }) {
+  const styles = useThemedStyles(makeStyles);
+  const toneStyle = (kind: AwardKind) =>
+    kind === 'topGameweek'
+      ? styles.awardTop
+      : kind === 'bestRank'
+        ? styles.awardRank
+        : styles.awardPlain;
+  const textStyle = (kind: AwardKind) =>
+    kind === 'topGameweek'
+      ? styles.awardTopText
+      : kind === 'bestRank'
+        ? styles.awardRankText
+        : styles.awardPlainText;
+  return (
+    <View style={styles.awards}>
+      {awards.map((kind) => (
+        <View key={kind} style={[styles.award, toneStyle(kind)]}>
+          <Text style={[styles.awardText, textStyle(kind)]} numberOfLines={1}>
+            {AWARD_LABELS[kind]}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const COL_NUMERIC_WIDTH = 62;
+// Small uppercase tags need a little tracking to stay legible.
+const TAG_LETTER_SPACING = 0.5;
+// A one-off below the type scale so two tags fit beside each other.
+const TAG_FONT_SIZE = 10;
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
@@ -495,15 +645,34 @@ const makeStyles = (colors: Colors) =>
       backgroundColor: colors.background,
     },
     inviteWrap: {
-      alignItems: 'center',
-      padding: spacing.xxl,
+      margin: spacing.lg,
+      padding: spacing.xl,
       gap: spacing.lg,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
     },
     inviteTitle: {
       ...fontRole.display,
       fontSize: fontSize.xl,
       fontWeight: '700',
       color: colors.textPrimary,
+    },
+    inviteBody: { color: colors.textMuted, lineHeight: BODY_LINE_HEIGHT },
+    ghostRows: { gap: spacing.sm, opacity: GHOST_ROWS_OPACITY },
+    ghostRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    ghostName: {
+      flex: 1,
+      height: GHOST_BAR_HEIGHT,
+      borderRadius: GHOST_BAR_HEIGHT / 2,
+      backgroundColor: colors.surfaceRaised,
+    },
+    ghostValue: {
+      width: GHOST_VALUE_WIDTH,
+      height: GHOST_BAR_HEIGHT,
+      borderRadius: GHOST_BAR_HEIGHT / 2,
+      backgroundColor: colors.surfaceRaised,
     },
     emptyTitle: {
       ...fontRole.display,
@@ -514,9 +683,10 @@ const makeStyles = (colors: Colors) =>
     emptyBody: {
       color: colors.textMuted,
       textAlign: 'center',
-      lineHeight: 22,
+      lineHeight: BODY_LINE_HEIGHT,
     },
     primaryBtn: {
+      alignItems: 'center',
       marginTop: spacing.lg,
       paddingHorizontal: spacing.xxl,
       paddingVertical: spacing.lg,
@@ -529,6 +699,7 @@ const makeStyles = (colors: Colors) =>
       fontWeight: '600',
     },
     secondaryBtn: {
+      alignItems: 'center',
       paddingHorizontal: spacing.xxl,
       paddingVertical: spacing.lg,
       borderRadius: radius.base,
@@ -570,10 +741,16 @@ const makeStyles = (colors: Colors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    // Subtle tint on the 'You' row so it stands out even when it's pinned at
-    // the top and the user is tired of the badge.
-    rowMe: { backgroundColor: colors.background },
-    colAlias: { flex: 1, paddingRight: spacing.md },
+    rowMe: { backgroundColor: colors.accentSoft },
+    colAlias: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingRight: spacing.md,
+    },
+    shirtSlot: { width: CLUB_SHIRT_SIZE.listRow },
+    aliasText: { flex: 1, minWidth: 0 },
     aliasLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     rowAlias: {
       flexShrink: 1,
@@ -598,6 +775,40 @@ const makeStyles = (colors: Colors) =>
       ...fontRole.numeric,
     },
     rowCell: { color: colors.textPrimary, fontSize: fontSize.md },
+    heatPill: {
+      ...fontRole.numeric,
+      alignSelf: 'flex-end',
+      minWidth: COL_NUMERIC_WIDTH - spacing.lg,
+      paddingVertical: spacing.hairline,
+      borderRadius: radius.sm,
+      overflow: 'hidden',
+      textAlign: 'center',
+      fontSize: fontSize.md,
+      fontWeight: '700',
+    },
+    awards: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      marginTop: spacing.hairline,
+      overflow: 'hidden',
+    },
+    award: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.hairline,
+      borderRadius: radius.lg,
+    },
+    awardText: {
+      fontSize: TAG_FONT_SIZE,
+      fontWeight: '800',
+      letterSpacing: TAG_LETTER_SPACING,
+      textTransform: 'uppercase',
+    },
+    awardTop: { backgroundColor: colors.good },
+    awardTopText: { color: colors.onGood },
+    awardRank: { backgroundColor: colors.accentSoft },
+    awardRankText: { color: colors.accentText },
+    awardPlain: { backgroundColor: colors.surfaceRaised },
+    awardPlainText: { color: colors.textMuted },
     youBadge: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.hairline,
