@@ -391,7 +391,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
     </div>
   </section>
 
-  <footer>Built from <code>backend/lib/fpl-stats-stack.ts</code>, the Lambda handlers, <code>backend/docs/xp-model.md</code>, <code>mobile/src</code>, CI config, GitHub milestones and the live AWS stack as of 11 Oct 2026, after PRs #165 to #216 (#215 and #216 in review when written). Exam notes reflect AWS behaviour as of mid-2026; check the current docs before relying on a specific price or limit.</footer>
+  <footer>Built from <code>backend/lib/fpl-stats-stack.ts</code>, the Lambda handlers, <code>backend/docs/xp-model.md</code>, <code>mobile/src</code>, CI config, GitHub milestones and the live AWS stack as of 11 Oct 2026, after PRs #165 to #216. Exam notes reflect AWS behaviour as of mid-2026; check the current docs before relying on a specific price or limit.</footer>
 </div>
 
 <script>
@@ -1014,8 +1014,8 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
     ["done", "Raised · 10 Oct", "Lambda concurrency 10 → 1000", "The account started with a 10-execution pool shared by every function, so Friends' parallel /entry calls could throttle other routes. The quota increase came through: it reads 1000 now."],
     ["done", "Shipped · #187, #189", "Friend squads and free transfers", "Tap a friend to see their current squad. The free-transfer count follows 25/26 rules correctly, and you can override it or the move limit."],
     ["done", "Deployed · #213", "Fixtures endpoint", "fixtures_upcoming is live at 1024 MB: the 15th Lambda and 11th route. It feeds the Next 3 strip and the Friends shirts."],
-    ["mid", "In review · #215", "Back button, bench points, 5-move plans", "Every screen gets a URL on web, so Android's back gesture steps through screens instead of closing the installed app. Bench players show their real points. Max moves goes to 5 and moves out of the filter dialog. Needs a deploy for the 5-move search."],
-    ["mid", "In review · #216", "Every FPL stat as a column", "New players_stats Lambda and /players/stats route (the 16th and 12th), backed by the new columnar fpl#player_stats item. Needs a deploy plus one ingest run."],
+    ["hot", "Merged · #215", "Back button, bench points, 5-move plans", "Every screen gets a URL on web, so Android's back gesture steps through screens instead of closing the installed app. Bench players show their real points. Max moves goes to 5 and moves out of the filter dialog. The 11 Oct deploy came from #216's branch, which predates this, so the server still caps at 3 until the next <code>npm run deploy</code> from main."],
+    ["done", "Deployed · #216", "Every FPL stat as a column", "New players_stats Lambda and /players/stats route (the 16th and 12th), backed by the new columnar fpl#player_stats item. Live since 11 Oct: 34 stats for 667 players."],
     ["hot", "Open · #217", "FPL 403s the entry Lambda", "Uncached /entry calls returned 502 for part of 11 Oct. It went unnoticed by alarms because the handler catches the error. Ideas: stop retrying 403s, serve stale entries on failure, add a metric filter alarm."],
     ["done", "Checked · 11 Oct", "All five alarms OK", "Including AnalyzePlayerXpV2ErrorsAlarm, which was still in ALARM after the season-rollover timeouts."],
     ["hot", "Before 29 Nov", "Save the ClubELO seed (#166)", "The 31 Aug snapshot is still under <code>clubelo/ratings/</code>, where the 90-day lifecycle rule deletes it around 29 Nov. Copy it to a prefix the rule doesn't cover; an <code>aws s3 cp --recursive</code> to a new prefix is enough."],
