@@ -1,8 +1,35 @@
-# FPL Stats
+<p align="center">
+  <a href="https://main.d29izwx9gn2m58.amplifyapp.com">
+    <img src="docs/images/readme-banner.png" alt="Captain's Log: your Fantasy Premier League companion" width="100%">
+  </a>
+</p>
 
-A Fantasy Premier League companion app: your squad on a pitch with expected points (xP) for every player, a sortable player pool, ranked transfer suggestions that understand free transfers and hits, and a mini-league of friends. Built for personal and friends' use, and as a hands-on way to learn AWS.
+<p align="center">
+  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><img src="https://img.shields.io/badge/open_the_app-553555?style=for-the-badge" alt="Open the app"></a>
+  <a href="https://github.com/jake-thewoz/fpl-stats/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jake-thewoz/fpl-stats/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=553555&color=96c5b0" alt="CI status"></a>
+</p>
 
-**Live web app:** https://main.d29izwx9gn2m58.amplifyapp.com (installable as a PWA; this is the main client today)
+<p align="center">
+  <img src="https://img.shields.io/badge/Expo-React_Native-553555?logo=expo&logoColor=white" alt="Expo + React Native">
+  <img src="https://img.shields.io/badge/TypeScript-strict-553555?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Python-3.12-553555?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/AWS-CDK-553555" alt="AWS CDK">
+  <img src="https://img.shields.io/badge/PWA-installable-553555?logo=pwa&logoColor=white" alt="Installable PWA">
+</p>
+
+<p align="center">
+  <a href="docs/friends-onboarding.md">Get started</a>
+  &nbsp;·&nbsp;
+  <a href="docs/architecture.md">Architecture</a>
+  &nbsp;·&nbsp;
+  <a href="docs/xp-model.md">The xP model</a>
+</p>
+
+---
+
+**Captain's Log** is a Fantasy Premier League companion: your squad on a pitch with expected points (xP) for every player, a sortable player pool, ranked transfer suggestions that understand free transfers and hits, and a mini-league of friends. It's built for personal and friends' use, and as a hands-on way to learn AWS.
+
+The live web app is at **https://main.d29izwx9gn2m58.amplifyapp.com**. It installs as a PWA and is the main client today. Under the hood the project keeps its original name, `fpl-stats`: the repository, the CDK stack (`FplStatsStack`) and the AWS resources all use it.
 
 ## How it works
 

@@ -7,12 +7,13 @@
  * is why imports carry explicit `.ts` extensions.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
 import { darkColors, lightPalette } from '../src/theme/colors.ts';
 
 const MOBILE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO_ROOT = join(MOBILE_ROOT, '..');
 const ASSETS_DIR = join(MOBILE_ROOT, 'assets');
 const PUBLIC_DIR = join(MOBILE_ROOT, 'public');
 const WEB_ICONS_PATH = 'icons';
@@ -33,7 +34,7 @@ const TAGLINE_FONT_FILE = join(
   '400Regular_Italic',
   'PlayfairDisplay_400Regular_Italic.ttf',
 );
-const SHARE_FONT_FAMILY = 'Playfair Display';
+const CARD_FONT_FAMILY = 'Playfair Display';
 
 const BACKGROUND_COLOR = lightPalette.eggplant;
 const BADGE_COLOR = lightPalette.mint;
@@ -149,76 +150,121 @@ const outputs: Output[] = [
   },
 ];
 
-// Link-preview card (Open Graph / Twitter). 1200x630 is the size every major
-// platform renders as a large card without cropping the sides.
-const SHARE_IMAGE_PATH = join(PUBLIC_DIR, 'share.png');
-const SHARE_WIDTH = 1200;
-const SHARE_HEIGHT = 630;
-const SHARE_CENTER_X = SHARE_WIDTH / 2;
-const SHARE_TAGLINE = 'Your Fantasy Premier League companion';
-const SHARE_BADGE_RADIUS = 72;
-const SHARE_BADGE_CENTER_Y = 200;
-const SHARE_WORDMARK_SIZE = 104;
-const SHARE_WORDMARK_WEIGHT = 600;
-const SHARE_WORDMARK_BASELINE = 375;
-const SHARE_RULE_Y = 420;
-const SHARE_RULE_HALF_WIDTH = 32;
-const SHARE_RULE_STROKE = 2;
-const SHARE_TAGLINE_SIZE = 38;
-const SHARE_TAGLINE_BASELINE = 485;
-const SHARE_WORDMARK_COLOR = darkColors.textPrimary;
-const SHARE_ACCENT_COLOR = lightPalette.mint;
+// Wordmark cards: the mark, the app name and a tagline stacked and centred
+// on the brand colour. All measurements are in the card's own pixels.
+type CardLayout = {
+  path: string;
+  width: number;
+  height: number;
+  // Device-pixel multiplier for the rendered PNG.
+  pixelRatio: number;
+  // 0 for a full-bleed rectangle.
+  cornerRadius: number;
+  badgeRadius: number;
+  badgeCenterY: number;
+  wordmarkSize: number;
+  wordmarkBaseline: number;
+  ruleY: number;
+  taglineSize: number;
+  taglineBaseline: number;
+};
+
+const CARD_TAGLINE = 'Your Fantasy Premier League companion';
+const CARD_WORDMARK_WEIGHT = 600;
+const CARD_RULE_HALF_WIDTH = 32;
+const CARD_RULE_STROKE = 2;
+const CARD_WORDMARK_COLOR = darkColors.textPrimary;
+const CARD_ACCENT_COLOR = lightPalette.mint;
 // Darkens the corners towards black so the centred mark and wordmark
 // sit in a soft pool of the brand colour rather than on a flat fill.
-const SHARE_VIGNETTE_OPACITY = 0.35;
+const CARD_VIGNETTE_OPACITY = 0.35;
+
+const cards: CardLayout[] = [
+  // Link-preview card (Open Graph / Twitter). 1200x630 is the size every
+  // major platform renders as a large card without cropping the sides.
+  {
+    path: join(PUBLIC_DIR, 'share.png'),
+    width: 1200,
+    height: 630,
+    pixelRatio: 1,
+    cornerRadius: 0,
+    badgeRadius: 72,
+    badgeCenterY: 200,
+    wordmarkSize: 104,
+    wordmarkBaseline: 375,
+    ruleY: 420,
+    taglineSize: 38,
+    taglineBaseline: 485,
+  },
+  // Header of the repository README. Rounded with transparent corners so it
+  // sits cleanly on GitHub's light and dark backgrounds; rendered at 2x for
+  // high-density screens.
+  {
+    path: join(REPO_ROOT, 'docs', 'images', 'readme-banner.png'),
+    width: 1280,
+    height: 400,
+    pixelRatio: 2,
+    cornerRadius: 24,
+    badgeRadius: 50,
+    badgeCenterY: 104,
+    wordmarkSize: 88,
+    wordmarkBaseline: 238,
+    ruleY: 272,
+    taglineSize: 30,
+    taglineBaseline: 322,
+  },
+];
 
 // Typographic apostrophe: the straight one from app.json looks like a
 // typewriter tick in a display serif.
 const typographic = (text: string) => text.replace(/'/g, '\u2019');
 
-function shareSvg(name: string): string {
-  const markScale = SHARE_BADGE_RADIUS / BADGE_RADIUS;
-  const markOffsetX = SHARE_CENTER_X - CENTER * markScale;
-  const markOffsetY = SHARE_BADGE_CENTER_Y - CENTER * markScale;
+function cardSvg(name: string, layout: CardLayout): string {
+  const { width, height, cornerRadius } = layout;
+  const centerX = width / 2;
+  const markScale = layout.badgeRadius / BADGE_RADIUS;
+  const markOffsetX = centerX - CENTER * markScale;
+  const markOffsetY = layout.badgeCenterY - CENTER * markScale;
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">`,
     '<defs><radialGradient id="vignette">',
     `<stop offset="0" stop-color="${lightPalette.black}" stop-opacity="0"/>`,
-    `<stop offset="1" stop-color="${lightPalette.black}" stop-opacity="${SHARE_VIGNETTE_OPACITY}"/>`,
+    `<stop offset="1" stop-color="${lightPalette.black}" stop-opacity="${CARD_VIGNETTE_OPACITY}"/>`,
     '</radialGradient></defs>',
-    `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="${BACKGROUND_COLOR}"/>`,
-    `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="url(#vignette)"/>`,
+    `<rect width="${width}" height="${height}" rx="${cornerRadius}" fill="${BACKGROUND_COLOR}"/>`,
+    `<rect width="${width}" height="${height}" rx="${cornerRadius}" fill="url(#vignette)"/>`,
     `<g transform="translate(${markOffsetX} ${markOffsetY}) scale(${markScale})">`,
     markShapes(BADGE_RADIUS),
     '</g>',
-    `<text x="${SHARE_CENTER_X}" y="${SHARE_WORDMARK_BASELINE}" text-anchor="middle"`,
-    ` font-family="${SHARE_FONT_FAMILY}" font-weight="${SHARE_WORDMARK_WEIGHT}" font-size="${SHARE_WORDMARK_SIZE}"`,
-    ` fill="${SHARE_WORDMARK_COLOR}">${typographic(name)}</text>`,
-    `<line x1="${SHARE_CENTER_X - SHARE_RULE_HALF_WIDTH}" x2="${SHARE_CENTER_X + SHARE_RULE_HALF_WIDTH}"`,
-    ` y1="${SHARE_RULE_Y}" y2="${SHARE_RULE_Y}" stroke="${SHARE_ACCENT_COLOR}"`,
-    ` stroke-width="${SHARE_RULE_STROKE}" stroke-linecap="round"/>`,
-    `<text x="${SHARE_CENTER_X}" y="${SHARE_TAGLINE_BASELINE}" text-anchor="middle"`,
-    ` font-family="${SHARE_FONT_FAMILY}" font-style="italic" font-size="${SHARE_TAGLINE_SIZE}"`,
-    ` fill="${SHARE_ACCENT_COLOR}">${SHARE_TAGLINE}</text>`,
+    `<text x="${centerX}" y="${layout.wordmarkBaseline}" text-anchor="middle"`,
+    ` font-family="${CARD_FONT_FAMILY}" font-weight="${CARD_WORDMARK_WEIGHT}" font-size="${layout.wordmarkSize}"`,
+    ` fill="${CARD_WORDMARK_COLOR}">${typographic(name)}</text>`,
+    `<line x1="${centerX - CARD_RULE_HALF_WIDTH}" x2="${centerX + CARD_RULE_HALF_WIDTH}"`,
+    ` y1="${layout.ruleY}" y2="${layout.ruleY}" stroke="${CARD_ACCENT_COLOR}"`,
+    ` stroke-width="${CARD_RULE_STROKE}" stroke-linecap="round"/>`,
+    `<text x="${centerX}" y="${layout.taglineBaseline}" text-anchor="middle"`,
+    ` font-family="${CARD_FONT_FAMILY}" font-style="italic" font-size="${layout.taglineSize}"`,
+    ` fill="${CARD_ACCENT_COLOR}">${CARD_TAGLINE}</text>`,
     '</svg>',
   ].join('');
 }
 
-function renderShareImage(name: string): void {
-  const png = new Resvg(shareSvg(name), {
-    fitTo: { mode: 'width', value: SHARE_WIDTH },
+function renderCard(name: string, layout: CardLayout): void {
+  const png = new Resvg(cardSvg(name, layout), {
+    fitTo: { mode: 'width', value: layout.width * layout.pixelRatio },
     // Bundled fonts only, so the image renders identically on any machine.
     font: {
       fontFiles: [WORDMARK_FONT_FILE, TAGLINE_FONT_FILE],
       loadSystemFonts: false,
-      defaultFontFamily: SHARE_FONT_FAMILY,
+      defaultFontFamily: CARD_FONT_FAMILY,
     },
   })
     .render()
     .asPng();
-  writeFileSync(SHARE_IMAGE_PATH, png);
+  mkdirSync(dirname(layout.path), { recursive: true });
+  writeFileSync(layout.path, png);
   process.stdout.write(
-    `wrote ${SHARE_IMAGE_PATH.slice(MOBILE_ROOT.length + 1)} (${SHARE_WIDTH}x${SHARE_HEIGHT})\n`,
+    `wrote ${relative(REPO_ROOT, layout.path)} (${layout.width}x${layout.height} @${layout.pixelRatio}x)\n`,
   );
 }
 
@@ -269,5 +315,5 @@ function writeManifest({ expo: { name, web } }: AppJson): void {
 
 const appJson = readAppJson();
 outputs.forEach(render);
-renderShareImage(appJson.expo.name);
+cards.forEach((layout) => renderCard(appJson.expo.name, layout));
 writeManifest(appJson);
