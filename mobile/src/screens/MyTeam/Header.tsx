@@ -1,25 +1,81 @@
 import { View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/Text';
 import type { Entry } from '../../api/entry';
-import { useThemedStyles } from '../../theme';
+import { formatInt, formatRank } from '../../format/rank';
+import { useTheme, useThemedStyles } from '../../theme';
 import { makeStyles } from './styles';
 
-/** Top-of-screen line: team name + GW + points + total + rank. */
-export function Header({ entry, gameweek }: { entry: Entry; gameweek: number | null }) {
-  const styles = useThemedStyles(makeStyles);
+// FPL chip identifiers as returned by /entry/.../event/.../picks/ on
+// `active_chip`.
+const CHIP_LABELS: Record<string, string> = {
+  freehit: 'Free Hit',
+  wildcard: 'Wildcard',
+  '3xc': 'Triple Captain',
+  bboost: 'Bench Boost',
+};
 
-  const eventPts = entry.summary_event_points;
-  const totalPts = entry.summary_overall_points;
-  const overallRank = entry.summary_overall_rank;
+// The gradient runs corner to corner, top-left to bottom-right.
+const HERO_GRADIENT_START = { x: 0, y: 0 };
+const HERO_GRADIENT_END = { x: 1, y: 1 };
+
+/**
+ * Scoreboard card at the top of a team: team name, any active chip, the
+ * gameweek score as the headline, then total, overall rank and GW rank.
+ */
+export function Header({
+  entry,
+  gameweek,
+  activeChip,
+}: {
+  entry: Entry;
+  gameweek: number | null;
+  /** FPL chip id active this gameweek, e.g. `'wildcard'`. */
+  activeChip?: string | null;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+
   return (
-    <View style={styles.header}>
-      <Text style={styles.headerTitle}>{entry.name}</Text>
-      <Text style={styles.headerSub}>
-        {gameweek != null ? `GW ${gameweek}` : 'Pre-season'}
-        {eventPts != null ? `  ·  ${eventPts} pts` : ''}
-        {totalPts != null ? `  ·  Total ${totalPts}` : ''}
-        {overallRank != null ? `  ·  Rank ${overallRank.toLocaleString()}` : ''}
-      </Text>
+    <LinearGradient
+      colors={colors.heroGradient}
+      start={HERO_GRADIENT_START}
+      end={HERO_GRADIENT_END}
+      style={styles.hero}
+    >
+      <View style={styles.heroTopLine}>
+        <Text style={styles.heroTeamName} numberOfLines={1}>
+          {entry.name}
+        </Text>
+        {activeChip ? (
+          <Text style={styles.heroChip}>{CHIP_LABELS[activeChip] ?? activeChip}</Text>
+        ) : null}
+      </View>
+      <View style={styles.heroScoreLine}>
+        <View style={styles.heroScore}>
+          <Text style={styles.heroScoreValue}>
+            {formatInt(entry.summary_event_points)}
+          </Text>
+          <Text style={styles.heroScoreUnit}>
+            {gameweek != null ? `GW ${gameweek} pts` : 'pts'}
+          </Text>
+        </View>
+        <View style={styles.heroStats}>
+          <HeroStat label="Total" value={formatInt(entry.summary_overall_points)} />
+          <HeroStat label="Rank" value={formatRank(entry.summary_overall_rank)} />
+          <HeroStat label="GW rank" value={formatRank(entry.summary_event_rank)} />
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View>
+      <Text style={styles.heroStatLabel}>{label}</Text>
+      <Text style={styles.heroStatValue}>{value}</Text>
     </View>
   );
 }
@@ -35,56 +91,23 @@ export function PicksUnavailableNote({ message }: { message: string }) {
   );
 }
 
-// FPL chip identifiers as returned by /entry/.../event/.../picks/ on
-// `active_chip`. Free Hit is the only one that breaks squad-display
-// continuity (the picks endpoint returns a temporary 11+4 squad for
-// that GW only) — the rest are scoring/structural chips that don't
-// change which players appear in the list, so we surface them as a
-// quieter passive indicator.
-const CHIP_FREE_HIT = 'freehit';
-const CHIP_LABELS: Record<string, string> = {
-  freehit: 'Free Hit',
-  wildcard: 'Wildcard',
-  '3xc': 'Triple Captain',
-  bboost: 'Bench Boost',
-};
-
-/** Banner shown above the table when an FPL chip is active this GW.
- *  Free Hit gets a louder treatment because it changes what the squad
- *  list shows; other chips get a passive single-line badge. */
-export function ChipBanner({
-  chip,
+/** Explains the squad shown while Free Hit is active, since it changes
+ *  which players appear. Other chips only show as the hero card's pill. */
+export function FreeHitBanner({
   showingPersistentSquad,
 }: {
-  chip: string;
   showingPersistentSquad: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const label = CHIP_LABELS[chip] ?? chip;
-  const isFreeHit = chip === CHIP_FREE_HIT;
   // Body copy depends on whether the FH-fallback successfully fetched
   // the previous GW's persistent squad (the common case) or whether
   // we're still showing the FH temporary eleven (fallback fetch failed).
-  if (isFreeHit) {
-    const body = showingPersistentSquad
-      ? 'Free Hit is active this GW. Below is your team from last gameweek — your post-Free-Hit squad will reappear at the next deadline.'
-      : 'The squad below is your one-week Free Hit team. Your persistent squad reappears at the next GW deadline.';
-    return (
-      <View style={styles.chipBannerFreeHit}>
-        <Text style={styles.chipBannerTitle}>{label} active</Text>
-        <Text style={styles.chipBannerBody}>{body}</Text>
-      </View>
-    );
-  }
-  return <ChipBadge chip={chip} />;
-}
-
-/** Quiet single-line note that a chip is active this GW. */
-export function ChipBadge({ chip }: { chip: string }) {
-  const styles = useThemedStyles(makeStyles);
+  const body = showingPersistentSquad
+    ? 'Below is your team from last gameweek. Your post-Free-Hit squad reappears at the next deadline.'
+    : 'The squad below is your one-week Free Hit team. Your persistent squad reappears at the next GW deadline.';
   return (
-    <View style={styles.chipBadge}>
-      <Text style={styles.chipBadgeText}>{CHIP_LABELS[chip] ?? chip} active this GW</Text>
+    <View style={styles.freeHitBanner}>
+      <Text style={styles.freeHitBannerText}>{body}</Text>
     </View>
   );
 }

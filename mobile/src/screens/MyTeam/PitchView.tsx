@@ -3,20 +3,21 @@ import { Text } from '../../components/Text';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { ClubShirt, CLUB_SHIRT_SIZE } from '../../components/ClubShirt';
 import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';
-import { useTheme, useThemedStyles } from '../../theme';
+import { heatColor, useTheme, useThemedStyles } from '../../theme';
 import {
   formationLabel,
   startersByPosition,
   type Lineup,
   type LineupChange,
   type LineupSlot,
+  type PitchStat,
 } from './lineup';
 import { makeStyles } from './styles';
 
 type Props = {
   lineup: Lineup;
-  /** Short stat under each player's name, e.g. "8 pts" or "5.2 xP". */
-  getStatText: (slot: LineupSlot) => string;
+  /** The number under each player's name, e.g. "8 pts" or "5.2 xP". */
+  getStat: (slot: LineupSlot) => PitchStat;
   refreshing: boolean;
   onRefresh: () => void;
 };
@@ -26,8 +27,8 @@ const CHANGE_MARKERS: Record<LineupChange, { glyph: string; label: string }> = {
   out: { glyph: '↓', label: 'dropped to the bench' },
 };
 
-/** Starting XI laid out by position on a pitch, bench strip below. */
-export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props) {
+/** Starting XI laid out by position on a pitch, bench card below. */
+export function PitchView({ lineup, getStat, refreshing, onRefresh }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const bands = startersByPosition(lineup);
@@ -38,6 +39,7 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
       refreshControl={<PullToRefresh refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.pitch}>
+        <View style={styles.penaltyBox} />
         <Text style={styles.formationLabel}>{formationLabel(lineup)}</Text>
         {bands.map((band, index) => (
           <View
@@ -49,7 +51,7 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
             ]}
           >
             {band.slots.map((slot) => (
-              <PlayerTile key={slot.row.id} slot={slot} statText={getStatText(slot)} />
+              <PlayerTile key={slot.row.id} slot={slot} stat={getStat(slot)} onPitch />
             ))}
           </View>
         ))}
@@ -59,7 +61,12 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
           <Text style={styles.benchLabel}>Bench</Text>
           <View style={styles.benchRow}>
             {lineup.bench.map((slot) => (
-              <PlayerTile key={slot.row.id} slot={slot} statText={getStatText(slot)} />
+              <PlayerTile
+                key={slot.row.id}
+                slot={slot}
+                stat={getStat(slot)}
+                onPitch={false}
+              />
             ))}
           </View>
         </View>
@@ -68,10 +75,25 @@ export function PitchView({ lineup, getStatText, refreshing, onRefresh }: Props)
   );
 }
 
-function PlayerTile({ slot, statText }: { slot: LineupSlot; statText: string }) {
+function PlayerTile({
+  slot,
+  stat,
+  onPitch,
+}: {
+  slot: LineupSlot;
+  stat: PitchStat;
+  /** Starters sit on the grass with a dark name plate; the bench sits on
+   *  a surface card with a raised one. */
+  onPitch: boolean;
+}) {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const armband = slot.isCaptain ? 'C' : slot.isViceCaptain ? 'V' : null;
   const marker = slot.change ? CHANGE_MARKERS[slot.change] : null;
+  const heat =
+    stat.value != null && stat.heatCeiling != null
+      ? heatColor(stat.value, stat.heatCeiling, colors)
+      : null;
 
   return (
     <View style={styles.tile}>
@@ -90,19 +112,34 @@ function PlayerTile({ slot, statText }: { slot: LineupSlot; statText: string }) 
         ) : null}
         {armband ? (
           <Text
-            style={[styles.playerBadge, styles.shirtBadge]}
+            style={[
+              styles.armband,
+              onPitch ? styles.armbandOnPitch : styles.armbandOnBench,
+            ]}
             accessibilityLabel={slot.isCaptain ? 'captain' : 'vice-captain'}
           >
             {armband}
           </Text>
         ) : null}
       </View>
-      <Text style={styles.tileName} numberOfLines={1}>
-        <MatchStatusGlyph teamShort={slot.row.team} />
+      <Text
+        style={[
+          styles.tileName,
+          onPitch ? styles.tileNameOnPitch : styles.tileNameOnBench,
+        ]}
+        numberOfLines={1}
+      >
+        <MatchStatusGlyph teamShort={slot.row.team} onDarkPlate={onPitch} />
         {slot.row.name}
       </Text>
-      <Text style={styles.tileStat} numberOfLines={1}>
-        {statText}
+      <Text
+        style={[
+          styles.tileStat,
+          heat ? { backgroundColor: heat.background, color: heat.text } : null,
+        ]}
+        numberOfLines={1}
+      >
+        {stat.text}
       </Text>
     </View>
   );

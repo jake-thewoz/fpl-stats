@@ -16,5 +16,5 @@ export {
   type ResolvedFont,
 } from './typography';
 export { FONT_ASSETS, CustomFontsContext, useCustomFontsLoaded } from './fonts';
-export { heatColor, HEAT_CEILING, type HeatColor } from './heat';
+export { heatColor, HEAT_CEILING, mixHex, type HeatColor } from './heat';
 export { effects } from './effects';

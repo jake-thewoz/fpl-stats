@@ -15,6 +15,15 @@ export type LineupSlot = {
 
 export type LineupChange = 'in' | 'out';
 
+/** The number under a pitch tile, and how to heat-colour it. */
+export type PitchStat = {
+  /** Display text, e.g. "8 pts" or "5.2 xP". */
+  text: string;
+  value: number | null;
+  /** Value at which the badge turns fully mint; null leaves it plain. */
+  heatCeiling: number | null;
+};
+
 export type Lineup = {
   /** Starting XI, in no particular order — the pitch groups by position. */
   starters: LineupSlot[];

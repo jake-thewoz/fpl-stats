@@ -1,5 +1,6 @@
 import type { SquadEntry } from '../../api/myTeam';
-import type { LineupSlot } from './lineup';
+import { HEAT_CEILING } from '../../theme/heat';
+import type { LineupSlot, PitchStat } from './lineup';
 import type { MyTeamRow } from './types';
 
 export const EMPTY_SQUAD_MESSAGE = 'No squad data available yet for this gameweek.';
@@ -9,10 +10,10 @@ type KnownPlayerEntry = SquadEntry & { player: NonNullable<SquadEntry['player']>
 
 /** Pitch tiles show this gameweek's points, captain multiplier included,
  *  matching the GW total in the header. */
-export function gameweekPointsText(slot: LineupSlot): string {
+export function gameweekPointsStat(slot: LineupSlot): PitchStat {
   const points = slot.row.gwPoints;
-  if (points == null) return '– pts';
-  return points === 1 ? '1 pt' : `${points} pts`;
+  const text = points == null ? '– pts' : points === 1 ? '1 pt' : `${points} pts`;
+  return { text, value: points, heatCeiling: HEAT_CEILING.playerPoints };
 }
 
 /** Squad entries as table/pitch rows. Players missing from `/players`
