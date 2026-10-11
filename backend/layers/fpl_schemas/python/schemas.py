@@ -35,9 +35,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SCHEMA_VERSION = 1
+
+# Version of the ``fpl#player_stats`` item, kept apart from SCHEMA_VERSION
+# so changing the stats shape doesn't 503 every bootstrap reader until the
+# next ingest.
+PLAYER_STATS_SCHEMA_VERSION = 1
+
+# FPL prices and price changes are in 0.1m units; the API serves £m.
+FPL_PRICE_UNITS_PER_MILLION = 10
 
 
 def utc_now() -> datetime:
@@ -113,6 +121,99 @@ class Player(BaseModel):
     expected_assists: str | None = None
     # Cost change in the current gameweek, in 0.1m units (e.g. 1 = +£0.1m).
     cost_change_event: int | None = None
+
+
+class PlayerStats(BaseModel):
+    """The FPL per-player stats beyond those on ``Player``, for the extra
+    Players-list columns. Cached as their own columnar item rather than on
+    ``Player``: adding them there would push the bootstrap item past
+    DynamoDB's 400 KB limit.
+
+    Fields FPL ships as numeric strings ("0.45") parse to float, and an
+    unparseable one becomes None rather than failing the whole ingest.
+    """
+
+    id: int
+    event_points: int | None = None
+    dreamteam_count: int | None = None
+    goals_conceded: int | None = None
+    own_goals: int | None = None
+    penalties_saved: int | None = None
+    penalties_missed: int | None = None
+    yellow_cards: int | None = None
+    red_cards: int | None = None
+    saves: int | None = None
+    starts: int | None = None
+    tackles: int | None = None
+    clearances_blocks_interceptions: int | None = None
+    recoveries: int | None = None
+    transfers_in: int | None = None
+    transfers_out: int | None = None
+    transfers_in_event: int | None = None
+    transfers_out_event: int | None = None
+    expected_goal_involvements: float | None = None
+    expected_goals_conceded: float | None = None
+    influence: float | None = None
+    creativity: float | None = None
+    threat: float | None = None
+    value_form: float | None = None
+    value_season: float | None = None
+    ep_next: float | None = None
+    expected_goals_per_90: float | None = None
+    expected_assists_per_90: float | None = None
+    expected_goal_involvements_per_90: float | None = None
+    expected_goals_conceded_per_90: float | None = None
+    saves_per_90: float | None = None
+    goals_conceded_per_90: float | None = None
+    clean_sheets_per_90: float | None = None
+    starts_per_90: float | None = None
+    cost_change_start: int | None = None
+
+    @field_validator(
+        "expected_goal_involvements",
+        "expected_goals_conceded",
+        "influence",
+        "creativity",
+        "threat",
+        "value_form",
+        "value_season",
+        "ep_next",
+        mode="before",
+    )
+    @classmethod
+    def _parse_numeric_string(cls, value: object) -> object:
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return None
+        return value
+
+    def wire_values(self) -> dict[str, int | float | None]:
+        """Stat values in API units, keyed by field. Price change moves
+        from 0.1m units to £m, matching ``cost_change_event`` on /players."""
+        values = self.model_dump(exclude={"id"})
+        if self.cost_change_start is not None:
+            values["cost_change_start"] = (
+                self.cost_change_start / FPL_PRICE_UNITS_PER_MILLION
+            )
+        return values
+
+
+PLAYER_STATS_FIELDS: tuple[str, ...] = tuple(
+    name for name in PlayerStats.model_fields if name != "id"
+)
+
+
+def player_stats_columns(players: list[PlayerStats]) -> dict:
+    """Columnar ``{"ids": [...], "stats": {field: [...]}}``, each stat list
+    aligned with ``ids``. Naming each field once rather than per player
+    keeps ~700 players × 34 stats small enough for one DynamoDB item."""
+    rows = [p.wire_values() for p in players]
+    return {
+        "ids": [p.id for p in players],
+        "stats": {field: [row[field] for row in rows] for field in PLAYER_STATS_FIELDS},
+    }
 
 
 class Gameweek(BaseModel):
