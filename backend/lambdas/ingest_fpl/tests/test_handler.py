@@ -22,7 +22,11 @@ os.environ.setdefault("SNAPSHOTS_BUCKET_NAME", "test-snapshots-bucket")
 
 import handler  # noqa: E402
 from handler import BOOTSTRAP_URL, FIXTURES_URL, lambda_handler  # noqa: E402
-from schemas import SCHEMA_VERSION  # noqa: E402
+from schemas import (  # noqa: E402
+    PLAYER_STATS_FIELDS,
+    PLAYER_STATS_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+)
 
 
 BUCKET_NAME = os.environ["SNAPSHOTS_BUCKET_NAME"]
@@ -51,6 +55,14 @@ BOOTSTRAP_PAYLOAD = {
             # in the parsed model. Including it here so the put_item path
             # exercises float→Decimal conversion (DDB rejects raw floats).
             "defensive_contribution_per_90": 2.5,
+            # Extra stats cached in fpl#player_stats, in FPL's raw shapes:
+            # numeric strings, JSON floats, and 0.1m-unit price changes.
+            "saves": 0,
+            "transfers_in_event": 37841,
+            "expected_goal_involvements": "5.12",
+            "influence": "184.2",
+            "expected_goals_per_90": 0.45,
+            "cost_change_start": -3,
         },
     ],
     "events": [
@@ -147,17 +159,23 @@ def test_happy_path_writes_to_s3_and_ddb(mock_table, s3_bucket):
     head = s3_bucket.head_object(Bucket=BUCKET_NAME, Key=keys[0])
     assert head["ContentType"] == "application/json"
 
-    # DDB: both endpoints cached as 'latest' with the matching fetched_at.
-    assert mock_table.put_item.call_count == 2
+    # DDB: both endpoints plus the player stats cached as 'latest' with the
+    # matching fetched_at.
+    assert mock_table.put_item.call_count == 3
     items_by_pk = {
         call.kwargs["Item"]["pk"]: call.kwargs["Item"]
         for call in mock_table.put_item.call_args_list
     }
-    assert set(items_by_pk) == {"fpl#bootstrap", "fpl#fixtures"}
+    assert set(items_by_pk) == {"fpl#bootstrap", "fpl#fixtures", "fpl#player_stats"}
     for item in items_by_pk.values():
         assert item["sk"] == "latest"
-        assert item["schema_version"] == SCHEMA_VERSION
         assert item["fetched_at"] == result["fetched_at"]
+    assert items_by_pk["fpl#bootstrap"]["schema_version"] == SCHEMA_VERSION
+    assert items_by_pk["fpl#fixtures"]["schema_version"] == SCHEMA_VERSION
+    assert (
+        items_by_pk["fpl#player_stats"]["schema_version"]
+        == PLAYER_STATS_SCHEMA_VERSION
+    )
 
     bootstrap_data = items_by_pk["fpl#bootstrap"]["data"]
     assert set(bootstrap_data) == {"teams", "positions", "players", "gameweeks"}
@@ -236,3 +254,31 @@ def test_s3_failure_blocks_ddb(mock_table, no_retry_session):
             lambda_handler({}, None)
 
     mock_table.put_item.assert_not_called()
+
+
+@responses.activate
+def test_player_stats_item_holds_wire_values(mock_table, s3_bucket):
+    """fpl#player_stats is columnar and already in API units, so the read
+    Lambda only has to serve it: numeric strings parsed, price change in
+    £m, absent stats null."""
+    responses.get(BOOTSTRAP_URL, json=BOOTSTRAP_PAYLOAD)
+    responses.get(FIXTURES_URL, json=FIXTURES_PAYLOAD)
+
+    lambda_handler({}, None)
+
+    stats_item = next(
+        call.kwargs["Item"]
+        for call in mock_table.put_item.call_args_list
+        if call.kwargs["Item"]["pk"] == "fpl#player_stats"
+    )
+    data = stats_item["data"]
+    assert data["ids"] == [1]
+    stats = data["stats"]
+    assert set(stats) == set(PLAYER_STATS_FIELDS)
+    assert stats["saves"] == [0]
+    assert stats["transfers_in_event"] == [37841]
+    assert stats["expected_goal_involvements"] == [Decimal("5.12")]
+    assert stats["influence"] == [Decimal("184.2")]
+    assert stats["expected_goals_per_90"] == [Decimal("0.45")]
+    assert stats["cost_change_start"] == [Decimal("-0.3")]
+    assert stats["red_cards"] == [None]

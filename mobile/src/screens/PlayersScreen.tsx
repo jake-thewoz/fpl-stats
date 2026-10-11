@@ -3,10 +3,16 @@ import { StyleSheet, View } from 'react-native';
 import { TextInput } from '../components/Text';
 import { useQuery } from '@tanstack/react-query';
 import type { Player } from '../api/players';
+import { indexPlayerStats, type PlayerStatValues } from '../api/playerStats';
 import { useFocusedTeamId } from '../hooks/useFocusedTeamId';
 import { useMyTeam } from '../hooks/useMyTeam';
 import { useQueryState, useRefetchStaleOnFocus } from '../hooks/useQueryState';
-import { fixturesUpcomingQuery, playersQuery, playersXpQuery } from '../query/queries';
+import {
+  fixturesUpcomingQuery,
+  playerStatsQuery,
+  playersQuery,
+  playersXpQuery,
+} from '../query/queries';
 import {
   indexUpcomingFixtures,
   playerFixtureFields,
@@ -60,26 +66,29 @@ export default function PlayersScreen(_props: PlayersScreenProps) {
   // /players + /analytics/players/xp joined by id.
   const playersQueryResult = useQuery(playersQuery());
   const xpQuery = useQuery(playersXpQuery());
-  // Fixtures decorate the list but don't gate it: the screen renders
-  // without them and fills the strip in when they arrive.
+  // Fixtures and the extra stats decorate the list but don't gate it: the
+  // screen renders without them and fills them in when they arrive.
   const fixturesQuery = useQuery(fixturesUpcomingQuery());
-  useRefetchStaleOnFocus([fixturesQuery]);
+  const statsQuery = useQuery(playerStatsQuery());
+  useRefetchStaleOnFocus([fixturesQuery, statsQuery]);
   const playersResp = playersQueryResult.data;
   const xpResp = xpQuery.data;
   const fixturesResp = fixturesQuery.data;
+  const statsResp = statsQuery.data;
   const data = useMemo<CombinedData | undefined>(() => {
     if (playersResp === undefined || xpResp === undefined) return undefined;
     const xpById = new Map(xpResp.players.map((p) => [p.player_id, p]));
     const upcoming = fixturesResp && indexUpcomingFixtures(fixturesResp);
+    const statsById = statsResp && indexPlayerStats(statsResp);
     const players: JoinedPlayer[] = playersResp.players.map((p) =>
-      toJoined(p, xpById.get(p.id), upcoming),
+      toJoined(p, xpById.get(p.id), upcoming, statsById?.get(p.id)),
     );
     return {
       players,
       xpGameweek: xpResp.gameweek,
       fixtureGameweeks: upcoming?.gameweeks,
     };
-  }, [playersResp, xpResp, fixturesResp]);
+  }, [playersResp, xpResp, fixturesResp, statsResp]);
   const { state, refreshing, onRefresh, onRetry } = useQueryState(
     [playersQueryResult, xpQuery],
     data,
@@ -228,6 +237,7 @@ function toJoined(
   p: Player,
   xp: { xp: number; xp_h3: number | null; xp_h5: number | null } | undefined,
   upcoming: UpcomingFixtures | undefined,
+  stats: PlayerStatValues | undefined,
 ): JoinedPlayer {
   // FPL ships `form` as a stringified decimal; coerce to number for sort.
   const formNum = parseFloat(p.form);
@@ -257,6 +267,7 @@ function toJoined(
     expected_assists: p.expected_assists,
     cost_change_event: p.cost_change_event,
     ...playerFixtureFields(upcoming, p.team),
+    stats: stats ?? null,
   };
 }
 

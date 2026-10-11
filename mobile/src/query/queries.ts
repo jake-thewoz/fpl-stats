@@ -5,6 +5,7 @@ import { fetchFixturesUpcoming } from '../api/fixturesUpcoming';
 import { fetchGameweekCurrent } from '../api/gameweekCurrent';
 import { fetchGameweekLive } from '../api/gameweekLive';
 import { fetchPlayers } from '../api/players';
+import { fetchPlayerStats } from '../api/playerStats';
 import { fetchPlayersXp } from '../api/playersXp';
 import {
   fetchTransferSuggestions,
@@ -29,6 +30,13 @@ export const playersQuery = () =>
   queryOptions({
     queryKey: ['players'],
     queryFn: ({ signal }) => fetchPlayers(signal),
+    staleTime: INGESTED_STALE_MS,
+  });
+
+export const playerStatsQuery = () =>
+  queryOptions({
+    queryKey: ['playerStats'],
+    queryFn: ({ signal }) => fetchPlayerStats(signal),
     staleTime: INGESTED_STALE_MS,
   });
 

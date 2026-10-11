@@ -7,6 +7,7 @@
  * (#73).
  */
 import type { GameweekFixtures } from '../fixtures/upcoming';
+import type { PlayerStatKey, PlayerStatValues } from '../api/playerStats';
 
 /** Common per-player view model used on both Players and My Team. */
 export type JoinedPlayer = {
@@ -54,6 +55,9 @@ export type JoinedPlayer = {
   fixtures: readonly GameweekFixtures[] | null;
   /** Average FPL difficulty of `fixtures`, for sorting and filtering. */
   fixture_difficulty: number | null;
+  /** The rest of FPL's per-player stats, from `/players/stats`. null
+   *  while they load; the table renders without them. */
+  stats: PlayerStatValues | null;
 };
 
 /** The set of column/filter keys the UI knows about. */
@@ -78,7 +82,8 @@ export type FieldKey =
   | 'ict_index'
   | 'expected_goals'
   | 'expected_assists'
-  | 'cost_change_event';
+  | 'cost_change_event'
+  | PlayerStatKey;
 
 /** Numeric-range filter (min and/or max nullable for "no bound"). */
 export type RangeFilter = {

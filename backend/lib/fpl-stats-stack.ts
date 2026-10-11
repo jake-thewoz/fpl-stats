@@ -176,6 +176,17 @@ export class FplStatsStack extends cdk.Stack {
     });
     cacheTable.grantReadData(playersFn);
 
+    const playersStatsFn = new FplPythonFunction(this, 'PlayersStats', {
+      name: 'players_stats',
+      description:
+        'Read API — GET /players/stats. The FPL per-player stats beyond /players, one list per stat, for the extra Players-list columns.',
+      environment: {
+        CACHE_TABLE_NAME: cacheTable.tableName,
+      },
+      layers: [fplSchemasLayer],
+    });
+    cacheTable.grantReadData(playersStatsFn);
+
     const entryFn = new FplPythonFunction(this, 'Entry', {
       name: 'entry',
       description: 'Read API — cache-aside GET /entry/{teamId} backed by FPL.',
@@ -502,6 +513,15 @@ export class FplStatsStack extends cdk.Stack {
       integration: new HttpLambdaIntegration(
         'PlayersIntegration',
         playersFn,
+      ),
+    });
+
+    httpApi.addRoutes({
+      path: '/players/stats',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        'PlayersStatsIntegration',
+        playersStatsFn,
       ),
     });
 

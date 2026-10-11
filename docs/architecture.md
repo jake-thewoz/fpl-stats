@@ -15,7 +15,7 @@ How FPL Stats is put together, as of October 2026 (after PR #213). For the click
                                                    ▲          ▲
                                    cache only      │          │ cache-aside (refetch from FPL on a miss)
                                                    │          │
- Expo app (web via Amplify, iOS, Android) ──► API Gateway HTTP API ──► 10 read Lambdas
+ Expo app (web via Amplify, iOS, Android) ──► API Gateway HTTP API ──► 11 read Lambdas
 
  CloudWatch Errors alarms (5) ──► SNS IngestionAlertsTopic ──► email
 ```
@@ -35,7 +35,7 @@ Everything lives in one CDK stack, `FplStatsStack` (`backend/lib/fpl-stats-stack
 | DynamoDB `CacheTable` | `pk` (S) + `sk` (S), on-demand, TTL attribute `ttl`, `RemovalPolicy.DESTROY` | Single-table design, no GSIs. Every read knows its key. |
 | S3 `SnapshotsBucket` | Versioned, Block Public Access, SSE-S3, `enforceSSL`; Standard → Standard-IA at 30 days, delete at 90 | Raw FPL payloads, never on the request path. |
 | Lambda layer `fpl_schemas` | `backend/layers/fpl_schemas/python/` | Attached to every Lambda except `health`. |
-| API Gateway HTTP API | 10 `GET` routes, CORS `*` for GET/OPTIONS, no authorizer; `$default` stage throttled to 20 req/s, burst 40 | Throttle set through a `CfnStage` escape hatch, because CDK only exposes `throttle` on stages added with `addStage()`. |
+| API Gateway HTTP API | 11 `GET` routes, CORS `*` for GET/OPTIONS, no authorizer; `$default` stage throttled to 20 req/s, burst 40 | Throttle set through a `CfnStage` escape hatch, because CDK only exposes `throttle` on stages added with `addStage()`. |
 | EventBridge | 4 rules (below) | Cron times are UTC. |
 | CloudWatch | One log group per Lambda (1-week retention), 5 `Errors` alarms | All alarms publish to the SNS topic. |
 | SNS `IngestionAlertsTopic` | One email subscription | |
@@ -51,7 +51,7 @@ Stack outputs: `ApiBaseUrl`, `CacheTableName`, `SnapshotsBucketName`, `IngestFpl
 
 | Lambda | Schedule (UTC) | Memory / timeout | What it does |
 | --- | --- | --- | --- |
-| `ingest_fpl` | every 30 min | 256 MB / 60 s | Fetches `bootstrap-static` and `fixtures` (both or nothing). Writes raw JSON to S3 first, then a slim pydantic-validated subset to `fpl#bootstrap` and `fpl#fixtures`. |
+| `ingest_fpl` | every 30 min | 256 MB / 60 s | Fetches `bootstrap-static` and `fixtures` (both or nothing). Writes raw JSON to S3 first, then a slim pydantic-validated subset to `fpl#bootstrap` and `fpl#fixtures`, plus the extra per-player stats to `fpl#player_stats`. |
 | `ingest_player_history` | Sun 02:00 | 256 MB / 5 min | Calls `element-summary/{id}` for every player (~700, 50 ms apart). Replaces each player's history rows and deletes ids no longer in bootstrap, which is how the yearly id renumbering is handled (#158). |
 | `analyze_player_form` | daily 04:00 | 256 MB / 60 s | Rolling form over the last 5 GWs and difficulty of the next 5 fixtures (FPL's difficulty rating; ClubELO was dropped in #167). Still calls FPL's `event/{gw}/live` directly (#150). |
 | `analyze_player_xp_v2` | daily 04:30 | 512 MB / 60 s | Skips if any match kicked off in the last 2 hours (`match_window.py`). Otherwise scans ~21k history rows and writes xP for the next 5 gameweeks whose deadline is still ahead. See [xP model](xp-model.md). |
@@ -66,6 +66,7 @@ Every writer **prunes what it didn't produce** (`ddb_prune` in the layer): depar
 | --- | --- | --- | --- | --- |
 | `fpl#bootstrap` | `latest` | `ingest_fpl` | almost everything | ≤ 30 min |
 | `fpl#fixtures` | `latest` | `ingest_fpl` | `gameweek_current`, `fixtures_upcoming`, match-window guard, analyzers, transfers | ≤ 30 min |
+| `fpl#player_stats` | `latest` | `ingest_fpl` | `players_stats` | ≤ 30 min |
 | `fpl#player_history#{id}` | `gw#{round:03d}#fixture#{fixture}`, `season_summary#{season}` | `ingest_player_history` | xP analyzer, transfers, offline fit scripts | weekly |
 | `analytics#player_form` | `{player_id}` | `analyze_player_form` | `analytics_player_form`, transfers | daily |
 | `analytics#player_xp_v2` | `{player_id}` | `analyze_player_xp_v2` | `analytics_players_xp`, transfers | daily |
@@ -77,6 +78,7 @@ Every writer **prunes what it didn't produce** (`ddb_prune` in the layer): depar
 
 Things worth knowing:
 
+- `fpl#player_stats` holds the ~34 FPL per-player stats that aren't on `fpl#bootstrap` (cards, saves, xGI, ICT parts, transfers, …), stored columnar (`ids` plus one list per stat) and already in API units. They live apart because adding them to the bootstrap item would push it past DynamoDB's 400 KB item limit; it has its own `PLAYER_STATS_SCHEMA_VERSION`. `/players/stats` gzips its response when the client accepts it, since HTTP APIs don't compress.
 - `fpl#bootstrap` is the one item nearly every Lambda reads. Its gameweek **deadlines** decide "current" and "next" everywhere (#173, #174), rather than FPL's `is_current` flag, which reaches the cache up to 30 minutes late.
 - The zero-padded round in history sort keys (`gw#007`) keeps them in numeric order.
 - Cache-aside items carry both `expires_at` (checked in code) and `ttl` (DynamoDB's background deletion, which can lag by days).
@@ -94,6 +96,7 @@ All routes are `GET`. Lambdas marked **cache-aside** call FPL on a miss; the res
 | `/gameweek/current` | `gameweek_current` | cache only | every tab (gameweek banner, ● / ✓ markers), Gameweek fixtures screen |
 | `/fixtures/upcoming` | `fixtures_upcoming` | cache only | Players and My Team (fixture strip), Friends (favourite club shirts) |
 | `/players` | `players` | cache only | My Team, Players, Transfers, Friend Team |
+| `/players/stats` | `players_stats` | cache only | Players and My Team extra columns |
 | `/entry/{teamId}` | `entry` | cache-aside, 15 s timeout | My Team, Players, Friends |
 | `/entry/{teamId}/gameweek/{gw}` | `entry_gameweek` | cache-aside, 15 s | My Team, Players, Friend Team |
 | `/gameweek/{gw}/live` | `gameweek_live` | cache-aside, 15 s | My Team, Players, Friend Team |

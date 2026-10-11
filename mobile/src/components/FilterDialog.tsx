@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './Text';
-import { FIELDS_IN_PICKER_ORDER } from '../players/fields';
+import { FIELD_GROUPS, type FieldGroup, type FieldGroupKey } from '../players/fields';
+import { isActiveRange } from '../players/apply';
 import type { FieldKey, FilterState, RangeFilter } from '../players/types';
 import { EMPTY_FILTER } from '../players/types';
 import {
@@ -14,11 +15,13 @@ import {
 } from '../theme';
 import { CheckRow } from './dialog/CheckRow';
 import { DialogShell } from './dialog/DialogShell';
+import { FieldGroupTabs } from './dialog/FieldGroupTabs';
 import { Section } from './dialog/Section';
 
 /**
  * Field-aware filter dialog. Multi-select for position + team, and a
- * min/max range for every numeric field. The dialog manages a draft
+ * min/max range for every numeric field, grouped under the same tabs as
+ * the column picker. The dialog manages a draft
  * filter state internally and only commits on Done — mid-edit changes
  * don't trigger refetches per keystroke.
  */
@@ -48,6 +51,10 @@ export function FilterDialog({
   // shows the user's latest applied state, not whatever they typed before
   // a previous Cancel.
   const [draft, setDraft] = useState<FilterState>(filter);
+  const [activeGroup, setActiveGroup] = useState<FieldGroupKey>(FIELD_GROUPS[0].key);
+  const group = FIELD_GROUPS.find((g) => g.key === activeGroup) ?? FIELD_GROUPS[0];
+  const rangesSetIn = (g: FieldGroup) =>
+    g.fields.filter((f) => isActiveRange(draft.ranges[f.key])).length;
   useEffect(() => {
     if (visible) setDraft(filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +103,12 @@ export function FilterDialog({
       leftAction={{ label: 'Clear', onPress: onClear }}
       rightAction={{ label: 'Done', onPress: onDone }}
     >
+      <FieldGroupTabs
+        groups={FIELD_GROUPS}
+        active={activeGroup}
+        onChange={setActiveGroup}
+        countFor={rangesSetIn}
+      />
       <ScrollView
         contentContainerStyle={styles.scrollBody}
         keyboardShouldPersistTaps="handled"
@@ -115,7 +128,7 @@ export function FilterDialog({
           )}
         </Section>
 
-        {FIELDS_IN_PICKER_ORDER.map((f) => (
+        {group.fields.map((f) => (
           <Section key={f.key} title={f.label}>
             <View style={styles.rangeBody}>
               <RangeInput
@@ -232,8 +245,11 @@ const makeStyles = (c: Colors) =>
     // 30px width keeps "Min"/"Max" labels at a fixed column so the inputs
     // line up; fontSize.md = 14 matches the surrounding form scale.
     rangeLabel: { fontSize: fontSize.md, color: c.textMuted, width: 30 },
+    // A web <input> has an intrinsic width that flex won't shrink below
+    // unless minWidth is 0, which pushed Max off the right edge.
     rangeField: {
       flex: 1,
+      minWidth: 0,
       fontSize: fontSize.lg,
       color: c.textPrimary,
       paddingVertical: spacing.md,

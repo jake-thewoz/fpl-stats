@@ -23,7 +23,14 @@ import boto3
 import requests
 
 from fpl_session import make_fpl_session
-from schemas import SCHEMA_VERSION, Bootstrap, Fixture
+from schemas import (
+    PLAYER_STATS_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+    Bootstrap,
+    Fixture,
+    PlayerStats,
+    player_stats_columns,
+)
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -76,6 +83,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     bootstrap = Bootstrap.model_validate(bootstrap_raw)
     fixtures = [Fixture.model_validate(f) for f in fixtures_raw]
+    player_stats = [PlayerStats.model_validate(e) for e in bootstrap_raw["elements"]]
 
     now = datetime.now(timezone.utc)
     fetched_at = now.isoformat()
@@ -112,6 +120,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "schema_version": SCHEMA_VERSION,
             "fetched_at": fetched_at,
             "data": _floats_to_decimal([f.model_dump() for f in fixtures]),
+        }
+    )
+    table.put_item(
+        Item={
+            "pk": "fpl#player_stats",
+            "sk": "latest",
+            "schema_version": PLAYER_STATS_SCHEMA_VERSION,
+            "fetched_at": fetched_at,
+            "data": _floats_to_decimal(player_stats_columns(player_stats)),
         }
     )
 
