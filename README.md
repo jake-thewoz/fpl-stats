@@ -5,16 +5,16 @@
 </p>
 
 <p align="center">
-  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><img src="https://img.shields.io/badge/open_the_app-553555?style=for-the-badge" alt="Open the app"></a>
-  <a href="https://github.com/jake-thewoz/fpl-stats/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jake-thewoz/fpl-stats/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=553555&color=96c5b0" alt="CI status"></a>
+  <a href="https://main.d29izwx9gn2m58.amplifyapp.com"><img src="https://img.shields.io/badge/open_the_app-5a1a9e?style=for-the-badge" alt="Open the app"></a>
+  <a href="https://github.com/jake-thewoz/fpl-stats/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jake-thewoz/fpl-stats/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=5a1a9e&color=3ef0b4" alt="CI status"></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Expo-React_Native-553555?logo=expo&logoColor=white" alt="Expo + React Native">
-  <img src="https://img.shields.io/badge/TypeScript-strict-553555?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Python-3.12-553555?logo=python&logoColor=white" alt="Python 3.12">
-  <img src="https://img.shields.io/badge/AWS-CDK-553555" alt="AWS CDK">
-  <img src="https://img.shields.io/badge/PWA-installable-553555?logo=pwa&logoColor=white" alt="Installable PWA">
+  <img src="https://img.shields.io/badge/Expo-React_Native-5a1a9e?logo=expo&logoColor=white" alt="Expo + React Native">
+  <img src="https://img.shields.io/badge/TypeScript-strict-5a1a9e?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Python-3.12-5a1a9e?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/AWS-CDK-5a1a9e" alt="AWS CDK">
+  <img src="https://img.shields.io/badge/PWA-installable-5a1a9e?logo=pwa&logoColor=white" alt="Installable PWA">
 </p>
 
 <p align="center">

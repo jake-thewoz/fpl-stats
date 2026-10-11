@@ -8,6 +8,7 @@ import {
   setFplTeamId,
 } from '../storage/user';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SegmentedControl, type SegmentOption } from '../components/SegmentedControl';
 import { HelpDialog } from '../help/HelpDialog';
 import { ALL_HELP_TOPICS } from '../help/topics';
 import type { SettingsScreenProps } from '../navigation/types';
@@ -24,6 +25,12 @@ import {
 } from '../theme';
 
 type Props = SettingsScreenProps;
+
+const THEME_OPTIONS: readonly SegmentOption<ThemeMode>[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+  { value: 'system', label: 'System' },
+];
 
 export default function SettingsScreen(_props: Props) {
   const { colors, mode, setMode } = useTheme();
@@ -74,10 +81,10 @@ export default function SettingsScreen(_props: Props) {
                   setError(null);
                   setEditing(true);
                 }}
-                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
                 accessibilityRole="button"
               >
-                <Text style={styles.secondaryBtnText}>Change</Text>
+                <Text style={styles.primaryBtnText}>Change</Text>
               </Pressable>
               <Pressable
                 onPress={() => setClearConfirmOpen(true)}
@@ -129,15 +136,20 @@ export default function SettingsScreen(_props: Props) {
           </View>
         )}
 
+        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
+        <View style={styles.card}>
+          <SegmentedControl options={THEME_OPTIONS} value={mode} onChange={setMode} />
+        </View>
+
         <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>HELP</Text>
         <View style={styles.card}>
           <Pressable
             onPress={() => setGuideOpen(true)}
-            style={({ pressed }) => [styles.linkRow, pressed && styles.themeRowPressed]}
+            style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
             accessibilityRole="button"
           >
             <View style={styles.linkRowText}>
-              <Text style={styles.themeRowLabel}>How the app works</Text>
+              <Text style={styles.linkRowLabel}>How the app works</Text>
               <Text style={styles.linkRowHint}>
                 What xP means, the symbols, and every tab explained. Each tab also has a ?
                 button at the top.
@@ -145,18 +157,6 @@ export default function SettingsScreen(_props: Props) {
             </View>
             <Text style={styles.chevron}>›</Text>
           </Pressable>
-        </View>
-
-        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>APPEARANCE</Text>
-        <View style={styles.card}>
-          <ThemeRow label="Dark" value="dark" active={mode} onSelect={setMode} />
-          <ThemeRow label="Light" value="light" active={mode} onSelect={setMode} />
-          <ThemeRow
-            label="Follow system"
-            value="system"
-            active={mode}
-            onSelect={setMode}
-          />
         </View>
       </View>
       <HelpDialog
@@ -179,34 +179,6 @@ export default function SettingsScreen(_props: Props) {
   );
 }
 
-function ThemeRow({
-  label,
-  value,
-  active,
-  onSelect,
-}: {
-  label: string;
-  value: ThemeMode;
-  active: ThemeMode;
-  onSelect: (mode: ThemeMode) => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const selected = active === value;
-  return (
-    <Pressable
-      onPress={() => onSelect(value)}
-      style={({ pressed }) => [styles.themeRow, pressed && styles.themeRowPressed]}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-    >
-      <Text style={styles.themeRowLabel}>{label}</Text>
-      <View style={[styles.radio, selected && styles.radioSelected]}>
-        {selected ? <View style={styles.radioInner} /> : null}
-      </View>
-    </Pressable>
-  );
-}
-
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     container: { flex: 1, padding: spacing.xl, backgroundColor: colors.background },
@@ -220,17 +192,17 @@ const makeStyles = (colors: Colors) =>
     },
     card: {
       backgroundColor: colors.surface,
-      borderRadius: radius.base,
+      borderRadius: radius.lg,
       padding: spacing.xl,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       gap: spacing.lg,
     },
-    // 22px is the team-id current-value display, distinctively bigger
+    // 26px is the team-id current-value display, distinctively bigger
     // than headings; one call site so it stays inline.
     currentValue: {
-      fontSize: 22,
-      fontWeight: '700',
+      fontSize: 26,
+      fontWeight: '800',
       color: colors.textPrimary,
       ...fontRole.numeric,
     },
@@ -277,48 +249,18 @@ const makeStyles = (colors: Colors) =>
       paddingVertical: spacing.lg,
       borderRadius: radius.md,
       alignItems: 'center',
-      borderWidth: 1,
+      // Thicker than a hairline so the outline reads as a button.
+      borderWidth: 1.5,
       borderColor: colors.bad,
-      backgroundColor: colors.background,
     },
     dangerBtnText: { color: colors.badText, fontSize: fontSize.base, fontWeight: '600' },
     pressed: effects.pressed,
 
-    // Appearance section
     sectionTitleSpaced: { marginTop: spacing.xxl },
-    themeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: spacing.lg,
-      // Hairline divider between rows; the last row's bottom border is
-      // hidden by the card's own rounded edge, so leaving it on every row
-      // is fine and keeps the markup uniform.
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    themeRowPressed: effects.pressedSubtle,
-    themeRowLabel: { fontSize: fontSize.lg, color: colors.textPrimary },
+    linkRowPressed: effects.pressedSubtle,
+    linkRowLabel: { fontSize: fontSize.lg, color: colors.textPrimary },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     linkRowText: { flex: 1, gap: spacing.xs },
     linkRowHint: { fontSize: fontSize.sm, color: colors.textMuted },
     chevron: { fontSize: fontSize.xl, color: colors.textMuted },
-    radio: {
-      width: 22,
-      height: 22,
-      // 11px radius makes the 22px square a perfect circle — outside
-      // the named scale on purpose because it's geometry, not design.
-      borderRadius: 11,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    radioSelected: { borderColor: colors.accent },
-    radioInner: {
-      width: 12,
-      height: 12,
-      borderRadius: radius.sm,
-      backgroundColor: colors.accent,
-    },
   });

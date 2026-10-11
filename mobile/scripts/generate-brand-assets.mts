@@ -18,27 +18,22 @@ const ASSETS_DIR = join(MOBILE_ROOT, 'assets');
 const PUBLIC_DIR = join(MOBILE_ROOT, 'public');
 const WEB_ICONS_PATH = 'icons';
 
-const FONTS_DIR = join(
-  MOBILE_ROOT,
-  'node_modules',
-  '@expo-google-fonts',
-  'playfair-display',
-);
+const FONTS_DIR = join(MOBILE_ROOT, 'node_modules', '@expo-google-fonts');
+// The app's own pair: Sora for the wordmark, Rubik for the tagline.
 const WORDMARK_FONT_FILE = join(
   FONTS_DIR,
-  '600SemiBold',
-  'PlayfairDisplay_600SemiBold.ttf',
+  'sora',
+  '800ExtraBold',
+  'Sora_800ExtraBold.ttf',
 );
-const TAGLINE_FONT_FILE = join(
-  FONTS_DIR,
-  '400Regular_Italic',
-  'PlayfairDisplay_400Regular_Italic.ttf',
-);
-const CARD_FONT_FAMILY = 'Playfair Display';
+const TAGLINE_FONT_FILE = join(FONTS_DIR, 'rubik', '500Medium', 'Rubik_500Medium.ttf');
+const WORDMARK_FONT_FAMILY = 'Sora';
+const TAGLINE_FONT_FAMILY = 'Rubik';
+const TAGLINE_FONT_WEIGHT = 500;
 
-const BACKGROUND_COLOR = brandPalette.eggplant;
+const BACKGROUND_COLOR = brandPalette.grape;
 const BADGE_COLOR = brandPalette.mint;
-const LETTER_COLOR = brandPalette.eggplant;
+const LETTER_COLOR = brandPalette.grape;
 
 // Android adaptive-icon grid: a 108-unit canvas whose centre 66-unit circle
 // survives every launcher mask. All geometry below is in these units.
@@ -170,7 +165,7 @@ type CardLayout = {
 };
 
 const CARD_TAGLINE = 'Your Fantasy Premier League companion';
-const CARD_WORDMARK_WEIGHT = 600;
+const CARD_WORDMARK_WEIGHT = 800;
 const CARD_RULE_HALF_WIDTH = 32;
 const CARD_RULE_STROKE = 2;
 const CARD_WORDMARK_COLOR = darkColors.textPrimary;
@@ -216,7 +211,7 @@ const cards: CardLayout[] = [
 ];
 
 // Typographic apostrophe: the straight one from app.json looks like a
-// typewriter tick in a display serif.
+// typewriter tick at display size.
 const typographic = (text: string) => text.replace(/'/g, '\u2019');
 
 function cardSvg(name: string, layout: CardLayout): string {
@@ -237,13 +232,13 @@ function cardSvg(name: string, layout: CardLayout): string {
     markShapes(BADGE_RADIUS),
     '</g>',
     `<text x="${centerX}" y="${layout.wordmarkBaseline}" text-anchor="middle"`,
-    ` font-family="${CARD_FONT_FAMILY}" font-weight="${CARD_WORDMARK_WEIGHT}" font-size="${layout.wordmarkSize}"`,
+    ` font-family="${WORDMARK_FONT_FAMILY}" font-weight="${CARD_WORDMARK_WEIGHT}" font-size="${layout.wordmarkSize}"`,
     ` fill="${CARD_WORDMARK_COLOR}">${typographic(name)}</text>`,
     `<line x1="${centerX - CARD_RULE_HALF_WIDTH}" x2="${centerX + CARD_RULE_HALF_WIDTH}"`,
     ` y1="${layout.ruleY}" y2="${layout.ruleY}" stroke="${CARD_ACCENT_COLOR}"`,
     ` stroke-width="${CARD_RULE_STROKE}" stroke-linecap="round"/>`,
     `<text x="${centerX}" y="${layout.taglineBaseline}" text-anchor="middle"`,
-    ` font-family="${CARD_FONT_FAMILY}" font-style="italic" font-size="${layout.taglineSize}"`,
+    ` font-family="${TAGLINE_FONT_FAMILY}" font-weight="${TAGLINE_FONT_WEIGHT}" font-size="${layout.taglineSize}"`,
     ` fill="${CARD_ACCENT_COLOR}">${CARD_TAGLINE}</text>`,
     '</svg>',
   ].join('');
@@ -256,7 +251,7 @@ function renderCard(name: string, layout: CardLayout): void {
     font: {
       fontFiles: [WORDMARK_FONT_FILE, TAGLINE_FONT_FILE],
       loadSystemFonts: false,
-      defaultFontFamily: CARD_FONT_FAMILY,
+      defaultFontFamily: TAGLINE_FONT_FAMILY,
     },
   })
     .render()

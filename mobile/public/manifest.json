@@ -9,8 +9,8 @@
   ],
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#553555",
-  "theme_color": "#553555",
+  "background_color": "#5a1a9e",
+  "theme_color": "#5a1a9e",
   "icons": [
     {
       "src": "/icons/icon-192.png",
