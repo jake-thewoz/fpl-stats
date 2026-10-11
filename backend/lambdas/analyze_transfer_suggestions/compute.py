@@ -25,11 +25,12 @@ MAX_BANKED_FREE_TRANSFERS = 5
 # Hit cost per extra transfer (FPL: −4 points per transfer beyond your free count).
 HIT_COST_POINTS = 4
 
-# Hard ceiling on bundle size we'll consider. 4+ transfers means −12+ pts in
-# hits, almost never net-positive even on big swings; the combinatorial
-# space also blows up. Handler clamps user input (``max_transfers`` query
-# param) to this.
-MAX_BUNDLE_SIZE = 3
+# Hard ceiling on bundle size we'll consider. Matches the banked-FT cap, so
+# a manager sitting on five free transfers can see a five-move plan. The
+# search grows as (15 choose k) × K^k; at 5 it stays well inside the
+# Lambda timeout only because of the prunes in suggest_transfer_bundles.
+# Handler clamps user input (``max_transfers`` query param) to this.
+MAX_BUNDLE_SIZE = 5
 
 # Per-squad-slot top-K replacement candidates retained for bundle assembly.
 # Bundle search enumerates combinations across slots, so total work scales
@@ -249,7 +250,9 @@ def _per_slot_top_k_moves(
 
 def _move_combos_above_threshold(
     slot_options: list[list[TransferCandidate]],
+    slot_positions: list[int],
     hit_cost: int,
+    bank: int,
     current_threshold: Callable[[], float],
 ) -> Iterator[tuple[TransferCandidate, ...]]:
     """Depth-first walk of the cartesian product of ``slot_options``,
@@ -260,15 +263,46 @@ def _move_combos_above_threshold(
     falls as we move down the list. The first option that can't beat the
     threshold ends that slot's loop — every later option is worse. The
     threshold is re-read on each check because the caller raises it as
-    the heap fills."""
+    the heap fills.
+
+    Slots of the same position share one candidate list (each is ranked
+    by the in-player's xP minus a constant), so handing the same
+    in-players to those slots in any order is the same bundle: same
+    total delta, cost and team counts. Only the assignment whose
+    in-player ids rise with slot order is walked. That also rules out
+    picking one in-player twice, and it is what keeps 4- and 5-move
+    searches tractable: k same-position slots would otherwise repeat
+    every bundle k! times.
+
+    Bundles the bank can't cover are cut as early as possible too: a
+    branch ends once its spend so far plus the cheapest option of every
+    remaining slot is over budget. Most upgrades cost money, so without
+    this a weak squad on a small bank walks millions of unaffordable
+    bundles before the threshold rises."""
+    # previous_same_position[i] = the nearest earlier slot sharing slot
+    # i's position, or None.
+    previous_same_position: list[int | None] = []
+    last_slot_by_position: dict[int, int] = {}
+    for i, position in enumerate(slot_positions):
+        previous_same_position.append(last_slot_by_position.get(position))
+        last_slot_by_position[position] = i
+
     # best_remaining[i] = sum of the top move of every slot from i onward.
     best_remaining = [0.0] * (len(slot_options) + 1)
     for i in range(len(slot_options) - 1, -1, -1):
         best_remaining[i] = best_remaining[i + 1] + slot_options[i][0].delta_xp
+    # cheapest_remaining[i] = the least every slot from i onward can cost.
+    cheapest_remaining = [0] * (len(slot_options) + 1)
+    for i in range(len(slot_options) - 1, -1, -1):
+        cheapest_remaining[i] = cheapest_remaining[i + 1] + min(
+            move.cost_change for move in slot_options[i]
+        )
 
     chosen: list[TransferCandidate] = []
 
-    def walk(depth: int, partial: float) -> Iterator[tuple[TransferCandidate, ...]]:
+    def walk(
+        depth: int, partial: float, spent: int
+    ) -> Iterator[tuple[TransferCandidate, ...]]:
         if depth == len(slot_options):
             yield tuple(chosen)
             return
@@ -276,11 +310,18 @@ def _move_combos_above_threshold(
             bound = partial + move.delta_xp + best_remaining[depth + 1] - hit_cost
             if bound <= current_threshold():
                 break
+            previous = previous_same_position[depth]
+            if previous is not None and move.in_player_id <= chosen[previous].in_player_id:
+                continue
+            if spent + move.cost_change + cheapest_remaining[depth + 1] > bank:
+                continue
             chosen.append(move)
-            yield from walk(depth + 1, partial + move.delta_xp)
+            yield from walk(
+                depth + 1, partial + move.delta_xp, spent + move.cost_change
+            )
             chosen.pop()
 
-    yield from walk(0, 0.0)
+    yield from walk(0, 0.0, 0)
 
 
 def suggest_transfer_bundles(
@@ -306,8 +347,7 @@ def suggest_transfer_bundles(
     slot's top few moves; widening K beyond ~25 rarely changes top-N
     output but multiplies work geometrically.
 
-    ``max_transfers`` is clamped to ``MAX_BUNDLE_SIZE``. Beyond 3 transfers
-    the hit cost (≥−12 pts) eats almost all upside.
+    ``max_transfers`` is clamped to ``MAX_BUNDLE_SIZE``.
 
     Tiebreaker by num_transfers ascending (prefer fewer moves at equal
     net) and by player_id sequence (stable across runs).
@@ -333,10 +373,12 @@ def suggest_transfer_bundles(
         player_by_id[p.id] = p
 
     # Branch-and-bound + heap-based top-N. Without pruning, max_transfers=3
-    # explores ~7M (15C3 × 25^3) combinations and times the Lambda out.
+    # explores ~7M (15C3 × 25^3) combinations and times the Lambda out;
+    # max_transfers=5 would be ~29B (15C5 × 25^5).
     # Two prunes: the slot-subset bound below skips whole subsets, and
     # _move_combos_above_threshold cuts each subset's product short once
-    # the remaining moves can't reach the top N.
+    # the remaining moves can't reach the top N. That walk also yields each
+    # bundle once, rather than once per ordering of its same-position moves.
     #
     # heap entries: (delta_xp_net, counter, bundle). The min-heap's root
     # is the *worst* bundle currently in the top-N; once the heap is full
@@ -346,14 +388,6 @@ def suggest_transfer_bundles(
     heap: list[tuple[float, int, TransferBundle]] = []
     counter = 0
     threshold = float("-inf")
-
-    # Collapses permutations of the same effective transfer into one bundle.
-    # The per-subset product enumerates every IN→OUT pairing; when two
-    # slots share top-K candidates (common for same-position swaps), the
-    # cross product emits e.g. (1→10, 2→11) AND (1→11, 2→10) — same OUT
-    # set, same IN set, same gross/net delta-xP, indistinguishable to the
-    # user. Keying by (frozenset(out), frozenset(in)) collapses them.
-    seen_bundle_keys: set[tuple[frozenset[int], frozenset[int]]] = set()
 
     for size in range(1, capped_max + 1):
         hit_cost = max(0, size - free_transfers) * HIT_COST_POINTS
@@ -369,18 +403,12 @@ def suggest_transfer_bundles(
             max_gross = sum(opts[0].delta_xp for opts in slot_options)
             if max_gross - hit_cost <= threshold:
                 continue
+            slot_positions = [squad[i].element_type for i in slot_indices]
             for move_combo in _move_combos_above_threshold(
-                slot_options, hit_cost, lambda: threshold
+                slot_options, slot_positions, hit_cost, bank, lambda: threshold
             ):
                 if not is_valid_bundle(move_combo, counts, bank, player_by_id):
                     continue
-                bundle_key = (
-                    frozenset(m.out_player_id for m in move_combo),
-                    frozenset(m.in_player_id for m in move_combo),
-                )
-                if bundle_key in seen_bundle_keys:
-                    continue
-                seen_bundle_keys.add(bundle_key)
                 net = sum(m.delta_xp for m in move_combo) - hit_cost
                 bundle = TransferBundle(
                     moves=move_combo,

@@ -16,12 +16,15 @@ import type { Player, PlayersResponse } from './players';
 const TEAM_ID = 1234;
 const GAMEWEEK = 8;
 const CAPTAIN_MULTIPLIER = 2;
+const BENCH_MULTIPLIER = 0;
 const HAALAND_ID = 430;
 const BRUNO_ID = 366;
 const BENCH_PLAYER_ID = 12;
 const BENCH_SLOT = 12;
 const HAALAND_POINTS = 9;
 const HAALAND_MINUTES = 90;
+const BENCH_PLAYER_POINTS = 6;
+const BENCH_PLAYER_MINUTES = 90;
 
 const pending = <T>(): QuerySnapshot<T> => ({ data: undefined, error: null });
 const loaded = <T>(data: T): QuerySnapshot<T> => ({ data, error: null });
@@ -128,12 +131,19 @@ const LIVE: GameweekLiveResponse = {
   gameweek: GAMEWEEK,
   fetched_at: 0,
   cache: 'hit',
-  elements: [{ id: HAALAND_ID, total_points: HAALAND_POINTS, minutes: HAALAND_MINUTES }],
+  elements: [
+    { id: HAALAND_ID, total_points: HAALAND_POINTS, minutes: HAALAND_MINUTES },
+    {
+      id: BENCH_PLAYER_ID,
+      total_points: BENCH_PLAYER_POINTS,
+      minutes: BENCH_PLAYER_MINUTES,
+    },
+  ],
 };
 
 const SQUAD = [
   pick(HAALAND_ID, 1, CAPTAIN_MULTIPLIER),
-  pick(BENCH_PLAYER_ID, BENCH_SLOT),
+  pick(BENCH_PLAYER_ID, BENCH_SLOT, BENCH_MULTIPLIER),
 ];
 
 function sources(overrides: Partial<MyTeamSources> = {}): MyTeamSources {
@@ -168,7 +178,13 @@ describe('assembleMyTeam', () => {
     expect(captain?.minutes).toBe(HAALAND_MINUTES);
     expect(captain?.isStarter).toBe(true);
     expect(bench?.isStarter).toBe(false);
-    expect(bench?.gwPoints).toBeNull();
+  });
+
+  it("shows a benched player's points, though they don't count", () => {
+    const team = assembleMyTeam(sources());
+    const bench = team?.squad.find((s) => !s.isStarter);
+    expect(bench?.gwPointsRaw).toBe(BENCH_PLAYER_POINTS);
+    expect(bench?.gwPoints).toBe(BENCH_PLAYER_POINTS);
   });
 
   it('explains missing picks instead of failing', () => {

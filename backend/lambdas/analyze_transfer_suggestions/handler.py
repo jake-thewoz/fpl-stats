@@ -11,7 +11,7 @@ Query params:
 - ``horizon=N`` — GWs to sum xP over (default 3, clamped to MAX_HORIZON)
 - ``positions=2,3`` — restrict to FPL element_type set
 - ``max_transfers=N`` — bundle size ceiling (default 2, clamped to
-  MAX_BUNDLE_SIZE = 3)
+  MAX_BUNDLE_SIZE = 5)
 - ``free_transfers=N`` — override the FT count derived from FPL history.
   The app sends it when the user edits their FT count (e.g. after making
   transfers the public history doesn't show yet). The derived count is
@@ -135,7 +135,7 @@ def _parse_horizon(event: dict[str, Any]) -> int:
 
 def _parse_max_transfers(event: dict[str, Any]) -> int:
     """``?max_transfers=N`` → bundle size ceiling. Defaults to
-    DEFAULT_MAX_TRANSFERS (2). Clamped to MAX_BUNDLE_SIZE (3) to keep
+    DEFAULT_MAX_TRANSFERS (2). Clamped to MAX_BUNDLE_SIZE (5) to keep
     the combinatorial search inside the Lambda timeout."""
     params = event.get("queryStringParameters") or {}
     raw = params.get("max_transfers") if isinstance(params, dict) else None

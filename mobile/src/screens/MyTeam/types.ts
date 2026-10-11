@@ -10,7 +10,7 @@ export type MyTeamRow = JoinedPlayer & {
   isStarter: boolean;
   isCaptain: boolean;
   isViceCaptain: boolean;
-  /** This GW's contribution to the team total (raw × multiplier).
-   *  null when live data hasn't arrived yet. */
+  /** This GW's points: raw × multiplier for starters (captain
+   *  doubled), raw for the bench. null when live data hasn't arrived. */
   gwPoints: number | null;
 };

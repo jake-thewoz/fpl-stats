@@ -204,6 +204,11 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
               'How far ahead to plan. One gameweek favours this week’s fixture; five favours players with a good run of games.',
           },
           {
+            term: 'Max moves',
+            meaning:
+              'The largest plan to consider, from single swaps up to five players at once. Moves beyond your free transfers cost 4 points each, already taken off every score.',
+          },
+          {
             term: 'Card',
             meaning:
               'One transfer plan. Each row is a player out (left) and the player in (right). Tap a card to compare the players.',
@@ -256,10 +261,6 @@ export const HELP_TOPICS: Record<HelpTopicKey, HelpTopic> = {
       {
         title: 'Filter',
         entries: [
-          {
-            term: 'Max transfers',
-            meaning: 'The largest plan to consider: single swaps, pairs, or more.',
-          },
           {
             term: 'Free transfers',
             meaning:

@@ -12,11 +12,13 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { POSITIONS_WITH_LABELS } from '../../players/positions';
 import {
-  DEFAULT_TRANSFER_SETTINGS,
+  MAX_TRANSFER_OPTIONS,
   countActiveFilters,
   freeTransfersOverrideFor,
+  DEFAULT_TRANSFER_SETTINGS,
   type TransferSettings,
 } from '../../transfers/settings';
+import type { SegmentOption } from '../../components/SegmentedControl';
 import type { TransfersScreenProps } from '../../navigation/types';
 import { useThemedStyles } from '../../theme';
 import { MessageState, NoTeamIdState, PicksNotFoundState } from './EmptyStates';
@@ -35,6 +37,14 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const HORIZONS = [1, 3, 5] as const;
 type Horizon = (typeof HORIZONS)[number];
 const DEFAULT_HORIZON: Horizon = 3;
+
+const HORIZON_CHIPS: readonly SegmentOption<Horizon>[] = HORIZONS.map((h) => ({
+  value: h,
+  label: `${h} GW${h === 1 ? '' : 's'}`,
+}));
+const MAX_TRANSFER_CHIPS: readonly SegmentOption<number>[] = MAX_TRANSFER_OPTIONS.map(
+  (n) => ({ value: n, label: String(n) }),
+);
 
 // TransferFilterDialog wants the legacy `Position` shape (id + label),
 // derived from the canonical players/positions module.
@@ -143,9 +153,13 @@ function SuggestionsView({
 
   return (
     <View style={styles.container}>
-      <ControlsRow
+      <Controls
         horizon={horizon}
         onChangeHorizon={onChangeHorizon}
+        maxTransfers={settings.maxTransfers}
+        onChangeMaxTransfers={(maxTransfers) =>
+          onChangeSettings({ ...settings, maxTransfers })
+        }
         onOpenFilter={onOpenFilter}
         filterCount={activeFilterCount}
       />
@@ -160,10 +174,6 @@ function SuggestionsView({
       <TransferFilterDialog
         visible={filterOpen}
         onClose={onCloseFilter}
-        maxTransfers={settings.maxTransfers}
-        onChangeMaxTransfers={(maxTransfers) =>
-          onChangeSettings({ ...settings, maxTransfers })
-        }
         freeTransfers={settings.freeTransfersOverride ?? derivedFreeTransfers}
         derivedFreeTransfers={derivedFreeTransfers}
         onChangeFreeTransfers={(picked) =>
@@ -184,7 +194,10 @@ function SuggestionsView({
         hasActiveFilters={activeFilterCount > 0}
         onClearAll={() => {
           onChangePositionFilter([]);
-          onChangeSettings(DEFAULT_TRANSFER_SETTINGS);
+          onChangeSettings({
+            ...settings,
+            freeTransfersOverride: DEFAULT_TRANSFER_SETTINGS.freeTransfersOverride,
+          });
         }}
       />
     </View>
@@ -269,50 +282,91 @@ function Body({
   );
 }
 
-function ControlsRow({
+/** The two search inputs worth changing often, horizon and plan size,
+ *  sit on the screen; the rarer ones live behind Filter. */
+function Controls({
   horizon,
   onChangeHorizon,
+  maxTransfers,
+  onChangeMaxTransfers,
   onOpenFilter,
   filterCount,
 }: {
   horizon: Horizon;
   onChangeHorizon: (h: Horizon) => void;
+  maxTransfers: number;
+  onChangeMaxTransfers: (n: number) => void;
   onOpenFilter: () => void;
   filterCount: number;
 }) {
   const styles = useThemedStyles(makeStyles);
 
   return (
-    <View style={styles.controlsRow}>
-      <View style={styles.horizonGroup}>
-        {HORIZONS.map((h) => {
-          const active = h === horizon;
-          return (
-            <Pressable
-              key={h}
-              onPress={() => onChangeHorizon(h)}
-              style={({ pressed }) => [
-                styles.horizonChip,
-                active && styles.horizonChipActive,
-                pressed && !active && styles.horizonChipPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-            >
-              <Text
-                style={[styles.horizonChipText, active && styles.horizonChipTextActive]}
-              >
-                {h} GW{h === 1 ? '' : 's'}
-              </Text>
-            </Pressable>
-          );
-        })}
+    <View style={styles.controls}>
+      <View style={styles.controlsRow}>
+        <ChipGroup
+          options={HORIZON_CHIPS}
+          value={horizon}
+          onChange={onChangeHorizon}
+          accessibilityLabel="Gameweeks to plan for"
+        />
+        <ControlButton
+          label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
+          active={filterCount > 0}
+          onPress={onOpenFilter}
+        />
       </View>
-      <ControlButton
-        label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
-        active={filterCount > 0}
-        onPress={onOpenFilter}
-      />
+      <View style={styles.controlsRow}>
+        <Text style={styles.controlLabel}>Max moves</Text>
+        <ChipGroup
+          options={MAX_TRANSFER_CHIPS}
+          value={maxTransfers}
+          onChange={onChangeMaxTransfers}
+          accessibilityLabel="Most transfers in one plan"
+        />
+      </View>
+    </View>
+  );
+}
+
+function ChipGroup<T extends number>({
+  options,
+  value,
+  onChange,
+  accessibilityLabel,
+}: {
+  options: readonly SegmentOption<T>[];
+  value: T;
+  onChange: (next: T) => void;
+  accessibilityLabel: string;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View
+      style={styles.chipGroup}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+    >
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            style={({ pressed }) => [
+              styles.chip,
+              active && styles.chipActive,
+              pressed && !active && styles.chipPressed,
+            ]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+          >
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

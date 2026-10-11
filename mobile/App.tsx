@@ -7,10 +7,13 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import GameweekScreen from './src/screens/GameweekScreen';
 import { LoadingView } from './src/components/LoadingView';
 import { WebShell } from './src/components/WebShell';
 import { getFplTeamId, getOnboardingSeen } from './src/storage/user';
 import { MainTabs } from './src/navigation/MainTabs';
+import { makeLinking } from './src/navigation/linking';
+import { useStackHeaderOptions } from './src/navigation/stacks/headerOptions';
 import type { RootStackParamList } from './src/navigation/types';
 import {
   CustomFontsContext,
@@ -32,6 +35,7 @@ export type { RootStackParamList } from './src/navigation/types';
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 const ONBOARDING_TITLE = 'Welcome';
+const GAMEWEEK_TITLE = 'Gameweek';
 const DOCUMENT_TITLE_SEPARATOR = ' · ';
 
 // Browser tab and history titles on web, e.g. "Players · Captain's Log".
@@ -109,6 +113,7 @@ export default function App() {
 function ThemedAppRoot() {
   const { colors, effectiveMode } = useTheme();
   const customFontsLoaded = useCustomFontsLoaded();
+  const header = useStackHeaderOptions();
   const [bootstrap, setBootstrap] = useState<BootstrapState>({ status: 'loading' });
 
   useEffect(() => {
@@ -141,12 +146,20 @@ function ThemedAppRoot() {
     [colors, effectiveMode, customFontsLoaded],
   );
 
+  const linking = useMemo(
+    () =>
+      bootstrap.status === 'ready'
+        ? makeLinking(bootstrap.initialRoute === 'Onboarding')
+        : undefined,
+    [bootstrap],
+  );
+
   if (bootstrap.status === 'loading') {
     return <LoadingView />;
   }
 
   return (
-    <NavigationContainer theme={navTheme} documentTitle={documentTitle}>
+    <NavigationContainer theme={navTheme} documentTitle={documentTitle} linking={linking}>
       <RootStack.Navigator
         initialRouteName={bootstrap.initialRoute}
         screenOptions={{ headerShown: false }}
@@ -157,6 +170,11 @@ function ThemedAppRoot() {
           options={{ title: ONBOARDING_TITLE }}
         />
         <RootStack.Screen name="Main" component={MainTabs} />
+        <RootStack.Screen
+          name="Gameweek"
+          component={GameweekScreen}
+          options={{ ...header.stack, headerShown: true, title: GAMEWEEK_TITLE }}
+        />
       </RootStack.Navigator>
       {/* Status bar inverts with the theme — light glyphs on dark bg,
           dark glyphs on light bg. */}

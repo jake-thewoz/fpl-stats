@@ -39,32 +39,40 @@ export const makeStyles = (colors: Colors) =>
     },
 
     // Horizon chips on the left, filter button on the right.
+    controls: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      gap: spacing.md,
+    },
     controlsRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
     },
-    horizonGroup: {
+    controlLabel: {
+      fontSize: fontSize.sm2,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    chipGroup: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.sm,
     },
-    horizonChip: {
+    chip: {
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
       borderRadius: radius.lg,
       backgroundColor: colors.surfaceRaised,
     },
-    horizonChipActive: { backgroundColor: colors.accent },
-    horizonChipPressed: effects.pressedSubtle,
-    horizonChipText: {
+    chipActive: { backgroundColor: colors.accent },
+    chipPressed: effects.pressedSubtle,
+    chipText: {
       fontSize: fontSize.sm2,
       color: colors.textMuted,
       fontWeight: '700',
     },
-    horizonChipTextActive: { color: colors.onAccent },
+    chipTextActive: { color: colors.onAccent },
 
     // Wraps a SegmentedControl inside a filter-dialog Section body.
     dialogControlBody: {

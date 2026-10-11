@@ -550,7 +550,7 @@ class TestSuggestTransferBundlesMultiMove:
         assert result[0].delta_xp_net == pytest.approx(5.0)
 
     def test_max_transfers_clamped_to_module_constant(self):
-        # User asks for 99-move bundles; we cap at MAX_BUNDLE_SIZE=3 so the
+        # User asks for 99-move bundles; we cap at MAX_BUNDLE_SIZE so the
         # combinatorial search stays bounded.
         squad = [_player(i, team=((i - 1) // 3) + 1, cost=80) for i in range(1, 16)]
         pool = [_player(100 + i, team=10 + i, cost=80) for i in range(5)]
@@ -704,3 +704,99 @@ class TestSuggestTransferBundlesMultiMove:
             f"expected one 3-move bundle covering OUT=(1,2,3) IN=(10,11,12), "
             f"got {len(three_move_matching)}"
         )
+
+    def test_max_bundle_size_completes_on_realistic_squad_with_tight_bank(self):
+        """Regression for raising MAX_BUNDLE_SIZE to 5: a weak squad on a
+        £0.0m bank, where most upgrades are unaffordable, used to take
+        minutes at 5 moves because over-budget bundles were only rejected
+        once fully built. The budget prune in the walk cuts them early.
+        Pytest will hang well past a second if that prune regresses."""
+        positions = [1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4]
+        squad = [
+            _player(i + 1, team=(i % 5) + 1, position=pos, cost=45)
+            for i, pos in enumerate(positions)
+        ]
+        # Same-cost replacements are the only affordable ones, and they
+        # share every slot's candidate list with pricier players.
+        pool: list[Player] = []
+        pid = 1000
+        for team in range(6, 26):
+            for pos in range(1, 5):
+                for cost in (45, 60, 75, 90):
+                    pool.append(_player(pid, team=team, position=pos, cost=cost))
+                    pid += 1
+        horizon_xps = {p.id: 1.0 for p in squad}
+        horizon_xps.update({p.id: 2.0 + (p.id * 37 % 100) / 10 for p in pool})
+
+        bundles = suggest_transfer_bundles(
+            squad=squad, bank=0, candidate_pool=pool,
+            horizon_xps=horizon_xps,
+            free_transfers=MAX_BANKED_FREE_TRANSFERS,
+            max_transfers=MAX_BUNDLE_SIZE, top_n=10,
+        )
+        assert bundles[0].num_transfers == MAX_BUNDLE_SIZE
+        assert all(sum(m.cost_change for m in b.moves) <= 0 for b in bundles)
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_matches_brute_force_enumeration(self, seed: int):
+        """The prunes (threshold bound, same-position symmetry, budget)
+        must only skip work, never answers. Compare against enumerating
+        every valid bundle on a squad small enough to brute-force."""
+        import random
+        from itertools import combinations, permutations
+
+        rng = random.Random(seed)
+        squad = [
+            _player(i, team=rng.randint(1, 4), position=rng.randint(1, 3),
+                    cost=rng.randrange(40, 100, 5))
+            for i in range(1, 8)
+        ]
+        pool = [
+            _player(i, team=rng.randint(1, 6), position=rng.randint(1, 3),
+                    cost=rng.randrange(40, 120, 5))
+            for i in range(100, 118)
+        ]
+        horizon_xps = {p.id: rng.uniform(0, 10) for p in squad + pool}
+        bank = rng.randrange(0, 60, 5)
+        free_transfers = rng.randint(1, 3)
+        max_transfers = 4
+        top_n = 15
+
+        player_by_id = {p.id: p for p in squad + pool}
+        counts = team_counts(squad)
+        expected: dict[tuple[frozenset[int], frozenset[int]], float] = {}
+        for size in range(1, max_transfers + 1):
+            hit_cost = max(0, size - free_transfers) * HIT_COST_POINTS
+            for outs in combinations(squad, size):
+                for ins in permutations(pool, size):
+                    if any(o.element_type != i.element_type for o, i in zip(outs, ins)):
+                        continue
+                    moves = tuple(
+                        TransferCandidate(
+                            out_player_id=o.id,
+                            in_player_id=i.id,
+                            delta_xp=horizon_xps[i.id] - horizon_xps[o.id],
+                            cost_change=i.now_cost - o.now_cost,
+                        )
+                        for o, i in zip(outs, ins)
+                    )
+                    if not is_valid_bundle(moves, counts, bank, player_by_id):
+                        continue
+                    key = (frozenset(o.id for o in outs), frozenset(i.id for i in ins))
+                    expected[key] = sum(m.delta_xp for m in moves) - hit_cost
+        expected_top = sorted(expected.items(), key=lambda kv: (-kv[1], len(kv[0][0])))[:top_n]
+
+        result = suggest_transfer_bundles(
+            squad, bank=bank, candidate_pool=pool, horizon_xps=horizon_xps,
+            free_transfers=free_transfers, max_transfers=max_transfers, top_n=top_n,
+        )
+        actual_top = [
+            (
+                (frozenset(m.out_player_id for m in b.moves),
+                 frozenset(m.in_player_id for m in b.moves)),
+                b.delta_xp_net,
+            )
+            for b in result
+        ]
+        assert [k for k, _ in actual_top] == [k for k, _ in expected_top]
+        assert [n for _, n in actual_top] == pytest.approx([n for _, n in expected_top])

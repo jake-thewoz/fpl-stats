@@ -8,7 +8,7 @@
  * what the picker offers.
  */
 
-const MAX_BUNDLE_SIZE = 3;
+const MAX_BUNDLE_SIZE = 5;
 const MAX_BANKED_FREE_TRANSFERS = 5;
 
 export const MAX_TRANSFER_OPTIONS = range(1, MAX_BUNDLE_SIZE);
@@ -38,16 +38,13 @@ export function freeTransfersOverrideFor(
 }
 
 /** How many filter-dialog settings differ from their defaults; drives
- *  the "Filter (N)" badge. */
+ *  the "Filter (N)" badge. Max transfers sits on the screen, not in the
+ *  dialog, so it doesn't count. */
 export function countActiveFilters(
   positions: readonly number[],
   settings: TransferSettings,
 ): number {
-  return (
-    positions.length +
-    (settings.maxTransfers !== DEFAULT_MAX_TRANSFERS ? 1 : 0) +
-    (settings.freeTransfersOverride !== null ? 1 : 0)
-  );
+  return positions.length + (settings.freeTransfersOverride !== null ? 1 : 0);
 }
 
 export function pluralize(count: number, singular: string, plural: string): string {

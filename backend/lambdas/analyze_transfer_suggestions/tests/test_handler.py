@@ -789,7 +789,7 @@ def test_free_transfers_query_param_overrides_derivation(mock_table):
 
 
 def test_max_transfers_clamped_to_module_constant(mock_table):
-    """``?max_transfers=99`` is clamped to MAX_BUNDLE_SIZE (3) so the
+    """``?max_transfers=99`` is clamped to MAX_BUNDLE_SIZE (5) so the
     combinatorial search stays bounded."""
     from compute import MAX_BUNDLE_SIZE
     body = _body(lambda_handler(_event(max_transfers=99), None))

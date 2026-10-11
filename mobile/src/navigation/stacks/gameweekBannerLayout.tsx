@@ -1,10 +1,6 @@
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GameweekBanner } from '../../gameweek/GameweekBanner';
-import type { MyTeamStackParamList } from '../types';
-
-// The banner leads to the fixtures screen, so it has nothing to add there.
-const FIXTURES_ROUTE = 'Gameweek' satisfies keyof MyTeamStackParamList;
 
 /**
  * Stack `screenLayout` that puts the gameweek banner at the top of every
@@ -12,14 +8,7 @@ const FIXTURES_ROUTE = 'Gameweek' satisfies keyof MyTeamStackParamList;
  * above the tab navigator keeps the stack headers in charge of the
  * status-bar inset.
  */
-export function gameweekBannerLayout({
-  children,
-  route,
-}: {
-  children: ReactElement;
-  route: { name: string };
-}) {
-  if (route.name === FIXTURES_ROUTE) return children;
+export function gameweekBannerLayout({ children }: { children: ReactElement }) {
   return (
     <View style={styles.fill}>
       <GameweekBanner />

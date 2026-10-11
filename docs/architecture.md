@@ -104,12 +104,12 @@ All routes are `GET`. Lambdas marked **cache-aside** call FPL on a miss; the res
 
 `/analytics/players/xp` corrects precomputed data at read time: the analyzer runs once a day, so the handler reads `fpl#bootstrap` and drops any gameweek whose deadline has passed since. xP moves on at the deadline rather than the next morning.
 
-`/analytics/squad/{teamId}/transfers` is the only heavy work on the request path. It derives free transfers from the manager's history (25/26 rules: bank up to 5, Wildcard and Free Hit preserve them), builds 1- to 3-move bundles, subtracts 4 points per transfer beyond the free count, and ranks by net ΔxP. Query parameters:
+`/analytics/squad/{teamId}/transfers` is the only heavy work on the request path. It derives free transfers from the manager's history (25/26 rules: bank up to 5, Wildcard and Free Hit preserve them), builds 1- to 5-move bundles, subtracts 4 points per transfer beyond the free count, and ranks by net ΔxP. Query parameters:
 
 | Param | Default | Meaning |
 | --- | --- | --- |
 | `horizon` | 3 (max 5) | Gameweeks to sum xP over, starting at the next open deadline. |
-| `max_transfers` | 2 (max 3) | Largest bundle size considered. |
+| `max_transfers` | 2 (max 5) | Largest bundle size considered. |
 | `free_transfers` | derived | Overrides the derived count, e.g. after transfers the public history doesn't show yet. The derived count is still returned as `derived_free_transfers`. |
 | `positions` | all | Comma-separated FPL `element_type` ids (1 GK, 2 DEF, 3 MID, 4 FWD). |
 
@@ -137,11 +137,13 @@ One Expo (React Native + TypeScript) codebase, exported for web and hosted on Am
 
 | Tab | Screens | Calls |
 | --- | --- | --- |
-| My Team | Pitch / List views, Yours vs Suggested lineup, Gameweek fixtures screen (from the banner) | entry → picks → live points, plus players, xP, gameweek |
+| My Team | Pitch / List views, Yours vs Suggested lineup | entry → picks → live points, plus players, xP, gameweek |
 | Players | Sortable, filterable pool with removable filter chips; your players dimmed | players, xP, your team (to dim owned players), gameweek |
 | Transfers | Ranked bundle cards with bank and hit pills; horizon, max transfers and free-transfer controls | transfers, players, gameweek |
 | Friends | Friends list, add by team id, import a classic league, manage, tap a friend to see their squad | one `/entry` per friend, league members, picks/live for Friend Team |
 | Settings | Team id, theme (light / dark / system) | gameweek (banner only) |
+
+The Gameweek fixtures screen sits on the root stack above the tabs, so the banner on any tab pushes it and back returns to that tab. On web, `src/navigation/linking.ts` gives every screen a URL path (`/friends/:teamId`, `/gameweek`, …). That puts each navigation into browser history, so the Android back gesture in the installed web app steps back through screens instead of closing the app. Amplify's `404-200` rewrite rule serves `index.html` for those paths on reload.
 
 Client-side plumbing worth knowing (details in [`mobile/CLAUDE.md`](../mobile/CLAUDE.md)):
 

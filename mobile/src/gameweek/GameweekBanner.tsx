@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { formatDeadline } from '../format/datetime';
-import type { MainTabParamList } from '../navigation/types';
+import type { RootStackParamList } from '../navigation/types';
 import {
   effects,
   fontSize,
@@ -22,7 +22,7 @@ import { useGameweekPhase } from './GameweekStatusProvider';
 export function GameweekBanner() {
   const styles = useThemedStyles(makeStyles);
   const phase = useGameweekPhase();
-  const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   if (phase.kind === 'none') return null;
 
@@ -34,7 +34,7 @@ export function GameweekBanner() {
 
   return (
     <Pressable
-      onPress={() => navigation.navigate('MyTeamTab', { screen: 'Gameweek' })}
+      onPress={() => navigation.navigate('Gameweek')}
       style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={`${pillLabel}: ${label}. Show fixtures.`}
