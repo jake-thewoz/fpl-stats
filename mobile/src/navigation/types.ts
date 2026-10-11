@@ -8,12 +8,17 @@
  *
  *   RootStack
  *     ├─ Onboarding   (single screen, gates entry to the app)
- *     └─ Main         (bottom-tab navigator)
- *          ├─ MyTeamTab    -> MyTeamStack    (MyTeam, Gameweek)
- *          ├─ PlayersTab   -> PlayersStack   (Players)
- *          ├─ TransfersTab -> TransfersStack (Transfers)
- *          ├─ FriendsTab   -> FriendsStack   (Friends, FriendTeam, ManageFriends, AddFriend, ImportLeague)
- *          └─ SettingsTab  -> SettingsStack  (Settings)
+ *     ├─ Main         (bottom-tab navigator)
+ *     │    ├─ MyTeamTab    -> MyTeamStack    (MyTeam)
+ *     │    ├─ PlayersTab   -> PlayersStack   (Players)
+ *     │    ├─ TransfersTab -> TransfersStack (Transfers)
+ *     │    ├─ FriendsTab   -> FriendsStack   (Friends, FriendTeam, ManageFriends, AddFriend, ImportLeague)
+ *     │    └─ SettingsTab  -> SettingsStack  (Settings)
+ *     └─ Gameweek     (fixtures, opened from the banner on every tab)
+ *
+ * Gameweek sits above the tabs so the banner pushes it over whichever tab
+ * is open and back returns there. Inside one tab's stack, opening it from
+ * another tab would switch tabs first, leaving nothing to go back to.
  */
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type {
@@ -24,7 +29,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type MyTeamStackParamList = {
   MyTeam: undefined;
-  Gameweek: undefined;
 };
 
 export type PlayersStackParamList = {
@@ -59,6 +63,7 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
+  Gameweek: undefined;
 };
 
 // Per-screen prop helpers. Cross-tab navigation (e.g. MyTeam's NoTeamId
@@ -73,10 +78,7 @@ export type MyTeamScreenProps = CompositeScreenProps<
   >
 >;
 
-export type GameweekScreenProps = NativeStackScreenProps<
-  MyTeamStackParamList,
-  'Gameweek'
->;
+export type GameweekScreenProps = NativeStackScreenProps<RootStackParamList, 'Gameweek'>;
 
 export type PlayersScreenProps = NativeStackScreenProps<PlayersStackParamList, 'Players'>;
 

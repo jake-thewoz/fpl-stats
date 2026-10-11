@@ -137,11 +137,13 @@ One Expo (React Native + TypeScript) codebase, exported for web and hosted on Am
 
 | Tab | Screens | Calls |
 | --- | --- | --- |
-| My Team | Pitch / List views, Yours vs Suggested lineup, Gameweek fixtures screen (from the banner) | entry → picks → live points, plus players, xP, gameweek |
+| My Team | Pitch / List views, Yours vs Suggested lineup | entry → picks → live points, plus players, xP, gameweek |
 | Players | Sortable, filterable pool with removable filter chips; your players dimmed | players, xP, your team (to dim owned players), gameweek |
 | Transfers | Ranked bundle cards with bank and hit pills; horizon, max transfers and free-transfer controls | transfers, players, gameweek |
 | Friends | Friends list, add by team id, import a classic league, manage, tap a friend to see their squad | one `/entry` per friend, league members, picks/live for Friend Team |
 | Settings | Team id, theme (light / dark / system) | gameweek (banner only) |
+
+The Gameweek fixtures screen sits on the root stack above the tabs, so the banner on any tab pushes it and back returns to that tab. On web, `src/navigation/linking.ts` gives every screen a URL path (`/friends/:teamId`, `/gameweek`, …). That puts each navigation into browser history, so the Android back gesture in the installed web app steps back through screens instead of closing the app. Amplify's `404-200` rewrite rule serves `index.html` for those paths on reload.
 
 Client-side plumbing worth knowing (details in [`mobile/CLAUDE.md`](../mobile/CLAUDE.md)):
 
