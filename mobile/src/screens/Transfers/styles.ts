@@ -1,5 +1,22 @@
 import { StyleSheet } from 'react-native';
-import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../../theme';
+import {
+  effects,
+  fontRole,
+  fontSize,
+  mixHex,
+  radius,
+  spacing,
+  type Colors,
+} from '../../theme';
+
+// Headline net-xP size: between the screen title and the hero score.
+const NET_XP_FONT_SIZE = 28;
+// How far each tint moves from the card surface toward mint or coral.
+const TILE_TINT = 0.15;
+const CHIP_TINT = 0.2;
+const TOP_RANKED_BORDER_MIX = 0.55;
+// Fits "+11.1" over "−£1.6m" without squeezing the player tiles.
+const MOVE_DELTA_MIN_WIDTH = 52;
 
 /**
  * Shared makeStyles for every component in the Transfers folder.
@@ -26,59 +43,28 @@ export const makeStyles = (colors: Colors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.lg,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
     },
     horizonGroup: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.md,
-    },
-    filterButton: {
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    filterButtonActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    filterButtonPressed: effects.pressedSubtle,
-    filterButtonText: {
-      fontSize: fontSize.sm2,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    filterButtonTextActive: {
-      color: colors.onAccent,
+      gap: spacing.sm,
     },
     horizonChip: {
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
       borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surfaceRaised,
     },
-    horizonChipActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
+    horizonChipActive: { backgroundColor: colors.accent },
     horizonChipPressed: effects.pressedSubtle,
     horizonChipText: {
       fontSize: fontSize.sm2,
-      color: colors.textPrimary,
-      fontWeight: '500',
+      color: colors.textMuted,
+      fontWeight: '700',
     },
-    horizonChipTextActive: {
-      color: colors.onAccent,
-    },
+    horizonChipTextActive: { color: colors.onAccent },
 
     // Wraps a SegmentedControl inside a filter-dialog Section body.
     dialogControlBody: {
@@ -94,8 +80,8 @@ export const makeStyles = (colors: Colors) =>
       paddingBottom: spacing.md,
     },
     headerLine: {
-      fontSize: fontSize.md,
-      fontWeight: '600',
+      fontSize: fontSize.base,
+      fontWeight: '700',
       color: colors.textPrimary,
     },
     headerSub: {
@@ -130,64 +116,112 @@ export const makeStyles = (colors: Colors) =>
     // Card.
     card: {
       backgroundColor: colors.surface,
-      borderRadius: radius.md,
+      borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: colors.border,
       padding: spacing.lg,
       marginVertical: spacing.sm,
+      gap: spacing.md,
+    },
+    cardTopRanked: {
+      borderColor: mixHex(colors.surface, colors.good, TOP_RANKED_BORDER_MIX),
     },
     // 0.85 is a softer "card-press" dim than effects.pressed (0.5) — the
     // expanded card stays mostly opaque so a tap reads as "expand", not
     // "depressed button". Single use.
     cardPressed: { opacity: 0.85 },
-    cardRow: {
+    goodText: { color: colors.goodText },
+    badText: { color: colors.badText },
+
+    // Bundle headline: net xP, its label, then cost chips pushed right.
+    bundleSummary: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: spacing.md,
     },
-    // Multi-move bundles stack moves vertically; this divider separates them.
-    moveDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginVertical: spacing.md,
-    },
-    // Bundle-level summary above the move stack: net delta xP + hit detail.
-    bundleSummary: {
-      paddingBottom: spacing.md,
-      marginBottom: spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    // Bundle-level net xP pill. Same sign-coloured visual language as
-    // the per-move CenterBadge, sized up so the bundle headline reads
-    // as the dominant element on the card.
-    bundleSummaryNetPill: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: spacing.base,
-      // 3px sits between spacing.hairline (2) and spacing.xs (4); the
-      // pill needs that hairline of extra height to balance the 16px
-      // text without becoming a full button.
-      paddingVertical: 3,
-      borderRadius: 12,
-    },
-    bundleSummaryNetPillPositive: { backgroundColor: colors.good },
-    bundleSummaryNetPillNegative: { backgroundColor: colors.bad },
-    bundleSummaryNetPillText: {
-      fontSize: fontSize.lg,
-      fontWeight: '700',
+    netXp: {
       ...fontRole.numeric,
+      fontWeight: '800',
+      fontSize: NET_XP_FONT_SIZE,
+      lineHeight: NET_XP_FONT_SIZE,
     },
-    bundleSummaryNetPillTextPositive: { color: colors.onGood },
-    bundleSummaryNetPillTextNegative: { color: colors.onBad },
-    // Detail row holds the bank + (optional) hit pills inline below
-    // the net-xP pill. Centered alignment keeps the small pills
-    // baseline-matched.
-    bundleSummaryDetailRow: {
+    netXpLabel: {
+      fontSize: fontSize.xs,
+      fontWeight: '600',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+    },
+    costChips: {
+      marginLeft: 'auto',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: spacing.xs,
+    },
+    costChip: {
+      ...fontRole.numeric,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.hairline,
+      borderRadius: radius.lg,
+      overflow: 'hidden',
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+    },
+    costChipGood: {
+      backgroundColor: mixHex(colors.surface, colors.good, CHIP_TINT),
+      color: colors.goodText,
+    },
+    costChipBad: {
+      backgroundColor: mixHex(colors.surface, colors.bad, CHIP_TINT),
+      color: colors.badText,
+    },
+    costChipNeutral: { backgroundColor: colors.surfaceRaised, color: colors.textMuted },
+
+    // OUT tile | xP gain + bank change | IN tile.
+    moveRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    playerTile: {
+      flex: 1,
+      minWidth: 0, // lets the name truncate instead of widening the tile
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.sm,
-      marginTop: spacing.xs,
-      flexWrap: 'wrap',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.base,
     },
+    playerTileOut: { backgroundColor: mixHex(colors.surface, colors.bad, TILE_TINT) },
+    playerTileIn: {
+      flexDirection: 'row-reverse',
+      backgroundColor: mixHex(colors.surface, colors.good, TILE_TINT),
+    },
+    playerText: { flex: 1, minWidth: 0 },
+    playerTextIn: { alignItems: 'flex-end' },
+    playerName: {
+      fontSize: fontSize.sm2,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    playerSub: {
+      fontSize: fontSize.xs,
+      color: colors.textMuted,
+    },
+    moveDelta: { minWidth: MOVE_DELTA_MIN_WIDTH, alignItems: 'center' },
+    moveDeltaXp: {
+      ...fontRole.numeric,
+      fontWeight: '800',
+      fontSize: fontSize.md,
+    },
+    moveDeltaBank: {
+      ...fontRole.numeric,
+      fontSize: fontSize.xs,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+
     // Per-move heading inside the expanded compare section, only shown
     // for multi-move bundles so the user knows which compare table goes
     // with which move.
@@ -261,83 +295,6 @@ export const makeStyles = (colors: Colors) =>
     toneTextMid: { color: colors.onWarning },
     toneTextBad: { color: colors.onBad },
     toneTextNeutral: { color: colors.textPrimary },
-    playerBlock: {
-      flex: 1,
-      minWidth: 0, // lets numberOfLines + flex work together correctly
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    playerBlockLeft: { paddingRight: spacing.md },
-    playerBlockRight: { flexDirection: 'row-reverse', paddingLeft: spacing.md },
-    playerText: { flex: 1, minWidth: 0 },
-    playerTextLeft: { alignItems: 'flex-start' },
-    playerTextRight: { alignItems: 'flex-end' },
-    playerName: {
-      fontSize: fontSize.lg,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    playerSub: {
-      fontSize: fontSize.sm,
-      color: colors.textMuted,
-      marginTop: spacing.hairline,
-    },
-
-    // Center column: arrow + delta xp + bank delta.
-    center: {
-      minWidth: 80,
-      alignItems: 'center',
-    },
-    arrowRow: {
-      marginBottom: spacing.hairline,
-    },
-    arrowText: {
-      fontSize: fontSize.lg,
-      color: colors.textMuted,
-    },
-    deltaXpPill: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.hairline,
-      borderRadius: radius.base,
-    },
-    deltaXpPillPositive: { backgroundColor: colors.good },
-    deltaXpPillNegative: { backgroundColor: colors.bad },
-    deltaXpPillText: {
-      fontSize: fontSize.sm2,
-      fontWeight: '700',
-    },
-    deltaXpPillTextPositive: { color: colors.onGood },
-    deltaXpPillTextNegative: { color: colors.onBad },
-    // Bank-delta pill (used by both CenterBadge and BundleSummary) and
-    // the matching hit pill. Smaller than the xP delta so the headline
-    // pill stays the dominant visual element.
-    bankDeltaPill: {
-      paddingHorizontal: spacing.sm,
-      // 1px is a tight one-off bank-pill height — below the named
-      // spacing scale.
-      paddingVertical: 1,
-      borderRadius: radius.md,
-      marginTop: spacing.hairline,
-    },
-    bankDeltaPillPositive: { backgroundColor: colors.good },
-    bankDeltaPillNegative: { backgroundColor: colors.bad },
-    bankDeltaPillText: {
-      fontSize: fontSize.xs,
-      fontWeight: '600',
-      ...fontRole.numeric,
-    },
-    bankDeltaPillTextPositive: { color: colors.onGood },
-    bankDeltaPillTextNegative: { color: colors.onBad },
-    // Wash trade — neutral muted text instead of a pill. Avoids slapping
-    // a green/red verdict on a no-bank-impact swap.
-    bankDeltaNeutral: {
-      fontSize: fontSize.xs,
-      color: colors.textMuted,
-      marginTop: spacing.hairline,
-      ...fontRole.numeric,
-    },
-
     // Empty / message states.
     emptyContainer: {
       flex: 1,

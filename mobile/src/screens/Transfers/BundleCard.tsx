@@ -4,7 +4,8 @@ import type { Player } from '../../api/players';
 import type { TransferBundle } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
 import { CompareTable } from './CompareTable';
-import { BankDeltaPill, CenterBadge, PlayerBlock } from './MoveRow';
+import { bankDelta, formatBankDelta, formatXpDelta } from '../../transfers/format';
+import { MoveRow } from './MoveRow';
 import { makeStyles } from './styles';
 
 /** Stable key for a bundle, joining out→in pairs. Kept stable across
@@ -17,11 +18,14 @@ export function bundleKey(bundle: TransferBundle): string {
 export function BundleCard({
   bundle,
   playersById,
+  isTopRanked,
   isExpanded,
   onToggle,
 }: {
   bundle: TransferBundle;
   playersById: Map<number, Player>;
+  /** The best suggestion in the list, which gets a mint border. */
+  isTopRanked: boolean;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -31,31 +35,24 @@ export function BundleCard({
   return (
     <Pressable
       onPress={onToggle}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        isTopRanked && styles.cardTopRanked,
+        pressed && styles.cardPressed,
+      ]}
       accessibilityRole="button"
       accessibilityState={{ expanded: isExpanded }}
       accessibilityLabel={
         isExpanded ? 'Collapse bundle details' : 'Expand bundle details'
       }
     >
-      {isMulti ? <BundleSummary bundle={bundle} /> : null}
-      {bundle.moves.map((move, i) => (
-        <View key={`${move.out.player_id}-${move.in.player_id}`}>
-          {i > 0 ? <View style={styles.moveDivider} /> : null}
-          <View style={styles.cardRow}>
-            <PlayerBlock
-              align="left"
-              fallback={move.out.web_name}
-              player={playersById.get(move.out.player_id)}
-            />
-            <CenterBadge deltaXp={move.delta_xp} costChange={move.cost_change} />
-            <PlayerBlock
-              align="right"
-              fallback={move.in.web_name}
-              player={playersById.get(move.in.player_id)}
-            />
-          </View>
-        </View>
+      <BundleSummary bundle={bundle} />
+      {bundle.moves.map((move) => (
+        <MoveRow
+          key={`${move.out.player_id}-${move.in.player_id}`}
+          move={move}
+          playersById={playersById}
+        />
       ))}
       <View style={styles.chevronRow}>
         <Text style={styles.chevron}>{isExpanded ? '▴' : '▾'}</Text>
@@ -76,56 +73,39 @@ export function BundleCard({
   );
 }
 
+/** The card's headline: net xP gain, then what it costs in bank and hits. */
 function BundleSummary({ bundle }: { bundle: TransferBundle }) {
   const styles = useThemedStyles(makeStyles);
   const positive = bundle.delta_xp_net >= 0;
-  const netStr = `${positive ? '+' : ''}${bundle.delta_xp_net.toFixed(1)} xP net`;
+  const bank = bankDelta(bundle.total_cost_change);
+
   return (
     <View style={styles.bundleSummary}>
-      {/* Net xP gets the same sign-coloured-pill treatment as the
-          per-move CenterBadge so the bundle headline is visually
-          consistent with the moves it describes. Slightly larger
-          font / padding to keep it the dominant element on the card. */}
-      <View
-        style={[
-          styles.bundleSummaryNetPill,
-          positive
-            ? styles.bundleSummaryNetPillPositive
-            : styles.bundleSummaryNetPillNegative,
-        ]}
-      >
-        <Text
-          style={[
-            styles.bundleSummaryNetPillText,
-            positive
-              ? styles.bundleSummaryNetPillTextPositive
-              : styles.bundleSummaryNetPillTextNegative,
-          ]}
-        >
-          {netStr}
-        </Text>
-      </View>
-      {/* Detail row: bank pill + (conditional) hit pill. The bundle's
-          transfer count is implicit from the move stack rendered
-          below, so the previous "N transfers" text has been dropped. */}
-      <View style={styles.bundleSummaryDetailRow}>
-        <BankDeltaPill costChange={bundle.total_cost_change} label="Bank" />
-        {bundle.hit_cost > 0 ? <HitPill hitCost={bundle.hit_cost} /> : null}
+      <Text style={[styles.netXp, positive ? styles.goodText : styles.badText]}>
+        {formatXpDelta(bundle.delta_xp_net)}
+      </Text>
+      <Text style={styles.netXpLabel}>xP net</Text>
+      <View style={styles.costChips}>
+        <CostChip
+          label={`Bank ${formatBankDelta(bundle.total_cost_change)}`}
+          tone={bank > 0 ? 'good' : bank < 0 ? 'bad' : 'neutral'}
+        />
+        {/* No chip when there's no hit: its absence is the signal. */}
+        {bundle.hit_cost > 0 ? (
+          <CostChip label={`Hit −${bundle.hit_cost}`} tone="bad" />
+        ) : null}
       </View>
     </View>
   );
 }
 
-/** Small red pill showing the −N point hit cost on a multi-transfer
- *  bundle. Only rendered when ``hit_cost > 0``; the absence of the
- *  pill is the "no hit" signal. */
-function HitPill({ hitCost }: { hitCost: number }) {
+function CostChip({ label, tone }: { label: string; tone: 'good' | 'bad' | 'neutral' }) {
   const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={[styles.bankDeltaPill, styles.bankDeltaPillNegative]}>
-      <Text style={[styles.bankDeltaPillText, styles.bankDeltaPillTextNegative]}>
-        Hit −{hitCost} pts
-      </Text>
-    </View>
-  );
+  const toneStyle =
+    tone === 'good'
+      ? styles.costChipGood
+      : tone === 'bad'
+        ? styles.costChipBad
+        : styles.costChipNeutral;
+  return <Text style={[styles.costChip, toneStyle]}>{label}</Text>;
 }

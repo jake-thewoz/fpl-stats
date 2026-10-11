@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, UIManager, View } from 'react-native';
 import { Text } from '../../components/Text';
+import { ControlButton } from '../../components/ControlButton';
 import { useQuery } from '@tanstack/react-query';
 import type { TransferSuggestionsResponse } from '../../api/transferSuggestions';
 import type { Player } from '../../api/players';
@@ -307,25 +308,11 @@ function ControlsRow({
           );
         })}
       </View>
-      <Pressable
+      <ControlButton
+        label={filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
+        active={filterCount > 0}
         onPress={onOpenFilter}
-        style={({ pressed }) => [
-          styles.filterButton,
-          filterCount > 0 && styles.filterButtonActive,
-          pressed && styles.filterButtonPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={filterCount > 0 ? `Filter (${filterCount} active)` : 'Filter'}
-      >
-        <Text
-          style={[
-            styles.filterButtonText,
-            filterCount > 0 && styles.filterButtonTextActive,
-          ]}
-        >
-          Filter{filterCount > 0 ? ` (${filterCount})` : ''}
-        </Text>
-      </Pressable>
+      />
     </View>
   );
 }

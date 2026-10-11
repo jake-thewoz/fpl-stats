@@ -39,12 +39,13 @@ export function SuggestionsList({
     <FlatList
       data={response.bundles}
       keyExtractor={bundleKey}
-      renderItem={({ item }) => {
+      renderItem={({ item, index }) => {
         const key = bundleKey(item);
         return (
           <BundleCard
             bundle={item}
             playersById={playersById}
+            isTopRanked={index === 0}
             isExpanded={expandedKey === key}
             onToggle={() => toggleExpand(key)}
           />

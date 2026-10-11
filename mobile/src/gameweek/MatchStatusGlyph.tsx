@@ -13,14 +13,26 @@ const GLYPHS: Partial<Record<MatchStatus, string>> = {
  * finished this gameweek (✓); nothing before kickoff or outside a live
  * gameweek. A nested <Text>, so render it inside the name's <Text>.
  */
-export function MatchStatusGlyph({ teamShort }: { teamShort: string }) {
+export function MatchStatusGlyph({
+  teamShort,
+  onDarkPlate = false,
+}: {
+  teamShort: string;
+  /** Sits on the pitch's dark name plate in both themes, where the
+   *  surface-tuned text colours don't read. */
+  onDarkPlate?: boolean;
+}) {
   const { colors } = useTheme();
   const status = useClubMatchStatus(teamShort);
   const glyph = status ? GLYPHS[status] : undefined;
   if (glyph == null) return null;
-  return (
-    <Text style={{ color: status === 'live' ? colors.goodText : colors.textMuted }}>
-      {`${glyph} `}
-    </Text>
-  );
+  const color =
+    status === 'live'
+      ? onDarkPlate
+        ? colors.good
+        : colors.goodText
+      : onDarkPlate
+        ? colors.pitchLine
+        : colors.textMuted;
+  return <Text style={{ color }}>{`${glyph} `}</Text>;
 }

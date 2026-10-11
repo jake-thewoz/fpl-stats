@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { useQuery } from '@tanstack/react-query';
+import { FREE_HIT_CHIP } from '../../api/myTeam';
 import { useMyTeam } from '../../hooks/useMyTeam';
 import { useQueryState } from '../../hooks/useQueryState';
 import { playersXpQuery } from '../../query/queries';
@@ -18,6 +19,7 @@ import { SegmentedControl, type SegmentOption } from '../../components/Segmented
 import {
   FIELD_DEFS,
   gameweeksPlayedBefore,
+  heatCeiling,
   xpHeaderSublabels,
 } from '../../players/fields';
 import { applyAll, activeFilterCount } from '../../players/apply';
@@ -31,11 +33,11 @@ import {
   type MyTeamView,
 } from '../../storage/user';
 import { useThemedStyles } from '../../theme';
-import { ChipBanner, Header, PicksUnavailableNote } from './Header';
-import { lineupFromPicks, type LineupSlot } from './lineup';
+import { FreeHitBanner, Header, PicksUnavailableNote } from './Header';
+import { lineupFromPicks, type LineupSlot, type PitchStat } from './lineup';
 import { LineupControls, type LineupSource } from './LineupControls';
 import { MyTeamNameCell } from './NameCell';
-import { EMPTY_SQUAD_MESSAGE, gameweekPointsText, squadRows } from './rows';
+import { EMPTY_SQUAD_MESSAGE, gameweekPointsStat, squadRows } from './rows';
 import { PitchView } from './PitchView';
 import { makeStyles } from './styles';
 import { DEFAULT_LINEUP_METRIC, suggestLineup, type LineupMetric } from './suggestLineup';
@@ -121,12 +123,18 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     [rows, lineupMetric],
   );
   const showSuggestion = lineupSource === 'suggested' && suggestion != null;
-  const metricText = useCallback(
-    (slot: LineupSlot) => {
+  const gameweeksPlayed = gameweeksPlayedBefore(xpResp?.gameweek ?? null);
+  const metricStat = useCallback(
+    (slot: LineupSlot): PitchStat => {
       const { accessor, format, shortLabel } = FIELD_DEFS[lineupMetric];
-      return `${format(accessor(slot.row))} ${shortLabel}`;
+      const value = accessor(slot.row);
+      return {
+        text: `${format(value)} ${shortLabel}`,
+        value,
+        heatCeiling: heatCeiling(lineupMetric, gameweeksPlayed),
+      };
     },
-    [lineupMetric],
+    [lineupMetric, gameweeksPlayed],
   );
 
   const filteredSorted = useMemo(
@@ -161,13 +169,14 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 
   return (
     <View style={styles.container}>
-      <Header entry={myTeam.entry} gameweek={myTeam.gameweek} />
+      <Header
+        entry={myTeam.entry}
+        gameweek={myTeam.gameweek}
+        activeChip={myTeam.picks?.active_chip}
+      />
       {myTeam.picksError ? <PicksUnavailableNote message={myTeam.picksError} /> : null}
-      {myTeam.picks?.active_chip ? (
-        <ChipBanner
-          chip={myTeam.picks.active_chip}
-          showingPersistentSquad={myTeam.showingPersistentSquad}
-        />
+      {myTeam.picks?.active_chip === FREE_HIT_CHIP ? (
+        <FreeHitBanner showingPersistentSquad={myTeam.showingPersistentSquad} />
       ) : null}
       <ControlBar
         view={view}
@@ -197,7 +206,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
             />
             <PitchView
               lineup={showSuggestion ? suggestion.lineup : pickedLineup}
-              getStatText={showSuggestion ? metricText : gameweekPointsText}
+              getStat={showSuggestion ? metricStat : gameweekPointsStat}
               refreshing={refreshing}
               onRefresh={onRefresh}
             />
@@ -210,7 +219,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
           sort={sort}
           onTapHeader={onTapColumnHeader}
           headerSublabels={xpHeaderSublabels(xpGameweek)}
-          gameweeksPlayed={gameweeksPlayedBefore(xpGameweek)}
+          gameweeksPlayed={gameweeksPlayed}
           getId={(r) => r.id}
           renderNameCell={(row) => <MyTeamNameCell row={row} />}
           // Bench rows dimmed to de-emphasise non-starters; matches the

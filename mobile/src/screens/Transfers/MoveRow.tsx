@@ -2,146 +2,83 @@ import { View } from 'react-native';
 import { Text } from '../../components/Text';
 import { ClubShirt, CLUB_SHIRT_SIZE } from '../../components/ClubShirt';
 import type { Player } from '../../api/players';
+import type { TransferMove } from '../../api/transferSuggestions';
 import { useThemedStyles } from '../../theme';
+import { formatBankDelta, formatXpDelta } from '../../transfers/format';
 import { makeStyles } from './styles';
 
 /**
- * Left or right "shirt + name + team · pos · price" block in a move row.
- * The right-aligned variant mirrors the layout, so both shirts sit on the
- * outer edges of the row.
+ * One transfer as OUT → IN: the player sold on a coral tile, the player
+ * bought on a mint tile, and the move's xP gain and bank change between.
  */
-export function PlayerBlock({
-  align,
+export function MoveRow({
+  move,
+  playersById,
+}: {
+  move: TransferMove;
+  playersById: Map<number, Player>;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const positive = move.delta_xp >= 0;
+
+  return (
+    <View style={styles.moveRow}>
+      <PlayerTile
+        side="out"
+        fallback={move.out.web_name}
+        player={playersById.get(move.out.player_id)}
+      />
+      <View style={styles.moveDelta}>
+        <Text
+          style={[styles.moveDeltaXp, positive ? styles.goodText : styles.badText]}
+          accessibilityLabel={`${formatXpDelta(move.delta_xp)} expected points`}
+        >
+          {formatXpDelta(move.delta_xp)}
+        </Text>
+        <Text style={styles.moveDeltaBank}>{formatBankDelta(move.cost_change)}</Text>
+      </View>
+      <PlayerTile
+        side="in"
+        fallback={move.in.web_name}
+        player={playersById.get(move.in.player_id)}
+      />
+    </View>
+  );
+}
+
+/** Shirt + name + "club · pos · £" on a tile tinted by direction. The
+ *  "in" tile mirrors the layout so both shirts sit on the outer edges. */
+function PlayerTile({
+  side,
   fallback,
   player,
 }: {
-  align: 'left' | 'right';
+  side: 'out' | 'in';
   fallback: string;
   player: Player | undefined;
 }) {
   const styles = useThemedStyles(makeStyles);
 
-  const name = player?.name ?? fallback;
   const team = player?.team ?? '';
-  const position = player?.position ?? '';
-  const price = player?.price;
-  const sub = [team, position, price ? `£${price.toFixed(1)}m` : null]
+  const sub = [team, player?.position, player ? `£${player.price.toFixed(1)}m` : null]
     .filter(Boolean)
     .join(' · ');
+  const isIn = side === 'in';
 
   return (
     <View
-      style={[
-        styles.playerBlock,
-        align === 'right' ? styles.playerBlockRight : styles.playerBlockLeft,
-      ]}
+      style={[styles.playerTile, isIn ? styles.playerTileIn : styles.playerTileOut]}
+      accessibilityLabel={`${isIn ? 'Buy' : 'Sell'} ${player?.name ?? fallback}`}
     >
       <ClubShirt teamShort={team} size={CLUB_SHIRT_SIZE.listRow} />
-      <View
-        style={[
-          styles.playerText,
-          align === 'right' ? styles.playerTextRight : styles.playerTextLeft,
-        ]}
-      >
+      <View style={[styles.playerText, isIn && styles.playerTextIn]}>
         <Text style={styles.playerName} numberOfLines={1}>
-          {name}
+          {player?.name ?? fallback}
         </Text>
         <Text style={styles.playerSub} numberOfLines={1}>
           {sub}
         </Text>
       </View>
-    </View>
-  );
-}
-
-/** Centre column of a move row: arrow + xP-delta pill + bank-delta pill. */
-export function CenterBadge({
-  deltaXp,
-  costChange,
-}: {
-  deltaXp: number;
-  costChange: number;
-}) {
-  const styles = useThemedStyles(makeStyles);
-
-  const xpStr = `${deltaXp >= 0 ? '+' : ''}${deltaXp.toFixed(1)} xP`;
-  // 0.0 ties to positive (matches "+0.0" sign).
-  const positive = deltaXp >= 0;
-
-  return (
-    <View style={styles.center}>
-      <View style={styles.arrowRow}>
-        <Text style={styles.arrowText}>→</Text>
-      </View>
-      {/* xP delta pill is sign-coloured: mint for positive moves, coral
-          for negative. Mostly the bundle-net positives, but per-move
-          deltas inside a multi-move bundle can go negative — the pill
-          colour gives that move's contribution at a glance. */}
-      <View
-        style={[
-          styles.deltaXpPill,
-          positive ? styles.deltaXpPillPositive : styles.deltaXpPillNegative,
-        ]}
-      >
-        <Text
-          style={[
-            styles.deltaXpPillText,
-            positive ? styles.deltaXpPillTextPositive : styles.deltaXpPillTextNegative,
-          ]}
-        >
-          {xpStr}
-        </Text>
-      </View>
-      <BankDeltaPill costChange={costChange} />
-    </View>
-  );
-}
-
-/**
- * Bank-delta pill used by both per-move CenterBadge and bundle-level
- * BundleSummary. ``costChange`` is FPL's API form (positive = swap costs
- * money). We negate for display so the pill reads as the user's bank
- * delta: positive = "you gained money".
- *
- * - Gain → mint / good (matches the positive delta-xP pill).
- * - Loss → coral / bad.
- * - £0.0 → muted text without a tinted background, since neither
- *   "good" nor "bad" applies to a wash trade.
- */
-export function BankDeltaPill({
-  costChange,
-  label,
-}: {
-  costChange: number;
-  /** Prefix naming the pill, e.g. "Bank", where it stands alone. */
-  label?: string;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const bankDelta = -costChange / 10;
-  const amount =
-    bankDelta === 0
-      ? '£0.0'
-      : `${bankDelta > 0 ? '+' : '−'}£${Math.abs(bankDelta).toFixed(1)}m`;
-  const text = label ? `${label} ${amount}` : amount;
-  if (bankDelta === 0) {
-    return <Text style={styles.bankDeltaNeutral}>{text}</Text>;
-  }
-  const positive = bankDelta > 0;
-  return (
-    <View
-      style={[
-        styles.bankDeltaPill,
-        positive ? styles.bankDeltaPillPositive : styles.bankDeltaPillNegative,
-      ]}
-    >
-      <Text
-        style={[
-          styles.bankDeltaPillText,
-          positive ? styles.bankDeltaPillTextPositive : styles.bankDeltaPillTextNegative,
-        ]}
-      >
-        {text}
-      </Text>
     </View>
   );
 }

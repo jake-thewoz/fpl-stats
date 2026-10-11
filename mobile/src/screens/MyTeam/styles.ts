@@ -5,6 +5,19 @@ import { effects, fontRole, fontSize, radius, spacing, type Colors } from '../..
 // fits a 360px phone while a two-man front line doesn't sprawl.
 const TILE_MAX_WIDTH = 88;
 const SHIRT_SLOT_SIZE = 40;
+// Labels and the score's unit sit a step back from the white numbers.
+const HERO_SECONDARY_OPACITY = 0.8;
+// Small uppercase labels need a little tracking to stay legible.
+const CAPS_LETTER_SPACING = 0.6;
+// Captain / vice disc on the pitch shirt; a one-off size below the type scale.
+const ARMBAND_SIZE = 16;
+const ARMBAND_RING_WIDTH = 1.5;
+const ARMBAND_FONT_SIZE = 9;
+// Penalty-box outline at the top of the pitch, partly hidden above the edge.
+const PENALTY_BOX_WIDTH = 120;
+const PENALTY_BOX_HEIGHT = 76;
+const PENALTY_BOX_HIDDEN_HEIGHT = 38;
+const PITCH_LINE_WIDTH = 1.5;
 // Keeps the pitch from stretching into a letterbox on wide web layouts.
 const PITCH_MAX_WIDTH = 520;
 
@@ -17,18 +30,73 @@ export const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    header: {
-      paddingHorizontal: spacing.xl,
+    hero: {
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.lg2,
       paddingVertical: spacing.lg,
-      backgroundColor: colors.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      borderRadius: radius.lg,
+      gap: spacing.sm,
     },
-    headerTitle: { fontSize: fontSize.lg2, fontWeight: '600', color: colors.textPrimary },
-    headerSub: {
+    heroTopLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    heroTeamName: {
+      flexShrink: 1,
+      fontSize: fontSize.base,
+      fontWeight: '700',
+      color: colors.onHero,
+    },
+    heroChip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.hairline,
+      borderRadius: radius.lg,
+      overflow: 'hidden',
+      backgroundColor: colors.good,
+      color: colors.onGood,
+      fontSize: fontSize.xs,
+      fontWeight: '700',
+      letterSpacing: CAPS_LETTER_SPACING,
+      textTransform: 'uppercase',
+    },
+    heroScoreLine: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      gap: spacing.lg,
+    },
+    heroScore: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
+    heroScoreValue: {
+      ...fontRole.numeric,
+      fontWeight: '800',
+      fontSize: fontSize.heroScore,
+      lineHeight: fontSize.heroScore,
+      color: colors.onHero,
+    },
+    heroScoreUnit: {
       fontSize: fontSize.sm,
-      color: colors.textMuted,
-      marginTop: spacing.hairline,
+      fontWeight: '600',
+      color: colors.onHero,
+      opacity: HERO_SECONDARY_OPACITY,
+      paddingBottom: spacing.xs,
+    },
+    heroStats: { flexDirection: 'row', gap: spacing.lg },
+    heroStatLabel: {
+      fontSize: fontSize.xs,
+      fontWeight: '600',
+      letterSpacing: CAPS_LETTER_SPACING,
+      textTransform: 'uppercase',
+      color: colors.onHero,
+      opacity: HERO_SECONDARY_OPACITY,
+    },
+    heroStatValue: {
+      ...fontRole.numeric,
+      fontWeight: '800',
+      fontSize: fontSize.lg,
+      color: colors.onHero,
     },
 
     notice: {
@@ -40,45 +108,25 @@ export const makeStyles = (colors: Colors) =>
     },
     noticeText: { color: colors.textMuted, fontSize: fontSize.sm2 },
 
-    chipBannerFreeHit: {
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.lg,
+    freeHitBanner: {
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: radius.base,
       backgroundColor: colors.warning,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
-    chipBannerTitle: {
-      fontSize: fontSize.md,
-      fontWeight: '700',
-      color: colors.onWarning,
-      marginBottom: spacing.hairline,
-    },
-    chipBannerBody: {
+    freeHitBannerText: {
       fontSize: fontSize.sm,
       color: colors.onWarning,
       lineHeight: 16,
-    },
-    chipBadge: {
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.sm,
-      backgroundColor: colors.accentSoft,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    chipBadgeText: {
-      fontSize: fontSize.sm,
-      fontWeight: '600',
-      color: colors.accentText,
     },
 
     controlBar: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: colors.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      paddingTop: spacing.md,
     },
     pressed: effects.pressedSubtle,
 
@@ -110,10 +158,21 @@ export const makeStyles = (colors: Colors) =>
       alignSelf: 'center',
     },
     pitch: {
-      borderRadius: radius.base,
-      borderWidth: 2,
-      borderColor: colors.pitchLine,
+      borderRadius: radius.lg,
       overflow: 'hidden',
+    },
+    // The top of the goalkeeper's penalty box, peeking in from the edge.
+    penaltyBox: {
+      position: 'absolute',
+      top: -PENALTY_BOX_HIDDEN_HEIGHT,
+      alignSelf: 'center',
+      width: PENALTY_BOX_WIDTH,
+      height: PENALTY_BOX_HEIGHT,
+      zIndex: 1,
+      borderWidth: PITCH_LINE_WIDTH,
+      borderColor: colors.pitchLine,
+      borderBottomLeftRadius: radius.md,
+      borderBottomRightRadius: radius.md,
     },
     formationLabel: {
       position: 'absolute',
@@ -133,7 +192,7 @@ export const makeStyles = (colors: Colors) =>
     },
     bench: {
       backgroundColor: colors.surface,
-      borderRadius: radius.base,
+      borderRadius: radius.lg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       paddingVertical: spacing.md,
@@ -161,7 +220,26 @@ export const makeStyles = (colors: Colors) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    shirtBadge: { position: 'absolute', top: spacing.hairline, right: spacing.hairline },
+    // Captain / vice: a small grape disc on the shirt's shoulder, ringed
+    // in whatever it sits on so it reads as a separate badge.
+    armband: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      width: ARMBAND_SIZE,
+      height: ARMBAND_SIZE,
+      borderRadius: ARMBAND_SIZE / 2,
+      borderWidth: ARMBAND_RING_WIDTH,
+      overflow: 'hidden',
+      backgroundColor: colors.accent,
+      color: colors.onAccent,
+      fontSize: ARMBAND_FONT_SIZE,
+      lineHeight: ARMBAND_SIZE - ARMBAND_RING_WIDTH * 2,
+      fontWeight: '800',
+      textAlign: 'center',
+    },
+    armbandOnPitch: { borderColor: colors.pitchStripe },
+    armbandOnBench: { borderColor: colors.surface },
     // Mirrors playerBadge's compact pill, pinned to the opposite corner
     // from the armband.
     changeMarker: {
@@ -198,31 +276,32 @@ export const makeStyles = (colors: Colors) =>
 
     tileName: {
       alignSelf: 'stretch',
-      marginTop: spacing.xs,
+      marginTop: spacing.hairline,
       paddingHorizontal: spacing.xs,
       paddingVertical: spacing.hairline,
-      backgroundColor: colors.surface,
       borderTopLeftRadius: radius.sm,
       borderTopRightRadius: radius.sm,
       overflow: 'hidden',
       textAlign: 'center',
       fontSize: fontSize.sm,
-      fontWeight: '600',
-      color: colors.textPrimary,
+      fontWeight: '700',
     },
+    tileNameOnPitch: { backgroundColor: colors.pitchTile, color: colors.onHero },
+    tileNameOnBench: { backgroundColor: colors.surfaceRaised, color: colors.textPrimary },
+    // Background and text come from the heat scale when the stat has one.
     tileStat: {
       ...fontRole.numeric,
       alignSelf: 'stretch',
       paddingHorizontal: spacing.xs,
       paddingVertical: spacing.hairline,
-      backgroundColor: colors.accent,
+      backgroundColor: colors.surfaceRaised,
       borderBottomLeftRadius: radius.sm,
       borderBottomRightRadius: radius.sm,
       overflow: 'hidden',
       textAlign: 'center',
-      fontSize: fontSize.xs,
-      fontWeight: '600',
-      color: colors.onAccent,
+      fontSize: fontSize.sm,
+      fontWeight: '800',
+      color: colors.textPrimary,
     },
 
     emptyContainer: {

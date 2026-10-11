@@ -7,10 +7,10 @@ import { LoadingView } from '../components/LoadingView';
 import { ErrorView } from '../components/ErrorView';
 import type { FriendTeamScreenProps } from '../navigation/types';
 import { useThemedStyles } from '../theme';
-import { ChipBadge, Header, PicksUnavailableNote } from './MyTeam/Header';
+import { Header, PicksUnavailableNote } from './MyTeam/Header';
 import { lineupFromPicks } from './MyTeam/lineup';
 import { PitchView } from './MyTeam/PitchView';
-import { EMPTY_SQUAD_MESSAGE, gameweekPointsText, squadRows } from './MyTeam/rows';
+import { EMPTY_SQUAD_MESSAGE, gameweekPointsStat, squadRows } from './MyTeam/rows';
 import { makeStyles } from './MyTeam/styles';
 
 type Props = FriendTeamScreenProps;
@@ -51,13 +51,12 @@ export default function FriendTeamScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
-      <Header entry={team.entry} gameweek={team.gameweek} />
+      <Header entry={team.entry} gameweek={team.gameweek} activeChip={activeChip} />
       {team.picksError ? <PicksUnavailableNote message={team.picksError} /> : null}
-      {activeChip ? <ChipBadge chip={activeChip} /> : null}
       {hasSquad ? (
         <PitchView
           lineup={lineup}
-          getStatText={gameweekPointsText}
+          getStat={gameweekPointsStat}
           refreshing={refreshing}
           onRefresh={onRefresh}
         />
