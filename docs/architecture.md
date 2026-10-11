@@ -1,6 +1,6 @@
 # Architecture
 
-How FPL Stats is put together, as of October 2026 (after PR #189). For the clickable version with animated data-flow scenarios, open the [Field Guide](artifacts/README.md).
+How FPL Stats is put together, as of October 2026 (after PR #213). For the clickable version with animated data-flow scenarios, open the [Field Guide](artifacts/README.md).
 
 ## The big picture
 

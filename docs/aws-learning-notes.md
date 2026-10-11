@@ -113,3 +113,13 @@ Each question is a decision already made here, or one the stack will face. Answe
 (a) Queued (b) `429`, and the Lambda is never invoked (c) Lambda runs but responses are dropped (d) API Gateway raises the limit
 
 > **(b).** Token bucket; rejected before the integration runs, so the 1024 MB Lambda costs nothing.
+
+**9. On an account with a concurrency limit of 10, someone opens Friends with 12 friends while another user loads Players. What happens?**
+(a) API Gateway queues the extra requests (b) Lambda throttles invocations past 10 concurrent executions across the whole account, so some requests fail, on any route (c) Each function has its own limit of 10 (d) Lambda scales past the limit and bills the overage
+
+> **(b).** Unreserved concurrency is one pool shared by every function in the account and region. Fixes: a quota increase (this account went from 10 to 1000 on 10 Oct 2026), batching the fan-out (#186), reserved concurrency for critical functions, and client retries with backoff (#185).
+
+**10. `/fixtures/upcoming` returns the same ~7 KB to every user and changes at most every 30 minutes. What stops most of those requests reaching Lambda?**
+(a) API Gateway response caching (b) DAX in front of DynamoDB (c) CloudFront in front of the API with `Cache-Control: max-age` (d) Provisioned concurrency
+
+> **(c).** HTTP APIs have no response cache (REST-only), DAX only speeds up the read inside the Lambda, and provisioned concurrency still runs every request. A CDN answers repeats from the edge. That's #179.
