@@ -104,12 +104,12 @@ All routes are `GET`. Lambdas marked **cache-aside** call FPL on a miss; the res
 
 `/analytics/players/xp` corrects precomputed data at read time: the analyzer runs once a day, so the handler reads `fpl#bootstrap` and drops any gameweek whose deadline has passed since. xP moves on at the deadline rather than the next morning.
 
-`/analytics/squad/{teamId}/transfers` is the only heavy work on the request path. It derives free transfers from the manager's history (25/26 rules: bank up to 5, Wildcard and Free Hit preserve them), builds 1- to 3-move bundles, subtracts 4 points per transfer beyond the free count, and ranks by net ΔxP. Query parameters:
+`/analytics/squad/{teamId}/transfers` is the only heavy work on the request path. It derives free transfers from the manager's history (25/26 rules: bank up to 5, Wildcard and Free Hit preserve them), builds 1- to 5-move bundles, subtracts 4 points per transfer beyond the free count, and ranks by net ΔxP. Query parameters:
 
 | Param | Default | Meaning |
 | --- | --- | --- |
 | `horizon` | 3 (max 5) | Gameweeks to sum xP over, starting at the next open deadline. |
-| `max_transfers` | 2 (max 3) | Largest bundle size considered. |
+| `max_transfers` | 2 (max 5) | Largest bundle size considered. |
 | `free_transfers` | derived | Overrides the derived count, e.g. after transfers the public history doesn't show yet. The derived count is still returned as `derived_free_transfers`. |
 | `positions` | all | Comma-separated FPL `element_type` ids (1 GK, 2 DEF, 3 MID, 4 FWD). |
 

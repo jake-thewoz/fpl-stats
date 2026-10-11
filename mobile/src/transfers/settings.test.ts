@@ -9,8 +9,8 @@ import {
 } from './settings';
 
 describe('option lists', () => {
-  it('offers bundle sizes 1 to 3', () => {
-    expect(MAX_TRANSFER_OPTIONS).toEqual([1, 2, 3]);
+  it('offers bundle sizes 1 to 5', () => {
+    expect(MAX_TRANSFER_OPTIONS).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('offers free transfers 0 to the banked cap of 5', () => {
@@ -41,10 +41,16 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters([], DEFAULT_TRANSFER_SETTINGS)).toBe(0);
   });
 
-  it('counts each position plus each non-default setting', () => {
+  it('counts each position plus a free-transfer override', () => {
     expect(
       countActiveFilters([2, 3], { maxTransfers: 3, freeTransfersOverride: 0 }),
-    ).toBe(4);
+    ).toBe(3);
+  });
+
+  it('ignores max transfers, which is set outside the dialog', () => {
+    expect(
+      countActiveFilters([], { ...DEFAULT_TRANSFER_SETTINGS, maxTransfers: 5 }),
+    ).toBe(0);
   });
 });
 
