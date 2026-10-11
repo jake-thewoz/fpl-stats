@@ -39,14 +39,17 @@ import {
   View,
 } from 'react-native';
 import { Text } from './Text';
-import { FIELD_DEFS } from '../players/fields';
+import { FIELD_DEFS, heatCeiling } from '../players/fields';
 import { PullToRefresh } from './PullToRefresh';
 import type { FieldKey, JoinedPlayer, SortState } from '../players/types';
 import {
   effects,
   fontRole,
   fontSize,
+  heatColor,
+  radius,
   spacing,
+  useTheme,
   useThemedStyles,
   type Colors,
 } from '../theme';
@@ -78,6 +81,9 @@ type Props<T extends JoinedPlayer> = {
    *  data, e.g. the gameweek xP projects. A second line rather than a
    *  longer label, which wouldn't fit the cell width. */
   headerSublabels?: Partial<Record<FieldKey, string>>;
+  /** Gameweeks played so far, which scales the heat colouring of season
+   *  totals in the sorted column. Null leaves those columns plain. */
+  gameweeksPlayed: number | null;
   /** Stable id for FlatList keying. */
   getId: (item: T) => string | number;
   /** Renders the contents of the pinned name column for a single row.
@@ -85,8 +91,8 @@ type Props<T extends JoinedPlayer> = {
    *  team · pos; My Team adds captain/vice badges, bench dim, GW pts. */
   renderNameCell: (item: T) => React.ReactNode;
   /** Optional per-row style override applied to BOTH the left and right
-   *  row containers (used by My Team for bench dimming). */
-  getRowStyle?: (item: T) => { opacity?: number } | undefined;
+   *  row containers (My Team dims the bench; Players tints owned rows). */
+  getRowStyle?: (item: T) => { opacity?: number; backgroundColor?: string } | undefined;
   refreshing?: boolean;
   onRefresh?: () => void;
   emptyMessage: string;
@@ -98,6 +104,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
   sort,
   onTapHeader,
   headerSublabels,
+  gameweeksPlayed,
   getId,
   renderNameCell,
   getRowStyle,
@@ -106,6 +113,7 @@ export function PlayerListTable<T extends JoinedPlayer>({
   emptyMessage,
 }: Props<T>) {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const leftRef = useRef<FlatList<T>>(null);
   const rightRef = useRef<FlatList<T>>(null);
   // Tracks which list is currently being driven by the other, so the
@@ -175,6 +183,10 @@ export function PlayerListTable<T extends JoinedPlayer>({
     [],
   );
 
+  // Only the sorted column is heat-coloured, so the strongest values in
+  // the order the user asked for stand out without every column shouting.
+  const sortedColumnCeiling = heatCeiling(sort.field, gameweeksPlayed);
+
   const renderRightRow = useCallback(
     ({ item }: { item: T }) => {
       const rowStyle = getRowStyle?.(item);
@@ -183,6 +195,22 @@ export function PlayerListTable<T extends JoinedPlayer>({
           {columns.map((c) => {
             const def = FIELD_DEFS[c];
             const value = def.accessor(item);
+            if (c === sort.field && sortedColumnCeiling != null && value != null) {
+              const heat = heatColor(value, sortedColumnCeiling, colors);
+              return (
+                <View key={c} style={[styles.heatCellSlot, cellLayout]}>
+                  <Text
+                    style={[
+                      styles.heatCell,
+                      { backgroundColor: heat.background, color: heat.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {def.format(value)}
+                  </Text>
+                </View>
+              );
+            }
             return (
               <Text key={c} style={[styles.dataCell, cellLayout]} numberOfLines={1}>
                 {def.format(value)}
@@ -192,7 +220,16 @@ export function PlayerListTable<T extends JoinedPlayer>({
         </View>
       );
     },
-    [columns, dataWidth, getRowStyle, cellLayout, styles.rightRow, styles.dataCell],
+    [
+      columns,
+      dataWidth,
+      getRowStyle,
+      cellLayout,
+      sort.field,
+      sortedColumnCeiling,
+      colors,
+      styles,
+    ],
   );
 
   const renderLeftRow = useCallback(
@@ -379,6 +416,20 @@ const makeStyles = (c: Colors) =>
       fontSize: fontSize.md,
       color: c.textPrimary,
       textAlign: 'right',
+    },
+    heatCellSlot: {
+      width: CELL_WIDTH,
+      paddingHorizontal: spacing.xs,
+    },
+    heatCell: {
+      ...fontRole.numeric,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.sm,
+      overflow: 'hidden',
+      fontSize: fontSize.md,
+      fontWeight: '700',
+      textAlign: 'center',
     },
     pressed: effects.pressedSubtle,
 

@@ -22,6 +22,8 @@ Pick a token by what it sits on, per the commentary in `src/theme/colors.ts`:
 - **`accentText` / `goodText` / `badText`** — the same hues tuned to read as text or icons on `surface`/`background`. Never use a fill colour as text; light-mode mint on white is unreadable.
 - **`accentSoft`** is a translucent grape for quiet selection (active chips, the user's own row). Text on it is `accentText`.
 - **`heatColor(value, HEAT_CEILING.x, colors)`** (`src/theme/heat.ts`) colours a number by size. Add a ceiling to `HEAT_CEILING`; don't pass a literal.
+  Table columns take their ceiling from `COLUMN_HEAT` in `src/players/fields.ts` instead (season totals scale with gameweeks played).
+- **Club identity** is a `ClubShirt` drawn from `src/components/clubVisuals.ts`. Don't tint rows or backgrounds with club colours.
 
 ### Fonts — import `Text` / `TextInput` from `src/components/Text`, never from `react-native`
 

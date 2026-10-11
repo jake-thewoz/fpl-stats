@@ -15,7 +15,11 @@ import { ControlButton } from '../../components/ControlButton';
 import { FilterDialog } from '../../components/FilterDialog';
 import { PlayerListTable } from '../../components/PlayerListTable';
 import { SegmentedControl, type SegmentOption } from '../../components/SegmentedControl';
-import { FIELD_DEFS, xpHeaderSublabels } from '../../players/fields';
+import {
+  FIELD_DEFS,
+  gameweeksPlayedBefore,
+  xpHeaderSublabels,
+} from '../../players/fields';
 import { applyAll, activeFilterCount } from '../../players/apply';
 import { POSITION_CODES } from '../../players/positions';
 import type { FieldKey } from '../../players/types';
@@ -206,6 +210,7 @@ function MyTeamContent({ teamId }: { teamId: string }) {
           sort={sort}
           onTapHeader={onTapColumnHeader}
           headerSublabels={xpHeaderSublabels(xpGameweek)}
+          gameweeksPlayed={gameweeksPlayedBefore(xpGameweek)}
           getId={(r) => r.id}
           renderNameCell={(row) => <MyTeamNameCell row={row} />}
           // Bench rows dimmed to de-emphasise non-starters; matches the

@@ -1,7 +1,7 @@
 import { ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { PullToRefresh } from '../../components/PullToRefresh';
-import { ClubBackground } from '../../components/ClubBackground';
+import { ClubShirt, CLUB_SHIRT_SIZE } from '../../components/ClubShirt';
 import { MatchStatusGlyph } from '../../gameweek/MatchStatusGlyph';
 import { useTheme, useThemedStyles } from '../../theme';
 import {
@@ -76,7 +76,7 @@ function PlayerTile({ slot, statText }: { slot: LineupSlot; statText: string }) 
   return (
     <View style={styles.tile}>
       <View style={styles.shirt}>
-        <ClubBackground teamShort={slot.row.team} fade={false} />
+        <ClubShirt teamShort={slot.row.team} size={CLUB_SHIRT_SIZE.pitch} />
         {marker ? (
           <Text
             style={[

@@ -2,6 +2,7 @@
  * Field metadata shared by both screens. Adding a new column/filter is one
  * entry here — both screens pick it up automatically.
  */
+import { HEAT_CEILING } from '../theme/heat';
 import type { FieldKey, JoinedPlayer, SortDir } from './types';
 
 export type FieldDef = {
@@ -258,6 +259,67 @@ export function xpHeaderSublabels(
 ): Partial<Record<FieldKey, string>> | undefined {
   if (gameweek == null) return undefined;
   return { xp: `GW${gameweek}` };
+}
+
+/**
+ * How a sorted column's cells are heat-coloured. A rate (per game, per 90,
+ * per gameweek ahead) has a fixed ceiling. A season total grows every
+ * gameweek, so its ceiling is per gameweek played and scales with the
+ * season; a fixed one would turn every regular starter mint by spring.
+ */
+type ColumnHeat =
+  | { kind: 'rate'; ceiling: number }
+  | { kind: 'seasonTotal'; ceilingPerGameweek: number };
+
+/**
+ * Ceilings sit around an elite player's level, so only standouts reach
+ * full mint. Price, ownership and price change are left out: a bigger
+ * number there isn't a better pick.
+ */
+const XP_H3_GAMEWEEKS = 3;
+const XP_H5_GAMEWEEKS = 5;
+
+const COLUMN_HEAT: Partial<Record<FieldKey, ColumnHeat>> = {
+  xp: { kind: 'rate', ceiling: HEAT_CEILING.expectedPoints },
+  xp_h3: { kind: 'rate', ceiling: HEAT_CEILING.expectedPoints * XP_H3_GAMEWEEKS },
+  xp_h5: { kind: 'rate', ceiling: HEAT_CEILING.expectedPoints * XP_H5_GAMEWEEKS },
+  form: { kind: 'rate', ceiling: 8 },
+  points_per_game: { kind: 'rate', ceiling: 7 },
+  // The per-match defcon bonus threshold for midfielders and forwards.
+  defcon_per_90: { kind: 'rate', ceiling: 12 },
+  total_points: { kind: 'seasonTotal', ceilingPerGameweek: 7 },
+  defcon: { kind: 'seasonTotal', ceilingPerGameweek: 12 },
+  minutes: { kind: 'seasonTotal', ceilingPerGameweek: 90 },
+  goals_scored: { kind: 'seasonTotal', ceilingPerGameweek: 0.75 },
+  assists: { kind: 'seasonTotal', ceilingPerGameweek: 0.5 },
+  clean_sheets: { kind: 'seasonTotal', ceilingPerGameweek: 0.5 },
+  bonus: { kind: 'seasonTotal', ceilingPerGameweek: 1 },
+  bps: { kind: 'seasonTotal', ceilingPerGameweek: 30 },
+  ict_index: { kind: 'seasonTotal', ceilingPerGameweek: 8 },
+  expected_goals: { kind: 'seasonTotal', ceilingPerGameweek: 0.75 },
+  expected_assists: { kind: 'seasonTotal', ceilingPerGameweek: 0.4 },
+};
+
+/**
+ * The value at which a column's heat cell turns fully mint, or null when
+ * the column isn't heat-coloured. Season totals need `gameweeksPlayed`
+ * and stay plain before the first gameweek or when it's unknown.
+ */
+export function heatCeiling(
+  key: FieldKey,
+  gameweeksPlayed: number | null,
+): number | null {
+  const heat = COLUMN_HEAT[key];
+  if (heat == null) return null;
+  if (heat.kind === 'rate') return heat.ceiling;
+  if (gameweeksPlayed == null || gameweeksPlayed <= 0) return null;
+  return heat.ceilingPerGameweek * gameweeksPlayed;
+}
+
+/** Gameweeks finished before the one xP projects. The live gameweek, if
+ *  any, counts as played: its points are already in the season totals. */
+export function gameweeksPlayedBefore(xpGameweek: number | null): number | null {
+  return xpGameweek == null ? null : xpGameweek - 1;
 }
 
 /** Defaults a brand-new install gets. Picked to emphasise xP — the
