@@ -6,6 +6,7 @@ Start with the [project README](../README.md) for the overview and quick start.
 | --- | --- |
 | [Architecture](architecture.md) | Every AWS resource, Lambda, schedule, DynamoDB key shape and API route; the shared layer; how the app uses the API; CI and deploys. |
 | [xP model](xp-model.md) | The expected-points model: components, availability, the data pipeline, fitting and backtesting, and how to make common changes. |
+| [Design: xP from all competitions](design-non-pl-xp.md) | Proposal (not built): a second xP value that adds opposition-adjusted cup and European matches. |
 | [Operations runbook](operations.md) | Copy-pasteable commands for deploying, smoke tests, running jobs by hand, alarms, inspecting data; the season rollover checklist; dev gotchas; free-tier notes. |
 | [Performance](performance.md) | The 128 MB bottleneck write-up, how to diagnose Lambda latency, and the open CloudFront / precompute options. |
 | [AWS learning notes](aws-learning-notes.md) | Solutions Architect notes per service, drawn from this stack, plus eight exam drills. |
