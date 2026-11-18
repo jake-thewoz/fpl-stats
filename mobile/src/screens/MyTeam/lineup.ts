@@ -9,11 +9,12 @@ export type LineupSlot = {
   isCaptain: boolean;
   isViceCaptain: boolean;
   /** Set on a suggested lineup: 'in' = benched player promoted to the XI,
-   *  'out' = starter moved to the bench. */
+   *  'out' = starter moved to the bench, 'new' = not in the user's squad
+   *  (a wildcard signing). */
   change?: LineupChange;
 };
 
-export type LineupChange = 'in' | 'out';
+export type LineupChange = 'in' | 'out' | 'new';
 
 /** The number under a pitch tile, and how to heat-colour it. */
 export type PitchStat = {

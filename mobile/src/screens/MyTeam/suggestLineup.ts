@@ -16,16 +16,16 @@ export const DEFAULT_LINEUP_METRIC: LineupMetric = 'xp';
 
 /** FPL's legal starting-XI shape: exactly one keeper, then outfield
  *  counts within these bounds summing to ten. */
-const STARTER_LIMITS: Record<PositionCode, { min: number; max: number }> = {
+export const STARTER_LIMITS: Record<PositionCode, { min: number; max: number }> = {
   GKP: { min: 1, max: 1 },
   DEF: { min: 3, max: 5 },
   MID: { min: 2, max: 5 },
   FWD: { min: 1, max: 3 },
 };
-const STARTING_XI_SIZE = 11;
+export const STARTING_XI_SIZE = 11;
 /** The captain's score counts twice. Triple Captain is ignored: the
  *  suggestion is for next gameweek, and we can't see chips played there. */
-const CAPTAIN_MULTIPLIER = 2;
+export const CAPTAIN_MULTIPLIER = 2;
 
 export type LineupSuggestion = {
   lineup: Lineup;

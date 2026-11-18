@@ -5,18 +5,36 @@ import { FIELD_DEFS } from '../../players/fields';
 import { useThemedStyles } from '../../theme';
 import { formationLabel } from './lineup';
 import { makeStyles } from './styles';
+import { ControlButton } from '../../components/ControlButton';
+import {
+  WILDCARD_METRICS,
+  type WildcardMetric,
+  type WildcardSuggestion,
+} from './wildcard';
 import {
   LINEUP_METRICS,
   type LineupMetric,
   type LineupSuggestion,
 } from './suggestLineup';
 
-export type LineupSource = 'yours' | 'suggested';
+export type LineupSource = 'yours' | 'suggested' | 'wildcard';
 
 const SOURCE_OPTIONS: readonly SegmentOption<LineupSource>[] = [
   { value: 'yours', label: 'Yours' },
   { value: 'suggested', label: 'Suggested' },
+  { value: 'wildcard', label: 'Wildcard' },
 ];
+
+const WILDCARD_METRIC_OPTIONS: readonly SegmentOption<WildcardMetric>[] =
+  WILDCARD_METRICS.map((metric) => ({
+    value: metric,
+    label: FIELD_DEFS[metric].shortLabel,
+  }));
+
+/** One tap on the budget stepper: £0.1m, FPL's price granularity. */
+const BUDGET_STEP = 0.1;
+
+const formatPrice = (millions: number) => `£${millions.toFixed(1)}m`;
 
 const METRIC_OPTIONS: readonly SegmentOption<LineupMetric>[] = LINEUP_METRICS.map(
   (metric) => ({ value: metric, label: FIELD_DEFS[metric].shortLabel }),
@@ -32,6 +50,16 @@ type Props = {
   squadGameweek: number | null;
   /** Gameweek the xP projection covers (the next one). */
   targetGameweek: number | null;
+  wildcard: WildcardControlsProps;
+};
+
+export type WildcardControlsProps = {
+  metric: WildcardMetric;
+  onChangeMetric: (next: WildcardMetric) => void;
+  /** £m. */
+  budget: number;
+  onChangeBudget: (next: number) => void;
+  suggestion: WildcardSuggestion | null;
 };
 
 /** Yours / Suggested toggle above the pitch, plus, when showing the
@@ -44,9 +72,23 @@ export function LineupControls({
   suggestion,
   squadGameweek,
   targetGameweek,
+  wildcard,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const showingSuggestion = source === 'suggested';
+
+  if (source === 'wildcard') {
+    return (
+      <View style={styles.lineupControls}>
+        <SegmentedControl
+          options={SOURCE_OPTIONS}
+          value={source}
+          onChange={onChangeSource}
+        />
+        <WildcardControls {...wildcard} targetGameweek={targetGameweek} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.lineupControls}>
@@ -118,6 +160,65 @@ function SuggestionSummary({
         {shortLabel} ({gainText})
       </Text>
       <Text style={styles.lineupSummaryNote}>{notes.join(' ')}</Text>
+    </>
+  );
+}
+
+function WildcardControls({
+  metric,
+  onChangeMetric,
+  budget,
+  onChangeBudget,
+  suggestion,
+  targetGameweek,
+}: WildcardControlsProps & { targetGameweek: number | null }) {
+  const styles = useThemedStyles(makeStyles);
+  const { format, shortLabel } = FIELD_DEFS[metric];
+  const step = (delta: number) => onChangeBudget(Math.round((budget + delta) * 10) / 10);
+
+  return (
+    <>
+      <SegmentedControl
+        options={WILDCARD_METRIC_OPTIONS}
+        value={metric}
+        onChange={onChangeMetric}
+      />
+      <View style={styles.budgetRow}>
+        <Text style={styles.lineupSummary}>Budget {formatPrice(budget)}</Text>
+        <ControlButton label="−" onPress={() => step(-BUDGET_STEP)} />
+        <ControlButton label="+" onPress={() => step(BUDGET_STEP)} />
+      </View>
+      {suggestion ? (
+        <>
+          <Text style={styles.lineupSummary}>
+            Best squad by {shortLabel}
+            {metric.startsWith('xp') && targetGameweek != null
+              ? ` from GW ${targetGameweek}`
+              : ''}{' '}
+            · {formatPrice(suggestion.cost)} · XI {format(suggestion.score)} {shortLabel}
+          </Text>
+          {suggestion.outgoing.length > 0 ? (
+            <>
+              <Text style={styles.lineupSummaryNote}>
+                Out: {suggestion.outgoing.map((row) => row.name).join(', ')}
+              </Text>
+              <Text style={styles.lineupSummaryNote}>
+                In: {suggestion.incoming.map((row) => row.name).join(', ')}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.lineupSummaryNote}>Your squad is already the best.</Text>
+          )}
+          <Text style={styles.lineupSummaryNote}>
+            + marks a player not in your squad. Bench scores count 10%, so the money goes
+            on the XI. Budget starts at your squad&apos;s current value plus bank; FPL
+            sells at your selling price, so lower it to match.
+            {suggestion.optimal ? '' : ' Search stopped early; close to best.'}
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.lineupSummaryNote}>No legal squad fits this budget.</Text>
+      )}
     </>
   );
 }

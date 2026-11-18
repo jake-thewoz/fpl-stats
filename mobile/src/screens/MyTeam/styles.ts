@@ -260,6 +260,11 @@ export const makeStyles = (colors: Colors) =>
       paddingTop: spacing.md,
       gap: spacing.sm,
     },
+    budgetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
     lineupControlsRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',

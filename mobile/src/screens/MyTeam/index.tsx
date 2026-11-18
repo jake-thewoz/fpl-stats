@@ -9,6 +9,7 @@ import { indexUpcomingFixtures } from '../../fixtures/upcoming';
 import {
   fixturesUpcomingQuery,
   playerStatsQuery,
+  playersQuery,
   playersXpQuery,
 } from '../../query/queries';
 import { indexPlayerStats } from '../../api/playerStats';
@@ -43,11 +44,12 @@ import { FreeHitBanner, Header, PicksUnavailableNote } from './Header';
 import { lineupFromPicks, type LineupSlot, type PitchStat } from './lineup';
 import { LineupControls, type LineupSource } from './LineupControls';
 import { MyTeamNameCell } from './NameCell';
-import { EMPTY_SQUAD_MESSAGE, gameweekPointsStat, squadRows } from './rows';
+import { EMPTY_SQUAD_MESSAGE, gameweekPointsStat, poolRows, squadRows } from './rows';
 import { PitchView } from './PitchView';
 import { makeStyles } from './styles';
 import { DEFAULT_LINEUP_METRIC, suggestLineup, type LineupMetric } from './suggestLineup';
 import type { MyTeamRow } from './types';
+import { buildWildcard, DEFAULT_WILDCARD_METRIC, type WildcardMetric } from './wildcard';
 
 type Props = MyTeamScreenProps;
 
@@ -78,6 +80,8 @@ function MyTeamContent({ teamId }: { teamId: string }) {
   // screen renders without them and fills them in when they arrive.
   const fixturesQuery = useQuery(fixturesUpcomingQuery());
   const statsQuery = useQuery(playerStatsQuery());
+  // Same cache useMyTeam already fills; the wildcard view picks from it.
+  const playersPoolQuery = useQuery(playersQuery());
   useRefetchStaleOnFocus([fixturesQuery, statsQuery]);
   const myTeamData = myTeamQuery.data;
   const xpResp = xpQuery.data;
@@ -92,6 +96,9 @@ function MyTeamContent({ teamId }: { teamId: string }) {
     return {
       myTeam: myTeamData,
       rows,
+      xpById,
+      upcoming,
+      statsById,
       xpGameweek: xpResp.gameweek,
       fixtureGameweeks: upcoming?.gameweeks,
     };
@@ -137,25 +144,48 @@ function MyTeamContent({ teamId }: { teamId: string }) {
 
   const [lineupSource, setLineupSource] = useState<LineupSource>('yours');
   const [lineupMetric, setLineupMetric] = useState<LineupMetric>(DEFAULT_LINEUP_METRIC);
+  const [wildcardMetric, setWildcardMetric] = useState<WildcardMetric>(
+    DEFAULT_WILDCARD_METRIC,
+  );
+  // null until the user nudges it: follows the squad's value + bank.
+  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
+  const bank = data?.myTeam.entry.last_deadline_bank ?? null;
+  const defaultBudget = useMemo(
+    () =>
+      Math.round(rows.reduce((sum, row) => sum + row.price * 10, 0) + (bank ?? 0)) / 10,
+    [rows, bank],
+  );
+  const budget = budgetOverride ?? defaultBudget;
+  const playersPool = playersPoolQuery.data?.players;
+  const wildcard = useMemo(() => {
+    if (lineupSource !== 'wildcard' || !data || !playersPool) return null;
+    const { xpById, upcoming, statsById } = data;
+    const pool = poolRows(playersPool, xpById, upcoming, statsById);
+    return buildWildcard(pool, wildcardMetric, budget, rows);
+  }, [lineupSource, data, playersPool, wildcardMetric, budget, rows]);
   const pickedLineup = useMemo(() => lineupFromPicks(rows), [rows]);
   const suggestion = useMemo(
     () => suggestLineup(rows, lineupMetric),
     [rows, lineupMetric],
   );
   const showSuggestion = lineupSource === 'suggested' && suggestion != null;
+  const showWildcard = lineupSource === 'wildcard' && wildcard != null;
   const gameweeksPlayed = gameweeksPlayedBefore(xpResp?.gameweek ?? null);
-  const metricStat = useCallback(
-    (slot: LineupSlot): PitchStat => {
-      const { accessor, format, shortLabel } = FIELD_DEFS[lineupMetric];
-      const value = accessor(slot.row);
-      return {
-        text: `${format(value)} ${shortLabel}`,
-        value,
-        heatCeiling: heatCeiling(lineupMetric, gameweeksPlayed),
-      };
-    },
-    [lineupMetric, gameweeksPlayed],
+  const statFor = useCallback(
+    (metric: LineupMetric | WildcardMetric) =>
+      (slot: LineupSlot): PitchStat => {
+        const { accessor, format, shortLabel } = FIELD_DEFS[metric];
+        const value = accessor(slot.row);
+        return {
+          text: `${format(value)} ${shortLabel}`,
+          value,
+          heatCeiling: heatCeiling(metric, gameweeksPlayed),
+        };
+      },
+    [gameweeksPlayed],
   );
+  const metricStat = useMemo(() => statFor(lineupMetric), [statFor, lineupMetric]);
+  const wildcardStat = useMemo(() => statFor(wildcardMetric), [statFor, wildcardMetric]);
 
   const filteredSorted = useMemo(
     // Empty search: rely only on filters + sort.
@@ -223,10 +253,29 @@ function MyTeamContent({ teamId }: { teamId: string }) {
               suggestion={suggestion}
               squadGameweek={myTeam.gameweek}
               targetGameweek={xpGameweek}
+              wildcard={{
+                metric: wildcardMetric,
+                onChangeMetric: setWildcardMetric,
+                budget,
+                onChangeBudget: setBudgetOverride,
+                suggestion: wildcard,
+              }}
             />
             <PitchView
-              lineup={showSuggestion ? suggestion.lineup : pickedLineup}
-              getStat={showSuggestion ? metricStat : gameweekPointsStat}
+              lineup={
+                showWildcard
+                  ? wildcard.lineup
+                  : showSuggestion
+                    ? suggestion.lineup
+                    : pickedLineup
+              }
+              getStat={
+                showWildcard
+                  ? wildcardStat
+                  : showSuggestion
+                    ? metricStat
+                    : gameweekPointsStat
+              }
               refreshing={refreshing}
               onRefresh={onRefresh}
             />
