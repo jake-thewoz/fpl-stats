@@ -1,5 +1,7 @@
 import type { SquadEntry } from '../../api/myTeam';
 import type { PlayerStatValues } from '../../api/playerStats';
+import type { Player } from '../../api/players';
+import type { JoinedPlayer } from '../../players/types';
 import { playerFixtureFields, type UpcomingFixtures } from '../../fixtures/upcoming';
 import { HEAT_CEILING } from '../../theme/heat';
 import type { LineupSlot, PitchStat } from './lineup';
@@ -34,13 +36,46 @@ export function squadRows(
     );
 }
 
+/** Every player as a row, for building a squad from scratch (the
+ *  wildcard view). Squad-only fields are blank. */
+export function poolRows(
+  players: readonly Player[],
+  xpById?: ReadonlyMap<number, PlayerXp>,
+  upcoming?: UpcomingFixtures,
+  statsById?: ReadonlyMap<number, PlayerStatValues>,
+): MyTeamRow[] {
+  return players.map((player) => ({
+    ...playerFields(player, xpById?.get(player.id), upcoming, statsById?.get(player.id)),
+    squadSlot: 0,
+    isStarter: false,
+    isCaptain: false,
+    isViceCaptain: false,
+    gwPoints: null,
+  }));
+}
+
 function toMyTeamRow(
   s: KnownPlayerEntry,
   xp: PlayerXp | undefined,
   upcoming: UpcomingFixtures | undefined,
   stats: PlayerStatValues | undefined,
 ): MyTeamRow {
-  const { player } = s;
+  return {
+    ...playerFields(s.player, xp, upcoming, stats),
+    squadSlot: s.pick.position,
+    isStarter: s.isStarter,
+    isCaptain: s.pick.is_captain,
+    isViceCaptain: s.pick.is_vice_captain,
+    gwPoints: s.gwPoints,
+  };
+}
+
+function playerFields(
+  player: Player,
+  xp: PlayerXp | undefined,
+  upcoming: UpcomingFixtures | undefined,
+  stats: PlayerStatValues | undefined,
+): JoinedPlayer {
   const formNum = parseFloat(player.form);
   return {
     id: player.id,
@@ -69,10 +104,5 @@ function toMyTeamRow(
     cost_change_event: player.cost_change_event,
     ...playerFixtureFields(upcoming, player.team),
     stats: stats ?? null,
-    squadSlot: s.pick.position,
-    isStarter: s.isStarter,
-    isCaptain: s.pick.is_captain,
-    isViceCaptain: s.pick.is_vice_captain,
-    gwPoints: s.gwPoints,
   };
 }

@@ -140,7 +140,7 @@ One Expo (React Native + TypeScript) codebase, exported for web and hosted on Am
 
 | Tab | Screens | Calls |
 | --- | --- | --- |
-| My Team | Pitch / List views, Yours vs Suggested lineup | entry → picks → live points, plus players, xP, gameweek |
+| My Team | Pitch / List views, Yours / Suggested lineup / Wildcard squad | entry → picks → live points, plus players, xP, gameweek |
 | Players | Sortable, filterable pool with removable filter chips; your players dimmed | players, xP, your team (to dim owned players), gameweek |
 | Transfers | Ranked bundle cards with bank and hit pills; horizon, max transfers and free-transfer controls | transfers, players, gameweek |
 | Friends | Friends list, add by team id, import a classic league, manage, tap a friend to see their squad | one `/entry` per friend, league members, picks/live for Friend Team |
@@ -156,6 +156,7 @@ Client-side plumbing worth knowing (details in [`mobile/CLAUDE.md`](../mobile/CL
 - Team id, friends list, column and filter choices live in AsyncStorage on the device. There is no account system and no FPL login.
 - Live state ("GW 7 live · 3/10 played", ● playing, ✓ done) is worked out on the device from kickoff times, using the same 2-hour rule as the backend's match-window guard. The app refetches `/gameweek/current` a minute after each deadline and every 10 minutes otherwise.
 - The suggested XI is picked on the device from the xP rows.
+- The wildcard squad is built on the device too (`src/screens/MyTeam/wildcard.ts`, `squadSolver.ts`): the best 15 under budget, 2/5/5/3 and three-per-club for a chosen metric, solved exactly by a per-position knapsack DP plus branch and bound on the club limit. Bench scores count 10% so money goes on the XI. Budget defaults to current squad value plus bank, since selling prices aren't public.
 
 ## CI and deploys
 

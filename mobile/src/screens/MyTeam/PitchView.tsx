@@ -25,6 +25,7 @@ type Props = {
 const CHANGE_MARKERS: Record<LineupChange, { glyph: string; label: string }> = {
   in: { glyph: '↑', label: 'moved into the starting XI' },
   out: { glyph: '↓', label: 'dropped to the bench' },
+  new: { glyph: '+', label: 'not in your squad' },
 };
 
 /** Starting XI laid out by position on a pitch, bench card below. */
@@ -103,7 +104,7 @@ function PlayerTile({
           <Text
             style={[
               styles.changeMarker,
-              slot.change === 'in' ? styles.changeMarkerIn : styles.changeMarkerOut,
+              slot.change !== 'out' ? styles.changeMarkerIn : styles.changeMarkerOut,
             ]}
             accessibilityLabel={marker.label}
           >
