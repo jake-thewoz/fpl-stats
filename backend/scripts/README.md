@@ -196,6 +196,23 @@ python3 delete_v1_xp_rows.py --table-name "$TABLE" --dry-run
 python3 delete_v1_xp_rows.py --table-name "$TABLE"
 ```
 
+## `season_archive.py` — past seasons for the fit and replay
+
+Our cache only holds the current season (FPL renumbers player ids every
+August). `load_archive_season("2024-25")` returns a full past season as
+`SeasonData`; `load_current_season(table)` returns the current one from
+DynamoDB in the same shape. Archive files download once into
+`.season_cache/<season>/` (gitignored). Use seasons 2022-23 onwards,
+when expected-goals fields start.
+
+Cleaning rules (assistant-manager rows dropped, duplicate matches
+collapsed, the archive's leaky `xP` column never read) live in
+`season_data.py`, tested in `tests/test_season_data.py`.
+
+**Data sources:** past seasons come from
+[vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League),
+the community archive of the official FPL API.
+
 ## Tests
 
 ```bash

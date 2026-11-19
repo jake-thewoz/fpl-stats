@@ -28,6 +28,7 @@ from boto3.dynamodb.conditions import Attr
 
 from fit import FitPair, decompose_actual_xp
 from schemas import Bootstrap, PlayerHistoryRow
+from season_data import SeasonData
 from xp_v2 import (
     DEFAULT_RULES,
     FixtureContext,
@@ -101,8 +102,7 @@ def load_bootstrap(table: Any) -> Bootstrap:
 
 def build_pairs(
     *,
-    history_rows: list[PlayerHistoryRow],
-    bootstrap: Bootstrap,
+    season: SeasonData,
     coefs: V2Coefficients,
     priors: PositionPriors,
     window: FeatureWindow,
@@ -116,30 +116,26 @@ def build_pairs(
     per-90 rates and dilutes the mean-match denominators. Set
     ``min_minutes=0`` to include them (e.g. for studying availability).
     """
-    player_team: dict[int, int] = {p.id: p.team for p in bootstrap.players}
-    player_position: dict[int, int] = {p.id: p.element_type for p in bootstrap.players}
-
     rows_by_player: dict[int, list[PlayerHistoryRow]] = defaultdict(list)
     rows_by_team: dict[int, list[PlayerHistoryRow]] = defaultdict(list)
-    for row in history_rows:
+    for row in season.rows:
         rows_by_player[row.element].append(row)
-        team_id = player_team.get(row.element)
+        team_id = season.team_by_player_round.get((row.element, row.round))
         if team_id is not None:
             rows_by_team[team_id].append(row)
 
     pairs: list[FitPair] = []
     skipped_unmapped = 0
     skipped_short_minutes = 0
-    for row in history_rows:
+    for row in season.rows:
         if row.minutes < min_minutes:
             skipped_short_minutes += 1
             continue
-        team_id = player_team.get(row.element)
-        position = player_position.get(row.element)
+        team_id = season.team_by_player_round.get((row.element, row.round))
+        position = season.position_by_player.get(row.element)
         if team_id is None or position is None:
-            # A historical row whose player has since rotated out of the
-            # bootstrap (rare — usually ID-stable across season). Skip
-            # rather than guess the position.
+            # A current-season row whose player has since left the
+            # bootstrap. Skip rather than guess the position.
             skipped_unmapped += 1
             continue
 

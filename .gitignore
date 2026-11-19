@@ -11,3 +11,6 @@ amplify/#current-cloud-backend
 # lockfile (no root package.json exists); ignore it so it doesn't
 # show up as an untracked file.
 /package-lock.json
+
+# Downloaded FPL archive seasons (backend/scripts/season_archive.py).
+.season_cache/

@@ -53,9 +53,8 @@ from backtest import (  # noqa: E402
     spearman_overall,
 )
 from backtest_report import render_backtest_report  # noqa: E402
-from data import load_bootstrap, scan_player_history  # noqa: E402
 from fit import decompose_actual_xp  # noqa: E402
-from schemas import Fixture  # noqa: E402
+from season_archive import load_current_season  # noqa: E402
 from v1_replay import predict_v1_for_row  # noqa: E402
 from xp_v2 import (  # noqa: E402
     DEFAULT_RULES,
@@ -81,15 +80,6 @@ _BACKTEST_RESULTS_DIR = _THIS_DIR / "backtest_results"
 _NEUTRAL_OPP_STRENGTH = 0.5
 
 
-def _load_fixtures(table) -> list[Fixture]:
-    """Cached snapshot of fpl#fixtures, used to look up per-fixture
-    difficulty during v1 replay."""
-    item = table.get_item(Key={"pk": "fpl#fixtures", "sk": "latest"}).get("Item")
-    if not item:
-        raise RuntimeError("fpl#fixtures missing — has ingest_fpl run?")
-    return [Fixture.model_validate(f) for f in item["data"]]
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--table-name", required=True,
@@ -111,10 +101,10 @@ def main(argv: list[str] | None = None) -> int:
 
     table = boto3.resource("dynamodb", region_name=args.region).Table(args.table_name)
 
-    log.info("Loading bootstrap + fixtures + history rows from %s", args.table_name)
-    bootstrap = load_bootstrap(table)
-    fixtures = _load_fixtures(table)
-    history_rows = scan_player_history(table)
+    log.info("Loading the current season from %s", args.table_name)
+    season = load_current_season(table)
+    history_rows = season.rows
+    fixtures = season.fixtures
     if not history_rows:
         log.error("No fpl#player_history#* rows found. Has ingest_player_history run?")
         return 1
@@ -123,14 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     priors = load_default_priors()
     window = FeatureWindow()
 
-    player_team = {p.id: p.team for p in bootstrap.players}
-    player_position = {p.id: p.element_type for p in bootstrap.players}
-
     rows_by_player: dict[int, list] = {}
     rows_by_team: dict[int, list] = {}
     for row in history_rows:
         rows_by_player.setdefault(row.element, []).append(row)
-        team_id = player_team.get(row.element)
+        team_id = season.team_by_player_round.get((row.element, row.round))
         if team_id is not None:
             rows_by_team.setdefault(team_id, []).append(row)
 
@@ -145,8 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         if row.round < args.min_round:
             skipped_under_min_round += 1
             continue
-        team_id = player_team.get(row.element)
-        position = player_position.get(row.element)
+        team_id = season.team_by_player_round.get((row.element, row.round))
+        position = season.position_by_player.get(row.element)
         if team_id is None or position is None:
             skipped_unmapped += 1
             continue

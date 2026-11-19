@@ -430,6 +430,10 @@ class PlayerHistoryRow(BaseModel):
     clearances_blocks_interceptions: int | None = None
     tackles: int | None = None
     recoveries: int | None = None
+    # Price in 0.1m units and ownership count at that match. Optional because
+    # rows cached before these were stored don't carry them.
+    value: int | None = None
+    selected: int | None = None
 
 
 class PlayerHistoryPast(BaseModel):
