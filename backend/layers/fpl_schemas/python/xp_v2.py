@@ -38,9 +38,11 @@ chance, 2× bonus, etc.). Blank GW: empty fixtures → all zeros.
 
 Horizon: ``xp_for_horizon`` returns per-GW components keyed by GW id.
 The minutes-probability decay (``AVAILABILITY_DECAY_CURVE``) interpolates
-the cop signal from "next GW only" toward 1.0 across the window — a
-flagged-50% player gets 0.5 next GW but ~1.0 by GW+5, capturing typical
-short-term injury recovery without modeling per-injury detail.
+the cop signal from "next GW only" toward the player's usual play rate
+across the window — a flagged-50% regular starter gets 0.5 next GW but
+his normal ~0.9 by GW+5, capturing typical short-term injury recovery
+without modeling per-injury detail. A player who simply isn't picked
+stays at his play rate: nothing to recover from.
 
 Phase 1 status
 --------------
@@ -564,20 +566,25 @@ def xp_for_gameweek(
     return _sum_components(per_fixture, minutes_prob=minutes_prob, p60=p60)
 
 
-def availability_curve(*, base_minutes_prob: float, gw_offset: int) -> float:
-    """Decay an injury / unavailability signal toward 1.0 over the horizon.
+def availability_curve(
+    *, base_minutes_prob: float, recovered_minutes_prob: float, gw_offset: int,
+) -> float:
+    """Decay an injury / unavailability signal toward the player's usual
+    availability over the horizon.
 
-    ``base_minutes_prob`` is P(plays this GW) at offset 0 (next GW). For
-    later GWs we mix in some weight of "fully recovered" per
-    ``AVAILABILITY_DECAY_CURVE``: a flagged-50% player gets 0.5 next GW
-    but ~1.0 by GW+5.
+    ``base_minutes_prob`` is P(plays this GW) at offset 0 (next GW);
+    ``recovered_minutes_prob`` is P(plays) once any flag has cleared,
+    i.e. his season play rate. Later GWs mix in more of the recovered
+    value per ``AVAILABILITY_DECAY_CURVE``. Recovering toward 1.0 instead
+    made never-picked squad players look like starters a few weeks out
+    (#233).
 
-    Beyond the curve length we treat the player as fully recovered.
+    Beyond the curve length the player is fully recovered.
     """
     if gw_offset >= len(AVAILABILITY_DECAY_CURVE):
-        return 1.0
+        return recovered_minutes_prob
     weight = AVAILABILITY_DECAY_CURVE[gw_offset]
-    return base_minutes_prob * (1.0 - weight) + 1.0 * weight
+    return base_minutes_prob * (1.0 - weight) + recovered_minutes_prob * weight
 
 
 def xp_for_horizon(
@@ -586,6 +593,7 @@ def xp_for_horizon(
     rates: PerNinetyRates,
     fixtures_by_gw: Mapping[int, Sequence[FixtureContext]],
     base_minutes_prob: float,
+    recovered_minutes_prob: float,
     coefs: V2Coefficients,
     rules: ScoringRules = DEFAULT_RULES,
 ) -> dict[int, XpV2Components]:
@@ -593,8 +601,9 @@ def xp_for_horizon(
 
     ``fixtures_by_gw[gw]`` is a list of fixtures (1 normal, 2 DGW, 0
     blank). ``base_minutes_prob`` is P(plays) for the EARLIEST GW in the
-    horizon; later GWs get ``availability_curve(base_minutes_prob, gw_offset)``
-    so a flagged player isn't pinned at 0% for the entire window. ``p60``
+    horizon; later GWs move toward ``recovered_minutes_prob`` (see
+    ``availability_curve``) so a flagged player isn't pinned at 0% for
+    the entire window. ``p60``
     for each GW = decayed minutes_prob × rates.historical_p60.
 
     Total horizon xP = sum(c.total for c in result.values()) — kept
@@ -604,7 +613,9 @@ def xp_for_horizon(
     out: dict[int, XpV2Components] = {}
     for offset, gw in enumerate(sorted_gws):
         cop = availability_curve(
-            base_minutes_prob=base_minutes_prob, gw_offset=offset
+            base_minutes_prob=base_minutes_prob,
+            recovered_minutes_prob=recovered_minutes_prob,
+            gw_offset=offset,
         )
         p60 = cop * rates.historical_p60
         out[gw] = xp_for_gameweek(

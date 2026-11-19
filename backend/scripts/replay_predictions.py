@@ -13,8 +13,9 @@ suspension flags, so that is the whole availability signal here: a
 player injured last week looks as available as his minutes say.
 
 The horizon goes through ``xp_for_horizon``, the same function the
-nightly analyzer uses, so later gameweeks get its availability decay
-exactly as production does.
+nightly analyzer uses. With no injury flags, availability starts and
+recovers at the play rate, so it stays flat across the horizon, as it
+does in production for an unflagged player.
 
 Known limits: a player counts from his first row (registration) and
 keeps counting after he leaves the league, damped only by his falling
@@ -131,7 +132,7 @@ def predict_horizon(
         }
         components_by_gw = xp_for_horizon(
             position=position, rates=rates, fixtures_by_gw=fixtures_by_gw,
-            base_minutes_prob=minutes_prob, coefs=coefs,
+            base_minutes_prob=minutes_prob, recovered_minutes_prob=minutes_prob, coefs=coefs,
         )
         predictions[player_id] = {
             gameweek: components.total for gameweek, components in components_by_gw.items()
