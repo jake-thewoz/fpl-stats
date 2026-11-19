@@ -209,6 +209,29 @@ python3 delete_v1_xp_rows.py --table-name "$TABLE" --dry-run
 python3 delete_v1_xp_rows.py --table-name "$TABLE"
 ```
 
+## `replay_accuracy.py` — honest single-gameweek accuracy
+
+`replay_predictions.predict_horizon(season, as_of_gw, horizon, ...)`
+gives every player's xP for the next `horizon` gameweeks, using only what
+was known before `as_of_gw` (the fixture list aside). It is the engine the
+season replay runs on. Chance of playing is the season play rate so far;
+the archive has no injury flags. Opponent strength is pluggable:
+`NeutralStrength` (0.5) or `FplDifficultyStrength` (FPL's 1–5 difficulty).
+
+`replay_accuracy.py` predicts each gameweek from 5 on for **every** player
+(0 points if they didn't play) and reports MAE and Spearman ρ:
+
+```bash
+cd backend/scripts
+source .venv/bin/activate
+python3 replay_accuracy.py --season 2025-26 --strength neutral
+python3 replay_accuracy.py --season 2025-26 --strength fpl
+```
+
+Writes `backtest_results/replay-accuracy-<season>-<strength>-<date>.md`
+(`--dry-run` only prints). Non-players dominate these rows and are easy to
+predict, so the numbers are not comparable with `backtest_xp.py`'s.
+
 ## `season_archive.py` — past seasons for the fit and replay
 
 Our cache only holds the current season (FPL renumbers player ids every
