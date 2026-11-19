@@ -160,16 +160,20 @@ Two guards:
 
 **Horizon decay** (`layers/fpl_schemas/python/xp_v2.py:availability_curve`):
 
-`xp_for_horizon` interpolates `p_any` from the GW-0 base toward 1.0
-across the horizon (`AVAILABILITY_DECAY_CURVE = (0.0, 0.4, 0.7, 0.9, 1.0)`).
-A flagged-50% player gets 0.5 next GW, 0.7 the GW after, 1.0 by GW+4 —
-captures typical short-term injury recovery without modelling per-injury
-detail. `p60` for each horizon GW is `p_any × historical_p60`. This
-applies on top of the dampened base, so a fringe player with
-`p_any=0.018` decays toward 1.0 the same way; their xP rises across
-the horizon but stays low because the per-90 rates and `p60` also
-lift along with `p_any`. The dampener is doing the right thing across
-all horizon offsets.
+`xp_for_horizon` interpolates `p_any` from the GW-0 base toward the
+player's season play rate across the horizon
+(`AVAILABILITY_DECAY_CURVE = (0.0, 0.4, 0.7, 0.9, 1.0)`). A flagged-50%
+starter with a 0.9 play rate gets 0.5 next GW, 0.66 the GW after, 0.9 by
+GW+4. That captures typical short-term injury recovery without modelling
+per-injury detail. `p60` for each horizon GW is `p_any × historical_p60`.
+
+An unflagged player's base already *is* his play rate, so his `p_any` is
+flat across the horizon. Until #233 the curve recovered toward 1.0 for
+everyone, so a squad player with `p_any=0.02` was treated as a starter
+by GW+4: 396 such players averaged 0.02 xP next week but 3.45 four weeks
+out, inflating cheap bench options and transfer horizons. The season
+replay scored the fix higher in all six season/strength runs
+(2023-24 to 2025-26, about +40 points a season on average).
 
 **Where the dampened value is surfaced.** `analyze_player_xp_v2`
 writes `season_play_rate` into the stored `components` map next to

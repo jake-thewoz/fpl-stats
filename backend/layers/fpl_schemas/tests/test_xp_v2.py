@@ -364,24 +364,34 @@ def test_flagged_player_total_zero() -> None:
 
 
 def test_availability_curve_at_offset_zero_is_base() -> None:
-    assert availability_curve(base_minutes_prob=0.5, gw_offset=0) == pytest.approx(0.5)
+    assert availability_curve(
+        base_minutes_prob=0.5, recovered_minutes_prob=0.9, gw_offset=0,
+    ) == pytest.approx(0.5)
 
 
-def test_availability_curve_decays_toward_one() -> None:
-    """A flagged-50% player drifts up across the curve."""
+def test_availability_curve_decays_toward_recovered() -> None:
+    """A flagged-50% starter drifts up to his usual play rate."""
     values = [
-        availability_curve(base_minutes_prob=0.5, gw_offset=i)
+        availability_curve(base_minutes_prob=0.5, recovered_minutes_prob=0.9, gw_offset=i)
         for i in range(len(AVAILABILITY_DECAY_CURVE))
     ]
-    # Monotone non-decreasing.
     for prev, curr in zip(values, values[1:]):
         assert curr >= prev
-    assert values[-1] == pytest.approx(1.0)
+    assert values[-1] == pytest.approx(0.9)
 
 
-def test_availability_curve_caps_at_one_beyond_curve() -> None:
-    """Out-of-curve offsets are treated as fully recovered."""
-    assert availability_curve(base_minutes_prob=0.0, gw_offset=42) == pytest.approx(1.0)
+def test_availability_curve_is_flat_for_an_unflagged_player() -> None:
+    """A squad player who is rarely picked stays rarely picked (#233)."""
+    for offset in range(len(AVAILABILITY_DECAY_CURVE) + 2):
+        assert availability_curve(
+            base_minutes_prob=0.02, recovered_minutes_prob=0.02, gw_offset=offset,
+        ) == pytest.approx(0.02)
+
+
+def test_availability_curve_is_recovered_beyond_curve() -> None:
+    assert availability_curve(
+        base_minutes_prob=0.0, recovered_minutes_prob=0.8, gw_offset=42,
+    ) == pytest.approx(0.8)
 
 
 def test_horizon_returns_per_gw_breakdown_and_decays_minutes() -> None:
@@ -393,7 +403,7 @@ def test_horizon_returns_per_gw_breakdown_and_decays_minutes() -> None:
     out = xp_for_horizon(
         position=MID, rates=rates,
         fixtures_by_gw=fixtures_by_gw, base_minutes_prob=0.0,
-        coefs=_TEST_COEFS,
+        recovered_minutes_prob=1.0, coefs=_TEST_COEFS,
     )
     assert sorted(out.keys()) == [30, 31, 32]
     # minutes_prob walks 0 → 0.4 → 0.7 along the curve.
@@ -412,7 +422,7 @@ def test_horizon_blank_gw_in_middle_zeros_only_that_gw() -> None:
     out = xp_for_horizon(
         position=MID, rates=rates,
         fixtures_by_gw=fixtures_by_gw, base_minutes_prob=1.0,
-        coefs=_TEST_COEFS,
+        recovered_minutes_prob=1.0, coefs=_TEST_COEFS,
     )
     assert out[31].total == 0.0
     assert out[30].total > 0

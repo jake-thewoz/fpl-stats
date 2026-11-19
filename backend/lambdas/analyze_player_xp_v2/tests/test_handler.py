@@ -655,6 +655,11 @@ def test_fringe_player_xp_dampened_by_season_play_rate(mock_table) -> None:
     assert fringe_cop100["xp"] == pytest.approx(fringe["xp"])
     assert fringe_cop100["xp"] < Decimal("1.0")
 
+    # Not picked isn't an injury: the fringe player stays a fringe
+    # player in every horizon week rather than recovering toward
+    # starter xP (#233).
+    assert max(fringe["horizon_xp_by_gw"].values()) < Decimal("1.0")
+
     # Sanity: the surfaced ``season_play_rate`` matches what we expect.
     # 50 / (90 · 6) ≈ 0.0926.
     fringe_components = fringe["components"]

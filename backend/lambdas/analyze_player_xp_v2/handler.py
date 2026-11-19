@@ -324,6 +324,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 rates=rates,
                 fixtures_by_gw=fixtures_by_gw,
                 base_minutes_prob=mins_prob,
+                recovered_minutes_prob=play_rate,
                 coefs=coefs,
             )
 
