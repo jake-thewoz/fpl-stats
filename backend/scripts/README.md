@@ -134,6 +134,43 @@ re-run.
   cache. FPL adjusts these rarely, but historical values may differ
   slightly. Phase 3.x can fix this by archiving fixture snapshots.
 
+## `optimize_squad.py` — best 15 for a budget (wildcard / free hit)
+
+The transfer suggester searches up to five swaps from your current
+squad, so it cannot plan a wildcard. This script picks the whole squad:
+15 players, the starting XI and the captain that maximise xP under the
+budget, position and three-per-club rules. It solves the choice exactly
+with an integer-programming solver (PuLP's bundled CBC) in about a
+second. Read-only: it reads the bootstrap and the production xP rows.
+
+```bash
+cd /home/jakob/dev/fpl-stats/backend/scripts
+source .venv/bin/activate
+pip install -r requirements.txt
+TABLE=$(jq -r '.FplStatsStack.CacheTableName' /home/jakob/dev/fpl-stats/backend/.deploy-outputs.json)
+
+python3 optimize_squad.py --table-name "$TABLE" --budget 100.0
+```
+
+Flags:
+
+- `--budget` (required): total in £m. FPL does not publish selling
+  prices, so read it off the FPL transfers screen: money remaining plus
+  the selling value of your squad.
+- `--horizon` (default 5): how many upcoming gameweeks of xP to sum.
+- `--bench-weight` (default 0.1): how much a bench player's xP counts
+  next to a starter's. Raise it for a stronger bench.
+- `--lock <id>` / `--exclude <id>`: force a player in or out. Repeatable.
+  Player ids are printed at the end of each row.
+
+What it does not do: chips, price changes, planning later transfers, or
+re-picking the XI each gameweek (one XI is chosen for the whole
+horizon). Injured and suspended players are left out. The result is
+only as good as the xP behind it.
+
+The logic lives in `squad_optimizer.py` (pure, tested in
+`tests/test_squad_optimizer.py`); the season replay will reuse it.
+
 ## `delete_v1_xp_rows.py` — one-off legacy cleanup
 
 The v1 analyzer Lambda was retired alongside the v2 cutover (#118 +
