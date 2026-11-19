@@ -5,5 +5,7 @@ from pathlib import Path
 # schemas the same way fit_xp_v2.py does at script-run time.
 _THIS_DIR = Path(__file__).parent
 _LAYER_PY_DIR = _THIS_DIR.parent / "layers" / "fpl_schemas" / "python"
+_TRANSFER_LAMBDA_DIR = _THIS_DIR.parent / "lambdas" / "analyze_transfer_suggestions"
+sys.path.insert(0, str(_TRANSFER_LAMBDA_DIR))
 sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))

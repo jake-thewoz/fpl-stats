@@ -33,6 +33,7 @@ from compute import MAX_PLAYERS_PER_TEAM  # noqa: E402
 from data import load_bootstrap  # noqa: E402
 from schemas import Bootstrap, utc_now  # noqa: E402
 from squad_optimizer import (  # noqa: E402
+    DEFAULT_BENCH_WEIGHT,
     Candidate,
     NoFeasibleSquad,
     OptimizedSquad,
@@ -47,7 +48,6 @@ log = logging.getLogger(__name__)
 
 _DEFAULT_HORIZON = 5
 _MAX_HORIZON = 5
-_DEFAULT_BENCH_WEIGHT = 0.1
 _TENTHS_PER_MILLION = 10
 # 'a' = available, 'd' = doubtful (xP already discounts the doubt).
 # Injured, suspended and unavailable players are left out entirely.
@@ -139,9 +139,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--horizon", type=int, default=_DEFAULT_HORIZON,
                         choices=range(1, _MAX_HORIZON + 1),
                         help=f"Gameweeks of xP to sum (default {_DEFAULT_HORIZON}).")
-    parser.add_argument("--bench-weight", type=float, default=_DEFAULT_BENCH_WEIGHT,
+    parser.add_argument("--bench-weight", type=float, default=DEFAULT_BENCH_WEIGHT,
                         help="How much a bench player's xP counts relative to a "
-                             f"starter's (default {_DEFAULT_BENCH_WEIGHT}).")
+                             f"starter's (default {DEFAULT_BENCH_WEIGHT}).")
     parser.add_argument("--lock", type=int, action="append", default=[],
                         metavar="PLAYER_ID", help="Force a player in. Repeatable.")
     parser.add_argument("--exclude", type=int, action="append", default=[],

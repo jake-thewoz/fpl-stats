@@ -227,12 +227,17 @@ _OPP_STRENGTH_FIELD: dict[str, str] = {
 
 
 def load_default_coefficients() -> V2Coefficients:
-    """Read the bundled coefficients JSON and parse into V2Coefficients.
+    """Read the bundled coefficients JSON."""
+    return load_coefficients(_COEFFICIENTS_FILE)
+
+
+def load_coefficients(path: Path) -> V2Coefficients:
+    """Parse a coefficients JSON file into V2Coefficients.
 
     JSON object keys are strings; per-position dicts are converted to
     int-keyed at parse time. Extra keys (e.g. ``_comment``) are ignored.
     """
-    with _COEFFICIENTS_FILE.open() as fh:
+    with path.open() as fh:
         data = json.load(fh)
 
     def _int_keyed(name: str) -> dict[int, float]:

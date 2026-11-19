@@ -20,6 +20,10 @@ import pulp
 from xp_v2 import DEF, FWD, GKP, MID
 
 
+# How much a bench player's xP counts next to a starter's.
+DEFAULT_BENCH_WEIGHT = 0.1
+
+
 class NoFeasibleSquad(Exception):
     """The pool, budget, locks and exclusions admit no legal squad."""
 
