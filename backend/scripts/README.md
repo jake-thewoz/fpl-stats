@@ -232,6 +232,29 @@ Writes `backtest_results/replay-accuracy-<season>-<strength>-<date>.md`
 (`--dry-run` only prints). Non-players dominate these rows and are easy to
 predict, so the numbers are not comparable with `backtest_xp.py`'s.
 
+## `replay_season.py` — does following xP win FPL points?
+
+A simulated manager plays a past season from gameweek 5, one gameweek at
+a time, seeing only the past: best squad for £100.0m at the start, then
+each week one transfer if it gains, the best XI, a captain and
+auto-subs, scored with real points. Strategies differ only in how they
+rate players: `xp` (the app's model), `xp_no_transfers`, `form` (last 4
+gameweeks), `ownership` (what the crowd owns) and `hindsight` (actual
+points, the ceiling).
+
+```bash
+cd backend/scripts
+source .venv/bin/activate
+python3 replay_season.py --season 2025-26 --strength fpl
+python3 replay_season.py --season 2025-26 --strength fpl --coefficients candidate.json
+```
+
+Writes `backtest_results/replay-<season>-<strength>-<date>.md`, about 3
+seconds. **No model change ships unless the `xp` total goes up.** Swings
+of about 150 points come from the starting squad alone, so treat a small
+gain as noise. Rules and simplifications are in `season_replay.py`'s
+docstring; scorers in `replay_strategies.py`.
+
 ## `season_archive.py` — past seasons for the fit and replay
 
 Our cache only holds the current season (FPL renumbers player ids every
