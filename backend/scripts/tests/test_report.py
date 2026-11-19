@@ -1,9 +1,16 @@
 """Snapshot tests for the markdown fit-report renderer."""
 from __future__ import annotations
 
-from fit import FitPair
+from dataclasses import replace
+
+from fit import KEPT_TOO_FEW_EVENTS, FitPair, KeptWeight
+from fit_gate import SanityCheck, ShipGate, ValidationMetrics
 from report import render_fit_report
 from xp_v2 import DEF, FWD, GKP, MID, V2Coefficients, XpV2Components
+
+FIT_DATE = "2026-04-28"
+CURRENT_SEASON = "2026-27"
+ARCHIVE_SEASON = "2025-26"
 
 
 def _coefs(goals_mid: float = 1.0) -> V2Coefficients:
@@ -27,110 +34,81 @@ def _coefs(goals_mid: float = 1.0) -> V2Coefficients:
     )
 
 
-def _pair(*, round_: int = 5, total_pred: float = 5.0, total_act: float = 5.0) -> FitPair:
+def _pair(*, round_: int = 5, season: str = CURRENT_SEASON) -> FitPair:
     blank = XpV2Components(
         minutes_prob=1.0, p60=1.0,
         appearance_xp=2.0, goals_xp=0.0, assists_xp=0.0, cs_xp=0.0,
         concede_xp=0.0, saves_xp=0.0, bonus_xp=0.0, defcon_xp=0.0,
         discipline_xp=0.0, total=2.0,
     )
-    from dataclasses import replace
     return FitPair(
-        player_id=1, round=round_, position=MID,
-        predicted=replace(blank, total=total_pred),
-        actual=replace(blank, total=total_act),
+        season=season, player_id=1, round=round_, position=MID,
+        predicted=replace(blank, total=5.0),
+        actual=replace(blank, total=5.0),
     )
 
 
-def test_render_includes_header_train_validation_and_diff_table() -> None:
-    """Smoke-render and confirm the major sections are present."""
-    report = render_fit_report(
-        train=[_pair(round_=1), _pair(round_=2)],
+EMPTY_METRICS = ValidationMetrics(None, None, {}, {})
+
+
+def _render(**overrides) -> str:
+    arguments = dict(
+        train=[],
+        validation=[],
+        rows_loaded_by_season={},
+        coefs_before=_coefs(),
+        coefs_after=_coefs(),
+        kept=[],
+        metrics_before=EMPTY_METRICS,
+        metrics_after=EMPTY_METRICS,
+        checks=[SanityCheck("No weight flipped sign", True, "")],
+        gate=ShipGate([]),
+        fit_date=FIT_DATE,
+    )
+    arguments.update(overrides)
+    return render_fit_report(**arguments)
+
+
+def test_render_includes_header_data_diff_and_metrics() -> None:
+    report = _render(
+        train=[_pair(round_=5, season=ARCHIVE_SEASON), _pair(round_=6)],
         validation=[_pair(round_=10)],
+        rows_loaded_by_season={ARCHIVE_SEASON: 100, CURRENT_SEASON: 40},
         coefs_before=_coefs(goals_mid=1.0),
         coefs_after=_coefs(goals_mid=1.5),
-        metrics_before={"mae": {MID: 0.8}, "spearman": {MID: 0.4}},
-        metrics_after={"mae": {MID: 0.5}, "spearman": {MID: 0.7}},
-        fit_date="2026-04-28",
+        metrics_before=ValidationMetrics(0.8, 0.4, {MID: 0.8}, {MID: 0.4}),
+        metrics_after=ValidationMetrics(0.5, 0.7, {MID: 0.5}, {MID: 0.7}),
     )
-    assert "# xP v2 fit report — 2026-04-28" in report
-    assert "Training**: 2 pairs, GW 1–2" in report
-    assert "Validation**: 1 pairs, GW 10" in report
-    assert "## Coefficient changes" in report
-    assert "goals_w" in report
-    assert "## Validation metrics (per position)" in report
-    assert "## Sanity checks" in report
-    # The diff row reflects the 1.0 → 1.5 change with a 1.500 ratio.
+
+    assert f"# xP v2 fit report — {FIT_DATE}" in report
+    assert "**Ship gate: PASS**" in report
+    assert f"| {ARCHIVE_SEASON} | 100 | 1 | 0 |" in report
+    assert f"| {CURRENT_SEASON} | 40 | 1 | 1 |" in report
+    assert "| **total** | 140 | 2 | 1 |" in report
     assert "| `goals_w` | MID | 1.0000 | 1.5000 | 1.500 |" in report
+    assert "| MID | 0.800 | 0.500 | 0.400 | 0.700 |" in report
+    assert "| **overall** | 0.800 | 0.500 | 0.400 | 0.700 |" in report
+    assert "✓ No weight flipped sign" in report
 
 
 def test_render_handles_empty_diff() -> None:
-    """No fit happened (or every weight already mean-matched) → friendly
-    fallback, not an empty table."""
-    report = render_fit_report(
-        train=[],
-        validation=[],
-        coefs_before=_coefs(),
-        coefs_after=_coefs(),
-        metrics_before={"mae": {}, "spearman": {}},
-        metrics_after={"mae": {}, "spearman": {}},
-        fit_date="2026-04-28",
-    )
-    assert "No weights changed" in report
+    assert "No weights changed" in _render()
 
 
-def test_render_flags_sign_flip_in_sanity_checks() -> None:
-    """A sign-flipped weight should fail the 'No weight flipped sign'
-    check — the reviewer needs to see this immediately."""
-    before = _coefs(goals_mid=1.0)
-    after = _coefs(goals_mid=-0.5)
-    report = render_fit_report(
-        train=[], validation=[],
-        coefs_before=before, coefs_after=after,
-        metrics_before={"mae": {}, "spearman": {}},
-        metrics_after={"mae": {}, "spearman": {}},
-        fit_date="2026-04-28",
-    )
-    assert "✗ No weight flipped sign" in report
+def test_render_lists_failed_gate_rules() -> None:
+    report = _render(gate=ShipGate(["Overall MAE did not improve (1.000 → 1.100)."]))
+
+    assert "**Ship gate: FAIL**" in report
+    assert "- Overall MAE did not improve (1.000 → 1.100)." in report
 
 
-def test_render_flags_extreme_weight() -> None:
-    """A weight outside [0.05, 5.0] should trigger the plausible-range
-    sanity check."""
-    after = _coefs(goals_mid=10.0)
-    report = render_fit_report(
-        train=[], validation=[],
-        coefs_before=_coefs(), coefs_after=after,
-        metrics_before={"mae": {}, "spearman": {}},
-        metrics_after={"mae": {}, "spearman": {}},
-        fit_date="2026-04-28",
-    )
-    assert "✗ All weights in plausible range" in report
+def test_render_lists_kept_weights_with_reason() -> None:
+    report = _render(kept=[KeptWeight("assists", GKP, KEPT_TOO_FEW_EVENTS, 12)])
+
+    assert f"| `assists_w` | GK | 12 | {KEPT_TOO_FEW_EVENTS} |" in report
 
 
-def test_render_flags_weight_that_collapsed_to_zero() -> None:
-    """A weight that was non-zero and is now exactly 0 must fail the
-    plausible-range check, not be mistaken for an ineligible position."""
-    after = _coefs(goals_mid=0.0)
-    report = render_fit_report(
-        train=[], validation=[],
-        coefs_before=_coefs(), coefs_after=after,
-        metrics_before={"mae": {}, "spearman": {}},
-        metrics_after={"mae": {}, "spearman": {}},
-        fit_date="2026-04-28",
-    )
-    assert "✗ All weights in plausible range" in report
-    assert "goals_w[3]=0.000" in report
+def test_render_flags_failed_sanity_check() -> None:
+    report = _render(checks=[SanityCheck("No weight flipped sign", False, "goals_w[3]: 1→-1")])
 
-
-def test_render_ignores_weight_that_was_already_zero() -> None:
-    """Ineligible positions (cs_w[FWD], saves_w[DEF], ...) sit at 0 on
-    both sides and must not trip the check."""
-    report = render_fit_report(
-        train=[], validation=[],
-        coefs_before=_coefs(), coefs_after=_coefs(),
-        metrics_before={"mae": {}, "spearman": {}},
-        metrics_after={"mae": {}, "spearman": {}},
-        fit_date="2026-04-28",
-    )
-    assert "✓ All weights in plausible range" in report
+    assert "✗ No weight flipped sign — goals_w[3]: 1→-1" in report

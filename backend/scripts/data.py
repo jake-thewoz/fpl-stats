@@ -124,6 +124,9 @@ def build_pairs(
         if team_id is not None:
             rows_by_team[team_id].append(row)
 
+    # Team xGC depends only on (team, round); computing it once per pair
+    # rescans the whole team's history every time.
+    team_xgc_by_team_round: dict[tuple[int, int], float] = {}
     pairs: list[FitPair] = []
     skipped_unmapped = 0
     skipped_short_minutes = 0
@@ -139,12 +142,15 @@ def build_pairs(
             skipped_unmapped += 1
             continue
 
-        team_xgc = compute_team_xgc_at_gw(
-            team_history_rows=rows_by_team[team_id],
-            as_of_gw=row.round,
-            priors=priors,
-            window=window,
-        )
+        team_round = (team_id, row.round)
+        if team_round not in team_xgc_by_team_round:
+            team_xgc_by_team_round[team_round] = compute_team_xgc_at_gw(
+                team_history_rows=rows_by_team[team_id],
+                as_of_gw=row.round,
+                priors=priors,
+                window=window,
+            )
+        team_xgc = team_xgc_by_team_round[team_round]
         rates = compute_rates_at_gw(
             history=rows_by_player[row.element],
             position=position,
@@ -175,6 +181,7 @@ def build_pairs(
         actual = decompose_actual_xp(position=position, row=row, rules=DEFAULT_RULES)
 
         pairs.append(FitPair(
+            season=season.season,
             player_id=row.element,
             round=row.round,
             position=position,

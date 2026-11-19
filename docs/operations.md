@@ -187,7 +187,14 @@ FPL renumbers **player ids and fixture ids** every August. In 2026 this went unn
 - [ ] `/analytics/players/xp` `computed_at` is from last night and names the right gameweek.
 - [ ] Spot-check a well-known player's xP (Haaland, Bruno Fernandes) against intuition.
 
-**Re-fit coefficients** around GW10 once enough of the new season exists; a fit on only GW1–5 validated worse than last season's weights in 2026.
+**Re-fit coefficients** from about GW8. The fit trains on four past seasons from the public archive, so the current season is only the validation set (its last 3 rounds) plus a small part of training; before ~GW8 that validation set is early-season noise. Run a dry run first, and write only if the ship gate passes:
+
+```bash
+cd /home/jakob/dev/fpl-stats/backend/scripts && source .venv/bin/activate
+python3 fit_xp_v2.py --table-name "$TABLE" --dry-run
+```
+
+The report opens with `Ship gate: PASS` or `FAIL` and the rule that failed. On PASS, re-run without `--dry-run` and follow "After running the fit" in [`backend/scripts/README.md`](../backend/scripts/README.md).
 
 ## Development gotchas
 

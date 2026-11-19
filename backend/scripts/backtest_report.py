@@ -18,9 +18,9 @@ from backtest import (
     spearman_overall,
     top_k_hit_rate,
 )
+from fit import POSITION_NAMES
 from xp_v2 import DEF, FWD, GKP, MID
 
-_POSITION_NAMES = {GKP: "GK", DEF: "DEF", MID: "MID", FWD: "FWD"}
 
 
 def render_backtest_report(
@@ -95,7 +95,7 @@ def render_backtest_report(
         m1 = mae_v1_by_pos.get(pos)
         m2 = mae_v2_by_pos.get(pos)
         if m1 is None or m2 is None:
-            lines.append(f"| {_POSITION_NAMES[pos]} | — | — | — | — |")
+            lines.append(f"| {POSITION_NAMES[pos]} | — | — | — | — |")
             continue
         delta = m2 - m1
         regression = ""
@@ -106,7 +106,7 @@ def render_backtest_report(
             elif pct < -0.05:
                 regression = f"↓ {pct:.1%}"
         lines.append(
-            f"| {_POSITION_NAMES[pos]} | {m1:.4f} | {m2:.4f} | {delta:+.4f} | {regression} |"
+            f"| {POSITION_NAMES[pos]} | {m1:.4f} | {m2:.4f} | {delta:+.4f} | {regression} |"
         )
     lines.append("")
 
@@ -120,10 +120,10 @@ def render_backtest_report(
         s1 = sp_v1_by_pos.get(pos)
         s2 = sp_v2_by_pos.get(pos)
         if s1 is None or s2 is None:
-            lines.append(f"| {_POSITION_NAMES[pos]} | — | — | — |")
+            lines.append(f"| {POSITION_NAMES[pos]} | — | — | — |")
             continue
         lines.append(
-            f"| {_POSITION_NAMES[pos]} | {s1:.4f} | {s2:.4f} | {s2 - s1:+.4f} |"
+            f"| {POSITION_NAMES[pos]} | {s1:.4f} | {s2:.4f} | {s2 - s1:+.4f} |"
         )
     lines.append("")
 
