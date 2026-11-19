@@ -16,6 +16,8 @@ from xp_v2_features import FeatureWindow, PositionPriors
 
 XP = "xp"
 XP_NO_TRANSFERS = "xp_no_transfers"
+XP_USE_BANKED = "xp_use_banked"
+XP_ALLOW_HITS = "xp_allow_hits"
 FORM = "form"
 OWNERSHIP = "ownership"
 HINDSIGHT = "hindsight"

@@ -5,13 +5,17 @@ from dataclasses import replace
 
 import pytest
 
+from compute import HIT_COST_POINTS, MAX_BANKED_FREE_TRANSFERS
+from replay_policies import AllowHits, UseBanked, one_a_week
 from replay_strategies import form_scorer, hindsight_scorer, ownership_scorer
 from schemas import Fixture, PlayerHistoryRow
 from season_data import SeasonData
 from season_replay import (
+    IllegalTransfer,
     Lineup,
     ReplayConfig,
     Scores,
+    Transfer,
     archive_player,
     pick_lineup,
     run_replay,
@@ -24,6 +28,7 @@ from xp_v2 import DEF, FWD, GKP, MID
 SEASON = "2025-26"
 FIRST_GAMEWEEK = 1
 LAST_GAMEWEEK = 3
+LONG_SEASON_LAST_GAMEWEEK = 8
 PRICE = 50
 # A small game: 2 GKP, 3 DEF, 3 MID, 2 FWD; 7 start (1 GKP, ≥2 DEF, ≥2 MID, ≥1 FWD).
 RULES = SquadRules(
@@ -34,8 +39,8 @@ RULES = SquadRules(
     max_starters_by_position={GKP: 1},
 )
 SQUAD_PRICE = 10 * PRICE
-CONFIG = ReplayConfig(start_gameweek=FIRST_GAMEWEEK, budget_tenths=SQUAD_PRICE, horizon=1,
-                      rules=RULES)
+CONFIG = ReplayConfig(transfer_policy=one_a_week, start_gameweek=FIRST_GAMEWEEK,
+                      budget_tenths=SQUAD_PRICE, horizon=1, rules=RULES)
 
 # player id -> position; ids 1-10 are the "good" pool, 11-20 the rest.
 POSITION_BY_PLAYER = {
@@ -55,15 +60,16 @@ def _row(player_id: int, gameweek: int, points: int, minutes: int = 90) -> Playe
 
 
 def _season(points: dict[tuple[int, int], int], *, price: dict[tuple[int, int], int] = {},
-            selected: dict[tuple[int, int], int] = {}) -> SeasonData:
+            selected: dict[tuple[int, int], int] = {},
+            last_gameweek: int = LAST_GAMEWEEK) -> SeasonData:
     """Every player has a row every gameweek; unlisted points are 0 with
     0 minutes. Each player is on his own club so the club limit never binds."""
     rows = []
-    for gameweek in range(FIRST_GAMEWEEK, LAST_GAMEWEEK + 1):
+    for gameweek in range(FIRST_GAMEWEEK, last_gameweek + 1):
         for player_id in POSITION_BY_PLAYER:
             scored = points.get((player_id, gameweek))
             rows.append(_row(player_id, gameweek, scored or 0, 0 if scored is None else 90))
-    keys = [(p, g) for p in POSITION_BY_PLAYER for g in range(FIRST_GAMEWEEK, LAST_GAMEWEEK + 1)]
+    keys = [(p, g) for p in POSITION_BY_PLAYER for g in range(FIRST_GAMEWEEK, last_gameweek + 1)]
     return SeasonData(
         season=SEASON, rows=rows, position_by_player=POSITION_BY_PLAYER,
         team_by_player_round={key: key[0] for key in keys},
@@ -71,7 +77,7 @@ def _season(points: dict[tuple[int, int], int], *, price: dict[tuple[int, int], 
         selected_by_player_round={key: selected.get(key, 0) for key in keys},
         name_by_player={p: f"player{p}" for p in POSITION_BY_PLAYER},
         fixtures=[Fixture(id=g, event=g, team_h=1, team_a=2, finished=True)
-                  for g in range(FIRST_GAMEWEEK, LAST_GAMEWEEK + 1)],
+                  for g in range(FIRST_GAMEWEEK, last_gameweek + 1)],
     )
 
 
@@ -155,8 +161,8 @@ class TestRunReplay:
                 scores[16] = 5.0  # MID 16 becomes the best midfielder
             return _fixed_scorer(scores)(season, as_of_gw, horizon)
         result = run_replay(_season({}), scorer, CONFIG)
-        transfer = result.gameweeks[1].transfer
-        assert transfer is not None and transfer.in_player_id == 16
+        (transfer,) = result.gameweeks[1].transfers
+        assert transfer.in_player_id == 16
         assert result.transfers_made == 1
 
     def test_no_transfer_when_unaffordable(self):
@@ -174,7 +180,7 @@ class TestRunReplay:
     def test_transfers_disabled(self):
         def scorer(season, as_of_gw, horizon):
             return _fixed_scorer(GOOD_POOL_SCORES | {16: 5.0})(season, as_of_gw, horizon)
-        result = run_replay(_season({}), scorer, replace(CONFIG, transfers_enabled=False))
+        result = run_replay(_season({}), scorer, replace(CONFIG, transfer_policy=None))
         assert result.transfers_made == 0
 
     def test_hindsight_beats_every_other_strategy_and_runs_are_identical(self):
@@ -188,6 +194,131 @@ class TestRunReplay:
         assert totals["hindsight_scorer"] >= max(totals.values())
         assert run_replay(season, hindsight_scorer, CONFIG) == run_replay(
             season, hindsight_scorer, CONFIG)
+
+
+def _scripted_policy(moves_by_gameweek: dict[int, tuple[Transfer, ...]]):
+    return lambda state: moves_by_gameweek.get(state.gameweek, ())
+
+
+class TestFreeTransfersAndHits:
+    POINTS = {(p, g): 1 for p in range(1, 11) for g in range(1, LONG_SEASON_LAST_GAMEWEEK + 1)}
+
+    def _run(self, policy):
+        season = _season(self.POINTS, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        return run_replay(season, _fixed_scorer(GOOD_POOL_SCORES),
+                          replace(CONFIG, transfer_policy=policy))
+
+    def test_unused_transfers_are_saved_up_to_the_cap(self):
+        result = self._run(_scripted_policy({}))
+        saved = [week.free_transfers_after for week in result.gameweeks]
+        assert saved == [1, 2, 3, 4, 5, 5, 5, 5]
+        assert saved[-1] == MAX_BANKED_FREE_TRANSFERS == result.free_transfers_at_end
+
+    def test_saved_transfers_cover_several_moves_without_a_hit(self):
+        # Two saved by gameweek 3: both moves are free, and one new
+        # transfer arrives afterwards.
+        moves = (Transfer(6, 16, 0.0), Transfer(7, 17, 0.0))
+        result = self._run(_scripted_policy({3: moves}))
+        week = result.gameweeks[2]
+        assert (week.hit_points, week.free_transfers_after) == (0, 1)
+        assert result.hit_points == 0
+
+    def test_a_transfer_beyond_the_saved_count_costs_a_hit(self):
+        # One saved by gameweek 2, two moves made: one hit. Two midfielders
+        # must start and 16 and 17 don't play, so six starters score 1,
+        # plus the captain's 1 again, minus the hit.
+        moves = (Transfer(6, 16, 0.0), Transfer(7, 17, 0.0))
+        result = self._run(_scripted_policy({2: moves}))
+        week = result.gameweeks[1]
+        assert week.hit_points == HIT_COST_POINTS
+        assert week.points == 7 - HIT_COST_POINTS
+        assert week.free_transfers_after == 1
+
+    @pytest.mark.parametrize("move", [
+        Transfer(16, 17, 0.0),   # selling a player not in the squad
+        Transfer(6, 7, 0.0),     # buying a player already in the squad
+        Transfer(6, 13, 0.0),    # midfielder for a defender
+    ])
+    def test_an_illegal_move_raises(self, move):
+        with pytest.raises(IllegalTransfer):
+            self._run(_scripted_policy({2: (move,)}))
+
+    def test_buying_a_fourth_player_from_a_club_raises(self):
+        season = _season(self.POINTS, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        crowded_club = 6
+        teams = dict(season.team_by_player_round)
+        for player_id in (7, 8, 16):
+            for gameweek in range(FIRST_GAMEWEEK, LONG_SEASON_LAST_GAMEWEEK + 1):
+                teams[(player_id, gameweek)] = crowded_club
+        season = replace(season, team_by_player_round=teams)
+        config = replace(CONFIG, transfer_policy=_scripted_policy({2: (Transfer(3, 13, 0.0),)}))
+        # Three from one club already: an unrelated move is fine.
+        run_replay(season, _fixed_scorer(GOOD_POOL_SCORES), config)
+        config = replace(CONFIG, transfer_policy=_scripted_policy({2: (Transfer(9, 19, 0.0),)}))
+        teams[(19, 2)] = crowded_club
+        with pytest.raises(IllegalTransfer):
+            run_replay(replace(season, team_by_player_round=teams),
+                       _fixed_scorer(GOOD_POOL_SCORES), config)
+
+    def test_a_squad_players_real_life_move_does_not_block_other_transfers(self):
+        season = _season(self.POINTS, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        teams = dict(season.team_by_player_round)
+        for player_id in (7, 8, 9):
+            for gameweek in range(2, LONG_SEASON_LAST_GAMEWEEK + 1):
+                teams[(player_id, gameweek)] = 6  # three squad players join player 6's club
+        config = replace(CONFIG, transfer_policy=_scripted_policy({2: (Transfer(3, 13, 0.0),)}))
+        result = run_replay(replace(season, team_by_player_round=teams),
+                            _fixed_scorer(GOOD_POOL_SCORES), config)
+        assert result.transfers_made == 1
+
+    def test_overspending_raises(self):
+        season = _season(self.POINTS, price={(16, 2): PRICE + 1},
+                         last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        policy = _scripted_policy({2: (Transfer(6, 16, 0.0),)})
+        with pytest.raises(IllegalTransfer):
+            run_replay(season, _fixed_scorer(GOOD_POOL_SCORES),
+                       replace(CONFIG, transfer_policy=policy))
+
+
+class TestSavingPolicies:
+    """Squad players score 2.0; MID 16 improves by ``gain`` from gameweek 2."""
+
+    MIN_GAIN = 3.0
+
+    def _run(self, policy, gains: dict[int, float]):
+        def scorer(season, as_of_gw, horizon):
+            scores = dict(GOOD_POOL_SCORES)
+            if as_of_gw >= 2:
+                scores |= {player: 2.0 + gain for player, gain in gains.items()}
+            return _fixed_scorer(scores)(season, as_of_gw, horizon)
+        season = _season({}, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        return run_replay(season, scorer, replace(CONFIG, transfer_policy=policy))
+
+    def test_use_banked_keeps_the_transfer_when_the_gain_is_small(self):
+        result = self._run(UseBanked(self.MIN_GAIN), {16: self.MIN_GAIN - 1})
+        # Saved until the cap, where a transfer would otherwise be wasted.
+        assert [len(week.transfers) for week in result.gameweeks] == [0, 0, 0, 0, 0, 1, 0, 0]
+
+    def test_use_banked_spends_when_the_gain_is_big_enough(self):
+        result = self._run(UseBanked(self.MIN_GAIN), {16: self.MIN_GAIN + 1})
+        assert [len(week.transfers) for week in result.gameweeks][:3] == [0, 1, 0]
+        assert result.gameweeks[1].transfers[0].expected_gain == pytest.approx(self.MIN_GAIN + 1)
+
+    def test_use_banked_never_takes_a_hit(self):
+        big = self.MIN_GAIN + HIT_COST_POINTS + 1
+        result = self._run(UseBanked(self.MIN_GAIN), {16: big, 17: big})
+        assert result.hit_points == 0
+        assert [len(week.transfers) for week in result.gameweeks][:3] == [0, 1, 1]
+
+    def test_allow_hits_takes_a_hit_only_when_the_gain_covers_it(self):
+        big = self.MIN_GAIN + HIT_COST_POINTS + 1
+        result = self._run(AllowHits(self.MIN_GAIN), {16: big, 17: big})
+        assert len(result.gameweeks[1].transfers) == 2
+        assert result.gameweeks[1].hit_points == HIT_COST_POINTS
+
+        not_enough = self.MIN_GAIN + HIT_COST_POINTS - 1
+        result = self._run(AllowHits(self.MIN_GAIN), {16: not_enough, 17: not_enough})
+        assert result.hit_points == 0
 
 
 class TestScorers:
@@ -219,5 +350,5 @@ def test_report_lists_strategies_by_total():
     report = render_replay_report(results=results, ceiling_name="hindsight", season=SEASON,
                                   strength_name="neutral", coefficients_label="bundled",
                                   run_date="2026-11-19")
-    assert "| steady | 24 | 3 | 0 | 100% |" in report
+    assert "| steady | 24 | 3 | 0 | 0 | 3 | 100% |" in report
     assert "## Simplifications" in report

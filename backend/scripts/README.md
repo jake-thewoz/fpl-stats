@@ -237,10 +237,16 @@ predict, so the numbers are not comparable with `backtest_xp.py`'s.
 A simulated manager plays a past season from gameweek 5, one gameweek at
 a time, seeing only the past: best squad for £100.0m at the start, then
 each week one transfer if it gains, the best XI, a captain and
-auto-subs, scored with real points. Strategies differ only in how they
-rate players: `xp` (the app's model), `xp_no_transfers`, `form` (last 4
-gameweeks), `ownership` (what the crowd owns) and `hindsight` (actual
-points, the ceiling).
+auto-subs, scored with real points. Strategies differ in how they rate
+players: `xp` (the app's model), `form` (last 4 gameweeks), `ownership`
+(what the crowd owns) and `hindsight` (actual points, the ceiling).
+
+Transfers follow FPL's rules: unused free transfers are saved up to
+five, and extra ones cost 4 points. What to do with them is a transfer
+policy (`replay_policies.py`): `one_a_week` (the default for the
+strategies above), `use_banked` (`xp_use_banked`: saves transfers for
+bigger gains), `allow_hits` (`xp_allow_hits`: may also take one hit a
+week) or none (`xp_no_transfers`).
 
 ```bash
 cd backend/scripts
