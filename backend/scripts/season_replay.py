@@ -5,27 +5,29 @@ Pure: ``replay_season.py`` does the loading and writing. Strategies
 differ only in their scorer (``replay_strategies.py``); the squad,
 transfer, line-up and scoring rules here are shared by all of them.
 
+Transfers follow FPL's rules: one free transfer arrives each gameweek,
+unused ones are saved up to five, and every transfer beyond the saved
+count costs 4 points. *Which* transfers to make is the transfer policy's
+choice (``replay_policies.py``); the replay only checks they are legal.
+
 Simplifications:
 
-- One free transfer a week, never banked, no hits, no chips.
+- No chips.
 - Buy price = sell price = that round's price (FPL's sell-on profit
   rule is ignored).
 - No injury news: scorers only see past minutes.
 - The replay starts at gameweek 5, so totals cover GW5 to the end.
 - No vice-captain: if the captain doesn't play, nobody is doubled.
 
-The transfer search is production's ``suggest_transfer_bundles``, with
-the same 25-candidates-per-slot shortlist: if the 25 best upgrades for
-every slot are unaffordable, no transfer is made, as in the app.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Protocol
+from typing import Callable, Protocol
 
-from compute import MAX_PLAYERS_PER_TEAM, suggest_transfer_bundles
+from compute import HIT_COST_POINTS, MAX_BANKED_FREE_TRANSFERS, MAX_PLAYERS_PER_TEAM
 from schemas import Player
 from season_data import SeasonData
 from squad_optimizer import DEFAULT_BENCH_WEIGHT, Candidate, SquadRules, optimize_squad
@@ -34,9 +36,7 @@ from xp_v2 import GKP
 START_GAMEWEEK = 5
 STARTING_BUDGET_TENTHS = 1000
 SCORING_HORIZON = 3
-FREE_TRANSFERS_PER_WEEK = 1
-TRANSFERS_PER_WEEK = 1
-MIN_TRANSFER_GAIN = 0.0
+FREE_TRANSFERS_GAINED_PER_WEEK = 1
 CAPTAIN_MULTIPLIER = 2
 # Player fields the transfer search never reads; archive players have no
 # live equivalents, so these fill the required schema slots.
@@ -54,11 +54,39 @@ class Scorer(Protocol):
 
 
 @dataclass(frozen=True)
+class Transfer:
+    out_player_id: int
+    in_player_id: int
+    expected_gain: float
+
+
+@dataclass(frozen=True)
+class TransferState:
+    """What a transfer policy sees just before a gameweek's deadline."""
+
+    season: SeasonData
+    gameweek: int
+    squad: frozenset[int]
+    bank: int
+    free_transfers: int
+    scores: Scores
+
+
+TransferPolicy = Callable[[TransferState], tuple[Transfer, ...]]
+
+
+class IllegalTransfer(Exception):
+    """A policy asked for a move FPL would not allow."""
+
+
+@dataclass(frozen=True)
 class ReplayConfig:
+    """``transfer_policy=None`` keeps the starting squad all season."""
+
+    transfer_policy: TransferPolicy | None = None
     start_gameweek: int = START_GAMEWEEK
     budget_tenths: int = STARTING_BUDGET_TENTHS
     horizon: int = SCORING_HORIZON
-    transfers_enabled: bool = True
     bench_weight: float = DEFAULT_BENCH_WEIGHT
     rules: SquadRules = field(
         default_factory=lambda: SquadRules(max_players_per_team=MAX_PLAYERS_PER_TEAM)
@@ -73,19 +101,16 @@ class Lineup:
 
 
 @dataclass(frozen=True)
-class Transfer:
-    out_player_id: int
-    in_player_id: int
-    expected_gain: float
-
-
-@dataclass(frozen=True)
 class GameweekResult:
+    """``points`` is net of ``hit_points``."""
+
     gameweek: int
     points: int
     captain_bonus: int
     automatic_substitutions: int
-    transfer: Transfer | None
+    transfers: tuple[Transfer, ...]
+    hit_points: int
+    free_transfers_after: int
 
 
 @dataclass(frozen=True)
@@ -102,7 +127,15 @@ class ReplayResult:
 
     @property
     def transfers_made(self) -> int:
-        return sum(1 for week in self.gameweeks if week.transfer is not None)
+        return sum(len(week.transfers) for week in self.gameweeks)
+
+    @property
+    def hit_points(self) -> int:
+        return sum(week.hit_points for week in self.gameweeks)
+
+    @property
+    def free_transfers_at_end(self) -> int:
+        return self.gameweeks[-1].free_transfers_after
 
 
 @dataclass(frozen=True)
@@ -127,13 +160,23 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
     scores = scorer(season, config.start_gameweek, config.horizon)
     squad, bank = _initial_squad(season, scores, config)
 
+    # Building the squad is not a transfer; its deadline grants the first free one.
+    free_transfers = 0
     weeks: list[GameweekResult] = []
     for gameweek in range(config.start_gameweek, last_gameweek + 1):
-        transfer = None
+        transfers: tuple[Transfer, ...] = ()
+        hit_points = 0
         if gameweek > config.start_gameweek:
             scores = scorer(season, gameweek, config.horizon)
-            if config.transfers_enabled:
-                transfer, squad, bank = _best_transfer(season, scores, squad, bank, gameweek)
+            if config.transfer_policy is not None:
+                state = TransferState(season, gameweek, squad, bank, free_transfers, scores)
+                transfers = tuple(config.transfer_policy(state))
+                squad, bank = apply_transfers(state, transfers, config.rules)
+                hit_points = max(0, len(transfers) - free_transfers) * HIT_COST_POINTS
+                free_transfers = max(0, free_transfers - len(transfers))
+        free_transfers = min(
+            MAX_BANKED_FREE_TRANSFERS, free_transfers + FREE_TRANSFERS_GAINED_PER_WEEK,
+        )
         lineup = pick_lineup(
             squad=squad,
             score_by_player={p: scores.get(p, {}).get(gameweek, 0.0) for p in squad},
@@ -148,8 +191,9 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
             rules=config.rules,
         )
         weeks.append(GameweekResult(
-            gameweek=gameweek, points=points, captain_bonus=captain_bonus,
-            automatic_substitutions=substitutions, transfer=transfer,
+            gameweek=gameweek, points=points - hit_points, captain_bonus=captain_bonus,
+            automatic_substitutions=substitutions, transfers=transfers,
+            hit_points=hit_points, free_transfers_after=free_transfers,
         ))
     return ReplayResult(gameweeks=tuple(weeks))
 
@@ -264,7 +308,7 @@ def _initial_squad(
             horizon_xp=sum(scores.get(player_id, {}).values()),
             next_gw_xp=scores.get(player_id, {}).get(gameweek, 0.0),
         )
-        for player_id in _buyable_players(season, gameweek)
+        for player_id in buyable_players(season, gameweek)
     ]
     squad = optimize_squad(
         candidates=candidates, budget_tenths=config.budget_tenths,
@@ -276,29 +320,46 @@ def _initial_squad(
     )
 
 
-def _best_transfer(
-    season: SeasonData, scores: Scores, squad: frozenset[int], bank: int, gameweek: int,
-) -> tuple[Transfer | None, frozenset[int], int]:
-    bundles = suggest_transfer_bundles(
-        squad=[archive_player(season, p, gameweek) for p in sorted(squad)],
-        bank=bank,
-        candidate_pool=[archive_player(season, p, gameweek) for p in _buyable_players(season, gameweek)],
-        horizon_xps={player_id: sum(by_gw.values()) for player_id, by_gw in scores.items()},
-        free_transfers=FREE_TRANSFERS_PER_WEEK,
-        max_transfers=TRANSFERS_PER_WEEK,
-        top_n=1,
-    )
-    if not bundles or bundles[0].delta_xp_net <= MIN_TRANSFER_GAIN:
-        return None, squad, bank
-    move = bundles[0].moves[0]
-    return (
-        Transfer(move.out_player_id, move.in_player_id, move.delta_xp),
-        (squad - {move.out_player_id}) | {move.in_player_id},
-        bank - move.cost_change,
-    )
+def apply_transfers(
+    state: TransferState, transfers: tuple[Transfer, ...], rules: SquadRules,
+) -> tuple[frozenset[int], int]:
+    """The squad and bank after ``transfers``, or ``IllegalTransfer``.
+
+    Buys and sells at the gameweek's price. Budget and the club limit
+    are checked once all moves are made, so one sale can fund another buy."""
+    season, gameweek = state.season, state.gameweek
+    squad = set(state.squad)
+    bank = state.bank
+    buyable = set(buyable_players(season, gameweek))
+    for transfer in transfers:
+        sold, bought = transfer.out_player_id, transfer.in_player_id
+        if sold not in squad:
+            raise IllegalTransfer(f"GW{gameweek}: player {sold} is not in the squad")
+        if bought in squad or bought not in buyable:
+            raise IllegalTransfer(f"GW{gameweek}: player {bought} cannot be bought")
+        if season.position_by_player[sold] != season.position_by_player[bought]:
+            raise IllegalTransfer(f"GW{gameweek}: {sold} -> {bought} changes position")
+        squad.remove(sold)
+        squad.add(bought)
+        bank += (
+            archive_player(season, sold, gameweek).now_cost
+            - archive_player(season, bought, gameweek).now_cost
+        )
+    if bank < 0:
+        raise IllegalTransfer(f"GW{gameweek}: transfers overspend by {-bank}")
+    players_by_club: dict[int, int] = defaultdict(int)
+    for player_id in squad:
+        players_by_club[archive_player(season, player_id, gameweek).team] += 1
+    # Only clubs bought into are checked: a squad player's real-life move
+    # can leave four from one club, which FPL lets a manager keep.
+    for transfer in transfers:
+        club = archive_player(season, transfer.in_player_id, gameweek).team
+        if players_by_club[club] > rules.max_players_per_team:
+            raise IllegalTransfer(f"GW{gameweek}: too many players from club {club}")
+    return frozenset(squad), bank
 
 
-def _buyable_players(season: SeasonData, gameweek: int) -> list[int]:
+def buyable_players(season: SeasonData, gameweek: int) -> list[int]:
     """Players with a price this round, i.e. registered and in the game."""
     return sorted(
         player_id for (player_id, round_number) in season.value_by_player_round

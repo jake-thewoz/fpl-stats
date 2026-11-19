@@ -5,7 +5,10 @@ from __future__ import annotations
 from season_replay import ReplayResult
 
 SIMPLIFICATIONS = (
-    "One free transfer a week, never banked, no hits, no chips.",
+    "No chips.",
+    "Each strategy's transfer policy is in its name: `xp`, `form`, `ownership` and "
+    "`hindsight` make one transfer a week if it gains anything; `xp_use_banked` saves "
+    "transfers for bigger gains; `xp_allow_hits` may also take one 4-point hit a week.",
     "Buy price = sell price = that round's price.",
     "No injury news: scorers only see past minutes.",
     "Starts at gameweek 5, so totals cover GW5 to the end of the season.",
@@ -32,14 +35,16 @@ def render_replay_report(
         f"`{ceiling_name}` knows the actual points in advance: it is the ceiling, "
         "not a strategy anyone can follow.",
         "",
-        "| strategy | total points | captain bonus | transfers | share of ceiling |",
-        "|---|---|---|---|---|",
+        "| strategy | total points | captain bonus | transfers | hit points | "
+        "saved at end | share of ceiling |",
+        "|---|---|---|---|---|---|---|",
     ]
     for name, result in sorted(results.items(), key=lambda item: -item[1].total_points):
         share = result.total_points / ceiling_total if ceiling_total else 0.0
         lines.append(
             f"| {name} | {result.total_points} | {result.captain_bonus} | "
-            f"{result.transfers_made} | {share:.0%} |"
+            f"{result.transfers_made} | {result.hit_points} | "
+            f"{result.free_transfers_at_end} | {share:.0%} |"
         )
 
     names = list(results)
@@ -47,7 +52,8 @@ def render_replay_report(
     lines += [
         "",
         "Captain bonus is the extra points from the armband (the captain's points counted "
-        "a second time).",
+        "a second time). Total points are after hits. Saved at end is free transfers left "
+        "unused after the last gameweek.",
         "",
         "## Points by gameweek",
         "",

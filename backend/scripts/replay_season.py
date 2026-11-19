@@ -27,12 +27,15 @@ sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from replay_accuracy import DEFAULT_STRENGTH, STRENGTH_BY_NAME  # noqa: E402
+from replay_policies import AllowHits, UseBanked, one_a_week  # noqa: E402
 from replay_strategies import (  # noqa: E402
     FORM,
     HINDSIGHT,
     OWNERSHIP,
     XP,
+    XP_ALLOW_HITS,
     XP_NO_TRANSFERS,
+    XP_USE_BANKED,
     XpScorer,
     form_scorer,
     hindsight_scorer,
@@ -72,11 +75,13 @@ def main(argv: list[str] | None = None) -> int:
         fixture_strength=STRENGTH_BY_NAME[args.strength],
     )
     strategies = {
-        XP: (xp_scorer, ReplayConfig()),
-        XP_NO_TRANSFERS: (xp_scorer, ReplayConfig(transfers_enabled=False)),
-        FORM: (form_scorer, ReplayConfig()),
-        OWNERSHIP: (ownership_scorer, ReplayConfig()),
-        HINDSIGHT: (hindsight_scorer, ReplayConfig()),
+        XP: (xp_scorer, ReplayConfig(transfer_policy=one_a_week)),
+        XP_USE_BANKED: (xp_scorer, ReplayConfig(transfer_policy=UseBanked())),
+        XP_ALLOW_HITS: (xp_scorer, ReplayConfig(transfer_policy=AllowHits())),
+        XP_NO_TRANSFERS: (xp_scorer, ReplayConfig()),
+        FORM: (form_scorer, ReplayConfig(transfer_policy=one_a_week)),
+        OWNERSHIP: (ownership_scorer, ReplayConfig(transfer_policy=one_a_week)),
+        HINDSIGHT: (hindsight_scorer, ReplayConfig(transfer_policy=one_a_week)),
     }
     results = {}
     for name, (scorer, config) in strategies.items():
