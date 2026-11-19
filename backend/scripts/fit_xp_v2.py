@@ -45,7 +45,7 @@ _LAYER_PY_DIR = _THIS_DIR.parent / "layers" / "fpl_schemas" / "python"
 sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
-from data import build_pairs, load_bootstrap, scan_player_history  # noqa: E402
+from data import build_pairs  # noqa: E402
 from fit import (  # noqa: E402
     capped_holdout_rounds,
     fit_per_component_weights,
@@ -54,6 +54,7 @@ from fit import (  # noqa: E402
     time_series_split,
 )
 from report import render_fit_report  # noqa: E402
+from season_archive import load_current_season  # noqa: E402
 from xp_v2 import V2Coefficients, load_default_coefficients  # noqa: E402
 from xp_v2_features import FeatureWindow, load_default_priors  # noqa: E402
 
@@ -126,10 +127,9 @@ def main(argv: list[str] | None = None) -> int:
 
     table = boto3.resource("dynamodb", region_name=args.region).Table(args.table_name)
 
-    log.info("Loading bootstrap + history rows from %s", args.table_name)
-    bootstrap = load_bootstrap(table)
-    history_rows = scan_player_history(table)
-    if not history_rows:
+    log.info("Loading the current season from %s", args.table_name)
+    season = load_current_season(table)
+    if not season.rows:
         log.error("No fpl#player_history#* rows found in the cache. Has "
                   "ingest_player_history run yet?")
         return 1
@@ -140,8 +140,7 @@ def main(argv: list[str] | None = None) -> int:
 
     log.info("Building training pairs (point-in-time features per row)")
     pairs = build_pairs(
-        history_rows=history_rows,
-        bootstrap=bootstrap,
+        season=season,
         coefs=coefs_before,
         priors=priors,
         window=window,
@@ -178,8 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     # is a few seconds.
     log.info("Re-evaluating pairs under fitted coefficients")
     pairs_after = build_pairs(
-        history_rows=history_rows,
-        bootstrap=bootstrap,
+        season=season,
         coefs=coefs_after,
         priors=priors,
         window=window,
