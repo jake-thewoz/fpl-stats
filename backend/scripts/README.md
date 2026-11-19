@@ -5,13 +5,14 @@ deps (boto3, pandas-equivalent) stay out of Lambda's bundle. The only
 artifact these scripts produce that ships is a few JSON files in the
 shared layer (`xp_v2_coefficients.json`, `xp_v2_priors.json`).
 
-## `fit_xp_v2.py` — recalibrate v2 coefficients from cached history
+## `fit_xp_v2.py` — recalibrate v2 coefficients from four past seasons plus this one
 
-Run manually ~4× per season at the cadence agreed in the v2 plan
-(pre-season, GW5, GW15, GW25). Reads every cached
-`fpl#player_history#*` row from the cache table, builds point-in-time
-training pairs through the Phase 2 feature pipeline, and mean-matches
-per-component-per-position weights against actual outcomes.
+Run manually from about GW8, then every ~10 gameweeks (GW8, GW18, GW28).
+Trains on the four archive seasons (see `season_archive.py`) plus the
+current season from the cache table, builds point-in-time training pairs
+one season at a time through the Phase 2 feature pipeline, and
+mean-matches per-component-per-position weights against actual outcomes.
+A ship gate decides whether the new weights get written.
 
 ### Setup (first time only)
 
@@ -29,34 +30,45 @@ TABLE=$(aws cloudformation describe-stacks --stack-name FplStatsStack \
   --query 'Stacks[0].Outputs[?OutputKey==`CacheTableName`].OutputValue' \
   --output text)
 
-# Dry run first — prints the report and what *would* be written, without
-# touching the bundled JSON. Use this on every fit.
+# Dry run first: prints the report, writes nothing. Exit code 1 means
+# the ship gate failed.
 python3 fit_xp_v2.py --table-name "$TABLE" --dry-run
 
-# If the report looks sane, re-run without --dry-run to commit the
-# new coefficients + a dated fit-report file.
+# Writes the dated fit report, and the coefficients only if the gate passes.
 python3 fit_xp_v2.py --table-name "$TABLE"
 ```
+
+`--force` writes the coefficients even when the gate fails.
+`--holdout-rounds` (default 3) and `--min-train-round` (default 5) adjust
+the split described below.
 
 ### What the fit does
 
 For each `(component, position)` pair (e.g. `goals_w[MID]`), the new
 weight is the old weight times `sum(actual_component) / sum(predicted_component)`
 on the training set. This is the simplest calibration that produces
-per-position-correct component contributions on average. The training
-set is everything except the last 5 GWs; metrics are reported on the
-held-out validation set so we can see whether mean-matching generalizes.
-When the history spans fewer rounds than that, the holdout shrinks so at
-least one round is left to train on (the script logs a warning).
+per-position-correct component contributions on average.
 
-A bucket with no actual events in the training set (e.g. no FWD defcon
-points yet) keeps its old weight. Fitting it to 0 would be permanent:
-a zero weight predicts nothing, and the fit skips buckets with nothing
-predicted, so later fits could never raise it again.
+- **Training** = every archive season plus the current season except its
+  last 3 rounds, with rounds below 5 dropped (early-round features are
+  mostly position priors, so weights learned there don't transfer).
+- **Validation** = the current season's last 3 rounds, unfiltered.
+- **Season filter**: a component is only fitted on seasons where its
+  current scoring rule existed: defcon from 2025-26, bonus from 2026-27
+  (`FIRST_VALID_SEASON_BY_COMPONENT` in `fit.py`).
+- **Kept weights**: a bucket keeps its old weight when nothing was
+  predicted, when there were no actual events (a zero weight could never
+  recover), or when fewer than 30 training rows had an event (one
+  goalkeeper assist once pushed `assists_w[GK]` to 10.4). The report
+  lists each kept bucket and why.
 
-**Early season:** the GW5 fit has only ~4 rounds to train on. In
-2026/27 that sample made validation MAE worse, not better, so the fit
-was deferred to ~GW10. Treat the GW5 run as a check, not a commitment.
+**Ship gate** (`fit_gate.py`), judged on validation, old vs new weights:
+overall MAE lower, no position's MAE more than 1% worse, overall
+Spearman ρ down by no more than 0.005, and the sanity checks pass.
+
+**Early season:** the archive makes training data plentiful from day one,
+but validation is the current season's last 3 rounds, so a fit before
+~GW8 is judged on early-season noise.
 
 ### What the fit explicitly does NOT do
 
@@ -74,9 +86,10 @@ was deferred to ~GW10. Treat the GW5 run as a check, not a commitment.
 ### After running the fit
 
 1. Inspect the printed/written report — the dated file lands in
-   `backend/scripts/fit_reports/<date>.md`.
-2. Eyeball the sanity checks (no sign flips, weights in plausible
-   ranges).
+   `backend/scripts/fit_reports/<date>.md`. It opens with the gate's
+   PASS/FAIL and which rule failed.
+2. If the gate failed, the JSON is unchanged: commit just the report.
+   Otherwise eyeball the sanity checks and kept-weight table.
 3. The `test_default_coefficients_synthetic_set_snapshot` test in
    `backend/layers/fpl_schemas/tests/test_xp_v2.py` will fail until you
    update the expected totals — this is intentional, the snapshot is

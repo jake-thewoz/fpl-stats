@@ -231,12 +231,15 @@ new GW.
 |---|---|
 | `layers/fpl_schemas/python/xp_v2.py` | The math itself. Pure compute, no I/O. `xp_for_fixture`, `xp_for_gameweek`, `xp_for_horizon`, plus the `ScoringRules` and `V2Coefficients` dataclasses. |
 | `layers/fpl_schemas/python/xp_v2_coefficients.json` | Bundled coefficients. Loaded at Lambda init via `load_default_coefficients()`. |
-| `scripts/fit_xp_v2.py` | Offline calibration. Mean-matches per-component-per-position weights against actual outcomes on the training set, writes new JSON. |
+| `scripts/fit_xp_v2.py` | Offline calibration on four archive seasons plus the current one. Mean-matches per-component-per-position weights against actual outcomes, writes new JSON only if a ship gate passes on the current season's last 3 rounds. |
 | `scripts/fit_reports/<date>.md` | Markdown reports per fit run, committed alongside the JSON change. |
 
-**Cadence**: pre-season, GW5, GW15, GW25 — captures structural shifts
-(new managers, mid-season meta, scoring rule tweaks like 25/26's defcon)
-without overfitting on weekly noise.
+**Cadence**: from about GW8, then every ~10 gameweeks. Training uses four
+past seasons from the public archive plus the current one, so data volume
+no longer waits for the season; the current season's last 3 rounds are
+the validation set, which needs a few weeks to mean anything. Scoring
+rule changes are handled per component: defcon only fits on 2025-26
+onward, bonus only on 2026-27 onward.
 
 A snapshot test at
 `layers/fpl_schemas/tests/test_xp_v2.py:test_default_coefficients_synthetic_set_snapshot`
@@ -300,8 +303,12 @@ python3 fit_xp_v2.py --table-name "$TABLE" --dry-run   # eyeball first
 python3 fit_xp_v2.py --table-name "$TABLE"              # commit-mode
 ```
 
-Outputs: updated `xp_v2_coefficients.json` + a dated `fit_reports/<date>.md`.
-The snapshot test will fail until you update its expected values; that's
+Outputs: a dated `fit_reports/<date>.md`, and an updated
+`xp_v2_coefficients.json` only if the ship gate passes (overall MAE
+lower, no position more than 1% worse, Spearman ρ not down more than
+0.005, sanity checks pass); `--force` overrides it. Details in
+[`backend/scripts/README.md`](../backend/scripts/README.md).
+When the JSON changes, the snapshot test will fail until you update its expected values; that's
 intentional — re-compute by running `scripts/fit_xp_v2.py` against the
 synthetic test data, or just paste the assertion failures' actuals.
 

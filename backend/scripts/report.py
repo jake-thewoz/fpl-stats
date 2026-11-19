@@ -4,184 +4,153 @@ Output goes to ``backend/scripts/fit_reports/<date>.md`` so the PR diff
 shows the human-readable summary alongside the coefficient JSON change.
 The reviewer reads the report and sanity-checks before merging.
 
-Three things every report must surface
---------------------------------------
-1. **Coefficient diffs** — what the fit changed. A ratio column makes
-   wild swings (>3x or <0.3x) easy to eyeball.
-2. **Validation metrics** per position — MAE and Spearman ρ. Not
-   training metrics, since training mean-matching trivially zeroes the
-   bias on its own data; only validation tells us whether we're
-   overfitting.
-3. **Sanity checks** — assertions the reviewer wants to confirm at a
-   glance: no weight has flipped sign, no per-position multiplier is
-   absurdly large, etc.
+What every report must surface
+------------------------------
+1. **Ship gate** — PASS or FAIL, and which rule failed.
+2. **Data** — seasons used, rows per season, and the train/validation split.
+3. **Coefficient diffs** — what the fit changed, with a ratio column so
+   wild swings (>3x or <0.3x) are easy to eyeball, plus the buckets that
+   kept their old weight and why.
+4. **Validation metrics** — MAE and Spearman ρ, overall and per position.
+   Not training metrics: mean-matching trivially zeroes the bias on its
+   own data, so only validation shows whether the fit generalizes.
+5. **Sanity checks** — no sign flip, no absurd weight.
 """
 from __future__ import annotations
 
+from collections import Counter
 from typing import Iterable
 
-from fit import FitPair, mae_per_position, spearman_per_position
+from fit import POSITION_NAMES, FitPair, KeptWeight, coefficient_diffs
+from fit_gate import SanityCheck, ShipGate, ValidationMetrics
 from xp_v2 import DEF, FWD, GKP, MID, V2Coefficients
 
-_POSITION_NAMES = {GKP: "GK", DEF: "DEF", MID: "MID", FWD: "FWD"}
+_REPORT_POSITIONS = (GKP, DEF, MID, FWD)
 
 
 def render_fit_report(
     *,
     train: list[FitPair],
     validation: list[FitPair],
+    rows_loaded_by_season: dict[str, int],
     coefs_before: V2Coefficients,
     coefs_after: V2Coefficients,
-    metrics_before: dict[str, dict[int, float]],
-    metrics_after: dict[str, dict[int, float]],
+    kept: list[KeptWeight],
+    metrics_before: ValidationMetrics,
+    metrics_after: ValidationMetrics,
+    checks: list[SanityCheck],
+    gate: ShipGate,
     fit_date: str,
 ) -> str:
-    """Compose the markdown body. Inputs are pre-computed metric dicts
-    so the renderer stays a pure-format function.
-
-    ``metrics_before`` / ``metrics_after`` shape:
-        {"mae": {pos: value, ...}, "spearman": {pos: value, ...}}
-    """
     lines: list[str] = []
     lines.append(f"# xP v2 fit report — {fit_date}")
     lines.append("")
-    train_rounds = _round_range(train)
-    val_rounds = _round_range(validation)
-    lines.append(f"- **Training**: {len(train)} pairs, GW {train_rounds}")
-    lines.append(f"- **Validation**: {len(validation)} pairs, GW {val_rounds}")
+    lines.append(f"**Ship gate: {'PASS' if gate.ok else 'FAIL'}**")
+    for failure in gate.failures:
+        lines.append(f"- {failure}")
+    lines.append("")
+
+    lines.append("## Data")
+    lines.append("")
+    train_pairs_by_season = Counter(pair.season for pair in train)
+    validation_pairs_by_season = Counter(pair.season for pair in validation)
+    lines.append("| season | rows loaded | training pairs | validation pairs |")
+    lines.append("|---|---|---|---|")
+    for season, rows_loaded in sorted(rows_loaded_by_season.items()):
+        lines.append(
+            f"| {season} | {rows_loaded} | {train_pairs_by_season[season]} | "
+            f"{validation_pairs_by_season[season]} |"
+        )
+    lines.append(
+        f"| **total** | {sum(rows_loaded_by_season.values())} | {len(train)} | "
+        f"{len(validation)} |"
+    )
+    lines.append("")
+    lines.append(f"- **Training**: {len(train)} pairs, GW {_round_range(train)} per season")
+    lines.append(f"- **Validation**: {len(validation)} pairs, GW {_round_range(validation)}")
     lines.append("")
 
     lines.append("## Coefficient changes")
     lines.append("")
-    diffs = _coefficient_diffs(coefs_before, coefs_after)
+    diffs = coefficient_diffs(before=coefs_before, after=coefs_after)
     if not diffs:
         lines.append("No weights changed. (Either an empty training set or every "
                      "component already mean-matched to its target.)")
     else:
         lines.append("| weight | position | before | after | ratio |")
         lines.append("|---|---|---|---|---|")
-        for name, pos, b, a in diffs:
-            ratio = a / b if b != 0 else float("inf")
-            ratio_str = f"{ratio:.3f}" if b != 0 else "—"
+        for name, position, before_value, after_value in diffs:
+            ratio = f"{after_value / before_value:.3f}" if before_value != 0 else "—"
             lines.append(
-                f"| `{name}` | {_POSITION_NAMES.get(pos, pos)} | "
-                f"{b:.4f} | {a:.4f} | {ratio_str} |"
+                f"| `{name}` | {POSITION_NAMES.get(position, position)} | "
+                f"{before_value:.4f} | {after_value:.4f} | {ratio} |"
             )
     lines.append("")
 
-    lines.append("## Validation metrics (per position)")
+    lines.append("## Weights kept unchanged")
+    lines.append("")
+    if not kept:
+        lines.append("None: every eligible weight was fitted.")
+    else:
+        lines.append("| weight | position | rows with an event | reason |")
+        lines.append("|---|---|---|---|")
+        for bucket in kept:
+            lines.append(
+                f"| `{bucket.component}_w` | {POSITION_NAMES.get(bucket.position, bucket.position)} | "
+                f"{bucket.nonzero_actual_rows} | {bucket.reason} |"
+            )
+    lines.append("")
+
+    lines.append("## Validation metrics")
     lines.append("")
     lines.append("| position | MAE before | MAE after | ρ before | ρ after |")
     lines.append("|---|---|---|---|---|")
-    for pos in (GKP, DEF, MID, FWD):
-        mb = metrics_before["mae"].get(pos)
-        ma = metrics_after["mae"].get(pos)
-        sb = metrics_before["spearman"].get(pos)
-        sa = metrics_after["spearman"].get(pos)
+    for position in _REPORT_POSITIONS:
         lines.append(
-            f"| {_POSITION_NAMES[pos]} | "
-            f"{_fmt(mb)} | {_fmt(ma)} | "
-            f"{_fmt(sb)} | {_fmt(sa)} |"
+            f"| {POSITION_NAMES[position]} | "
+            f"{_fmt(metrics_before.mae_by_position.get(position))} | "
+            f"{_fmt(metrics_after.mae_by_position.get(position))} | "
+            f"{_fmt(metrics_before.spearman_by_position.get(position))} | "
+            f"{_fmt(metrics_after.spearman_by_position.get(position))} |"
         )
+    lines.append(
+        f"| **overall** | {_fmt(metrics_before.mae_overall)} | "
+        f"{_fmt(metrics_after.mae_overall)} | {_fmt(metrics_before.spearman_overall)} | "
+        f"{_fmt(metrics_after.spearman_overall)} |"
+    )
     lines.append("")
 
     lines.append("## Sanity checks")
     lines.append("")
-    checks = _sanity_checks(coefs_before, coefs_after)
-    for label, ok, detail in checks:
-        marker = "✓" if ok else "✗"
-        suffix = f" — {detail}" if detail else ""
-        lines.append(f"- {marker} {label}{suffix}")
+    for check in checks:
+        marker = "✓" if check.ok else "✗"
+        suffix = f" — {check.detail}" if check.detail else ""
+        lines.append(f"- {marker} {check.label}{suffix}")
     lines.append("")
 
     lines.append("## Notes")
     lines.append("")
     lines.append(
         "- `opp_strength_w_*` and `home_advantage` were **not** re-fit "
-        "in this run — see `backend/scripts/README.md` for the deferred "
-        "Phase 3.x plan."
+        "in this run (see #226)."
     )
     lines.append(
         "- `overall_scale` was **not** re-fit. Per-component "
-        "mean-matching already calibrates absolute level; "
-        "`overall_scale` will be revisited if Phase 4 backtest shows "
-        "residual bias."
+        "mean-matching already calibrates absolute level."
     )
     lines.append(
         "- Position priors in `xp_v2_priors.json` were **not** re-fit. "
-        "They control feature smoothing, not predictions; Phase 3.x "
-        "will re-fit them from history aggregates."
+        "They control feature smoothing, not predictions."
     )
     return "\n".join(lines)
 
 
 def _round_range(pairs: Iterable[FitPair]) -> str:
-    pair_list = list(pairs)
-    if not pair_list:
+    rounds = sorted({pair.round for pair in pairs})
+    if not rounds:
         return "(none)"
-    rounds = sorted({p.round for p in pair_list})
     return f"{rounds[0]}–{rounds[-1]}"
 
 
 def _fmt(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
-
-
-def _coefficient_diffs(
-    before: V2Coefficients,
-    after: V2Coefficients,
-) -> list[tuple[str, int, float, float]]:
-    """Same shape as ``fit.coefficient_diffs`` — duplicated locally to
-    keep the report self-contained for snapshot testing."""
-    components = ("goals", "assists", "cs", "concede", "saves", "defcon", "bonus")
-    rows: list[tuple[str, int, float, float]] = []
-    for component in components:
-        before_w = getattr(before, f"{component}_w")
-        after_w = getattr(after, f"{component}_w")
-        for pos in sorted(before_w.keys()):
-            b = before_w[pos]
-            a = after_w[pos]
-            if b != a:
-                rows.append((f"{component}_w", pos, b, a))
-    return rows
-
-
-def _sanity_checks(
-    before: V2Coefficients,
-    after: V2Coefficients,
-) -> list[tuple[str, bool, str]]:
-    """Return (label, ok, detail-when-not-ok) triples."""
-    out: list[tuple[str, bool, str]] = []
-
-    sign_flips: list[str] = []
-    for component in ("goals", "assists", "cs", "concede", "saves", "defcon", "bonus"):
-        before_w = getattr(before, f"{component}_w")
-        after_w = getattr(after, f"{component}_w")
-        for pos, b in before_w.items():
-            a = after_w[pos]
-            if (b > 0 and a < 0) or (b < 0 and a > 0):
-                sign_flips.append(f"{component}_w[{pos}]: {b}→{a}")
-    out.append((
-        "No weight flipped sign",
-        not sign_flips,
-        ", ".join(sign_flips),
-    ))
-
-    extreme: list[str] = []
-    for component in ("goals", "assists", "cs", "concede", "saves", "defcon", "bonus"):
-        before_w = getattr(before, f"{component}_w")
-        after_w = getattr(after, f"{component}_w")
-        for pos, a in after_w.items():
-            # Already 0 means an ineligible position (e.g. saves_w[DEF]);
-            # a weight that only just reached 0 must still be flagged.
-            if a == 0 and before_w[pos] == 0:
-                continue
-            if abs(a) > 5.0 or abs(a) < 0.05:
-                extreme.append(f"{component}_w[{pos}]={a:.3f}")
-    out.append((
-        "All weights in plausible range (0.05 ≤ |w| ≤ 5)",
-        not extreme,
-        ", ".join(extreme),
-    ))
-
-    return out

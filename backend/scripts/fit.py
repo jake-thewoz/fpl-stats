@@ -38,17 +38,38 @@ from xp_v2 import (
     DEF,
     DEFAULT_RULES,
     DEFCON_ELIGIBLE,
+    FWD,
     GKP,
+    MID,
     ScoringRules,
     V2Coefficients,
     XpV2Components,
 )
 
 
+POSITION_NAMES: dict[int, str] = {GKP: "GK", DEF: "DEF", MID: "MID", FWD: "FWD"}
+
 # Components the fit operates on. Ordering only affects report layout.
 FIT_COMPONENTS: tuple[str, ...] = (
     "goals", "assists", "cs", "concede", "saves", "defcon", "bonus",
 )
+
+# A component is only fitted on seasons where its current scoring rule
+# existed: defensive contributions started scoring in 2025-26, and bonus
+# scoring changed in 2026-27. Unlisted components use every season.
+FIRST_VALID_SEASON_BY_COMPONENT: dict[str, str] = {
+    "defcon": "2025-26",
+    "bonus": "2026-27",
+}
+
+# Below this many training rows with a non-zero actual, a bucket's ratio is
+# dominated by a handful of events (one goalkeeper assist swung assists_w[GK]
+# to 10.4 in a GW10 fit), so the old weight is kept.
+MIN_NONZERO_ACTUAL_ROWS = 30
+
+KEPT_NO_PREDICTION = "nothing predicted in training"
+KEPT_NO_EVENTS = "no actual events in training"
+KEPT_TOO_FEW_EVENTS = f"fewer than {MIN_NONZERO_ACTUAL_ROWS} training rows with an event"
 
 
 @dataclass(frozen=True)
@@ -56,11 +77,28 @@ class FitPair:
     """One training/validation pair: features → predictions paired with
     the actual outcomes for the same (player, GW)."""
 
+    season: str
     player_id: int
     round: int
     position: int
     predicted: XpV2Components
     actual: XpV2Components
+
+
+@dataclass(frozen=True)
+class KeptWeight:
+    """A (component, position) bucket whose weight the fit left unchanged."""
+
+    component: str
+    position: int
+    reason: str
+    nonzero_actual_rows: int
+
+
+@dataclass(frozen=True)
+class WeightFit:
+    coefs: V2Coefficients
+    kept: list[KeptWeight]
 
 
 def decompose_actual_xp(
@@ -144,55 +182,75 @@ def _component_value(components: XpV2Components, name: str) -> float:
     return getattr(components, f"{name}_xp")
 
 
+def component_uses_season(component: str, season: str) -> bool:
+    """Whether ``season`` (e.g. ``"2024-25"``) is fit for ``component``.
+    Season names sort chronologically as strings."""
+    first_valid = FIRST_VALID_SEASON_BY_COMPONENT.get(component)
+    return first_valid is None or season >= first_valid
+
+
 def fit_per_component_weights(
     *,
     pairs: Iterable[FitPair],
     coefs: V2Coefficients,
-) -> V2Coefficients:
+) -> WeightFit:
     """Mean-match each ``<component>_w[position]`` to the training pairs.
 
     For each (component, position) bucket: the predicted contributions
     sum to P, the actual contributions sum to A, and we set the new
-    weight to ``old_w × A / P``. If the bucket has no exposure
-    (e.g. saves for outfield positions, or zero predicted contribution
-    on the training data), or no actual events (A = 0), the weight is
-    left untouched.
+    weight to ``old_w × A / P``. Only pairs from seasons where the
+    component's scoring rule existed count towards its bucket.
+
+    The weight is left untouched when the bucket has no exposure (zero
+    predicted contribution), no actual events (A = 0), or fewer than
+    ``MIN_NONZERO_ACTUAL_ROWS`` rows with an event. Buckets of ineligible
+    positions (weight already 0) are not reported as kept.
 
     Concede points are negative — both actual and predicted come out
     negative — so the ratio is well-defined and the result has the same
     sign convention.
     """
-    pair_list = list(pairs)
     sums_pred: dict[tuple[str, int], float] = defaultdict(float)
     sums_actual: dict[tuple[str, int], float] = defaultdict(float)
-    for pair in pair_list:
+    nonzero_actual_rows: dict[tuple[str, int], int] = defaultdict(int)
+    for pair in pairs:
         for component in FIT_COMPONENTS:
-            sums_pred[(component, pair.position)] += _component_value(
-                pair.predicted, component
-            )
-            sums_actual[(component, pair.position)] += _component_value(
-                pair.actual, component
-            )
+            if not component_uses_season(component, pair.season):
+                continue
+            bucket = (component, pair.position)
+            actual = _component_value(pair.actual, component)
+            sums_pred[bucket] += _component_value(pair.predicted, component)
+            sums_actual[bucket] += actual
+            if actual != 0:
+                nonzero_actual_rows[bucket] += 1
 
     new_weights: dict[str, dict[int, float]] = {
         component: dict(getattr(coefs, f"{component}_w"))
         for component in FIT_COMPONENTS
     }
-    for (component, position), pred in sums_pred.items():
-        if pred == 0:
-            continue  # leave weight at prior — no signal to update from
-        actual = sums_actual[(component, position)]
-        if actual == 0:
-            # No events in the sample is weak evidence, but a weight of 0
-            # zeroes its prediction, and every later fit then skips the
-            # bucket above, so the weight could never recover.
-            continue
-        ratio = actual / pred
-        new_weights[component][position] = (
-            new_weights[component][position] * ratio
-        )
+    kept: list[KeptWeight] = []
+    for component in FIT_COMPONENTS:
+        for position, old_weight in sorted(new_weights[component].items()):
+            if old_weight == 0:
+                continue
+            bucket = (component, position)
+            predicted = sums_pred[bucket]
+            actual = sums_actual[bucket]
+            events = nonzero_actual_rows[bucket]
+            if predicted == 0:
+                reason = KEPT_NO_PREDICTION
+            elif actual == 0:
+                # A weight of 0 zeroes its prediction, and every later fit
+                # then has nothing predicted, so the weight could never recover.
+                reason = KEPT_NO_EVENTS
+            elif events < MIN_NONZERO_ACTUAL_ROWS:
+                reason = KEPT_TOO_FEW_EVENTS
+            else:
+                new_weights[component][position] = old_weight * actual / predicted
+                continue
+            kept.append(KeptWeight(component, position, reason, events))
 
-    return replace(
+    fitted = replace(
         coefs,
         goals_w=new_weights["goals"],
         assists_w=new_weights["assists"],
@@ -202,6 +260,32 @@ def fit_per_component_weights(
         defcon_w=new_weights["defcon"],
         bonus_w=new_weights["bonus"],
     )
+    return WeightFit(coefs=fitted, kept=kept)
+
+
+def drop_early_rounds(pairs: Iterable[FitPair], min_round: int) -> list[FitPair]:
+    """Pairs with ``round >= min_round``. In the first few gameweeks the
+    features are mostly position priors, so weights learned there don't
+    transfer to later weeks."""
+    return [pair for pair in pairs if pair.round >= min_round]
+
+
+def multi_season_split(
+    *,
+    archive_pairs: Iterable[FitPair],
+    current_pairs: Iterable[FitPair],
+    holdout_rounds: int,
+    min_train_round: int,
+) -> tuple[list[FitPair], list[FitPair]]:
+    """(train, validation): train is every archive pair plus the current
+    season before its last ``holdout_rounds`` rounds, minus rounds below
+    ``min_train_round``. Validation is the current season's last rounds,
+    unfiltered."""
+    current_train, validation = time_series_split(
+        current_pairs, holdout_last_n_rounds=holdout_rounds,
+    )
+    train = drop_early_rounds([*archive_pairs, *current_train], min_train_round)
+    return train, validation
 
 
 def predicted_total_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:
@@ -265,6 +349,16 @@ def mae_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:
             abs(pair.predicted.total - pair.actual.total)
         )
     return {pos: sum(v) / len(v) for pos, v in by_pos.items() if v}
+
+
+def mae_overall(pairs: Iterable[FitPair]) -> float | None:
+    errors = [abs(pair.predicted.total - pair.actual.total) for pair in pairs]
+    return sum(errors) / len(errors) if errors else None
+
+
+def spearman_overall(pairs: Iterable[FitPair]) -> float | None:
+    points = [(pair.predicted.total, pair.actual.total) for pair in pairs]
+    return _spearman(points) if len(points) >= 2 else None
 
 
 def spearman_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:

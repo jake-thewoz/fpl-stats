@@ -5,12 +5,21 @@ import pytest
 
 from fit import (
     FIT_COMPONENTS,
+    KEPT_NO_EVENTS,
+    KEPT_NO_PREDICTION,
+    KEPT_TOO_FEW_EVENTS,
+    MIN_NONZERO_ACTUAL_ROWS,
     FitPair,
     capped_holdout_rounds,
     coefficient_diffs,
+    component_uses_season,
     decompose_actual_xp,
+    drop_early_rounds,
     fit_per_component_weights,
+    mae_overall,
     mae_per_position,
+    multi_season_split,
+    spearman_overall,
     spearman_per_position,
     time_series_split,
 )
@@ -74,9 +83,14 @@ def _components(**overrides) -> XpV2Components:
     return XpV2Components(**base)
 
 
-def _pair(*, position=MID, predicted=None, actual=None, round_=1) -> FitPair:
+CURRENT_SEASON = "2026-27"
+LAST_SEASON = "2025-26"
+OLD_SEASON = "2023-24"
+
+
+def _pair(*, position=MID, predicted=None, actual=None, round_=1, season=CURRENT_SEASON) -> FitPair:
     return FitPair(
-        player_id=1, round=round_, position=position,
+        season=season, player_id=1, round=round_, position=position,
         predicted=predicted or _components(),
         actual=actual or _components(),
     )
@@ -189,8 +203,8 @@ def test_fit_doubles_weight_when_actual_is_double_predicted() -> None:
     pairs = [
         _pair(predicted=_components(goals_xp=1.0), actual=_components(goals_xp=2.0)),
         _pair(predicted=_components(goals_xp=1.5), actual=_components(goals_xp=3.0)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.goals_w[MID] == pytest.approx(2.0)
     # Untouched components keep their prior weight.
     assert fitted.assists_w[MID] == pytest.approx(1.0)
@@ -201,8 +215,8 @@ def test_fit_no_change_when_actual_matches_predicted() -> None:
     pairs = [
         _pair(predicted=_components(goals_xp=1.5, assists_xp=0.8),
               actual=_components(goals_xp=1.5, assists_xp=0.8)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.goals_w[MID] == pytest.approx(1.0)
     assert fitted.assists_w[MID] == pytest.approx(1.0)
 
@@ -214,8 +228,8 @@ def test_fit_zero_predicted_keeps_prior() -> None:
     pairs = [
         _pair(position=DEF, predicted=_components(saves_xp=0.0),
               actual=_components(saves_xp=0.0)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.saves_w[DEF] == 0.5  # unchanged
 
 
@@ -227,8 +241,8 @@ def test_fit_zero_actual_keeps_prior() -> None:
     pairs = [
         _pair(position=FWD, predicted=_components(defcon_xp=0.3),
               actual=_components(defcon_xp=0.0)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.defcon_w[FWD] == pytest.approx(1.0)
 
 
@@ -238,8 +252,8 @@ def test_fit_per_position_independent() -> None:
     pairs = [
         _pair(position=MID, predicted=_components(goals_xp=1.0), actual=_components(goals_xp=2.0)),
         _pair(position=FWD, predicted=_components(goals_xp=1.0), actual=_components(goals_xp=1.0)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.goals_w[MID] == pytest.approx(2.0)
     assert fitted.goals_w[FWD] == pytest.approx(1.0)
 
@@ -251,9 +265,142 @@ def test_fit_concede_negative_ratio_well_defined() -> None:
     pairs = [
         _pair(position=DEF, predicted=_components(concede_xp=-0.5),
               actual=_components(concede_xp=-1.0)),
-    ]
-    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs)
+    ] * MIN_NONZERO_ACTUAL_ROWS
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
     assert fitted.concede_w[DEF] == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# Per-component season filter
+# ---------------------------------------------------------------------------
+
+
+def test_component_uses_season_respects_first_valid_season() -> None:
+    assert component_uses_season("goals", OLD_SEASON)
+    assert not component_uses_season("defcon", OLD_SEASON)
+    assert component_uses_season("defcon", LAST_SEASON)
+    assert not component_uses_season("bonus", LAST_SEASON)
+    assert component_uses_season("bonus", CURRENT_SEASON)
+
+
+def test_fit_ignores_defcon_from_seasons_before_the_rule() -> None:
+    """Pre-2025-26 rows carry no defcon actuals; counting them would drag
+    the weight towards zero."""
+    coefs = _coefs()
+    old = [_pair(season=OLD_SEASON, predicted=_components(defcon_xp=1.0),
+                 actual=_components(defcon_xp=0.0))] * MIN_NONZERO_ACTUAL_ROWS
+    recent = [_pair(season=LAST_SEASON, predicted=_components(defcon_xp=1.0),
+                    actual=_components(defcon_xp=2.0))] * MIN_NONZERO_ACTUAL_ROWS
+
+    fitted = fit_per_component_weights(pairs=old + recent, coefs=coefs).coefs
+
+    assert fitted.defcon_w[MID] == pytest.approx(2.0)
+
+
+def test_fit_uses_old_seasons_for_unlisted_components() -> None:
+    coefs = _coefs()
+    pairs = [_pair(season=OLD_SEASON, predicted=_components(goals_xp=1.0),
+                   actual=_components(goals_xp=3.0))] * MIN_NONZERO_ACTUAL_ROWS
+
+    fitted = fit_per_component_weights(pairs=pairs, coefs=coefs).coefs
+
+    assert fitted.goals_w[MID] == pytest.approx(3.0)
+
+
+def test_fit_bonus_only_from_current_season() -> None:
+    coefs = _coefs()
+    pairs = [_pair(season=LAST_SEASON, predicted=_components(bonus_xp=1.0),
+                   actual=_components(bonus_xp=3.0))] * MIN_NONZERO_ACTUAL_ROWS
+
+    result = fit_per_component_weights(pairs=pairs, coefs=coefs)
+
+    assert result.coefs.bonus_w[MID] == pytest.approx(1.0)
+    kept_bonus_mid = [k for k in result.kept if (k.component, k.position) == ("bonus", MID)]
+    assert kept_bonus_mid[0].reason == KEPT_NO_PREDICTION
+
+
+# ---------------------------------------------------------------------------
+# Rare-event guard
+# ---------------------------------------------------------------------------
+
+
+def test_rare_event_guard_keeps_weight_below_threshold() -> None:
+    """One goalkeeper assist in a GW10 fit pushed assists_w[GK] to 10.4."""
+    coefs = _coefs()
+    events = [_pair(position=GKP, predicted=_components(assists_xp=0.1),
+                    actual=_components(assists_xp=3.0))] * (MIN_NONZERO_ACTUAL_ROWS - 1)
+    quiet = [_pair(position=GKP, predicted=_components(assists_xp=0.1))] * 100
+
+    result = fit_per_component_weights(pairs=events + quiet, coefs=coefs)
+
+    assert result.coefs.assists_w[GKP] == pytest.approx(1.0)
+    kept = [k for k in result.kept if (k.component, k.position) == ("assists", GKP)]
+    assert kept[0].reason == KEPT_TOO_FEW_EVENTS
+    assert kept[0].nonzero_actual_rows == MIN_NONZERO_ACTUAL_ROWS - 1
+
+
+def test_rare_event_guard_fits_at_threshold() -> None:
+    coefs = _coefs()
+    pairs = [_pair(position=GKP, predicted=_components(assists_xp=1.0),
+                   actual=_components(assists_xp=2.0))] * MIN_NONZERO_ACTUAL_ROWS
+
+    result = fit_per_component_weights(pairs=pairs, coefs=coefs)
+
+    assert result.coefs.assists_w[GKP] == pytest.approx(2.0)
+    assert ("assists", GKP) not in {(k.component, k.position) for k in result.kept}
+
+
+def test_kept_reports_no_events_and_skips_ineligible_positions() -> None:
+    coefs = _coefs()
+    pairs = [_pair(position=FWD, predicted=_components(defcon_xp=0.3))]
+
+    kept = fit_per_component_weights(pairs=pairs, coefs=coefs).kept
+
+    reasons = {(k.component, k.position): k.reason for k in kept}
+    assert reasons[("defcon", FWD)] == KEPT_NO_EVENTS
+    # cs_w[FWD] is 0 (ineligible), so it isn't reported.
+    assert ("cs", FWD) not in reasons
+
+
+# ---------------------------------------------------------------------------
+# Min-round filter and the multi-season split
+# ---------------------------------------------------------------------------
+
+
+def test_drop_early_rounds_keeps_min_round_and_later() -> None:
+    pairs = [_pair(round_=r) for r in (1, 4, 5, 6)]
+
+    assert [p.round for p in drop_early_rounds(pairs, 5)] == [5, 6]
+
+
+def test_multi_season_split_validates_on_current_season_tail_only() -> None:
+    archive = [_pair(season=LAST_SEASON, round_=r) for r in (2, 5, 38)]
+    current = [_pair(round_=r) for r in (2, 5, 6, 7, 8, 9, 10)]
+
+    train, validation = multi_season_split(
+        archive_pairs=archive, current_pairs=current,
+        holdout_rounds=3, min_train_round=5,
+    )
+
+    assert sorted((p.season, p.round) for p in train) == [
+        (LAST_SEASON, 5), (LAST_SEASON, 38),
+        (CURRENT_SEASON, 5), (CURRENT_SEASON, 6), (CURRENT_SEASON, 7),
+    ]
+    assert [(p.season, p.round) for p in validation] == [
+        (CURRENT_SEASON, 8), (CURRENT_SEASON, 9), (CURRENT_SEASON, 10),
+    ]
+
+
+def test_multi_season_split_does_not_filter_validation_rounds() -> None:
+    current = [_pair(round_=r) for r in (1, 2, 3)]
+
+    train, validation = multi_season_split(
+        archive_pairs=[], current_pairs=current,
+        holdout_rounds=2, min_train_round=5,
+    )
+
+    assert train == []
+    assert [p.round for p in validation] == [2, 3]
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +495,21 @@ def test_spearman_skips_singleton_positions() -> None:
     pairs = [_pair(position=MID, predicted=_components(total=1.0), actual=_components(total=2.0))]
     out = spearman_per_position(pairs)
     assert MID not in out
+
+
+def test_overall_metrics_pool_every_position() -> None:
+    pairs = [
+        _pair(position=MID, predicted=_components(total=1.0), actual=_components(total=2.0)),
+        _pair(position=FWD, predicted=_components(total=3.0), actual=_components(total=6.0)),
+    ]
+
+    assert mae_overall(pairs) == pytest.approx(2.0)
+    assert spearman_overall(pairs) == pytest.approx(1.0)
+
+
+def test_overall_metrics_empty_are_none() -> None:
+    assert mae_overall([]) is None
+    assert spearman_overall([]) is None
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,9 @@ from season_data import SeasonData, parse_archive_season  # noqa: E402
 
 log = logging.getLogger(__name__)
 
+# Expected-goals fields start in 2022-23, so earlier seasons can't feed the model.
+ARCHIVE_SEASONS: tuple[str, ...] = ("2022-23", "2023-24", "2024-25", "2025-26")
+
 ARCHIVE_BASE_URL = "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data"
 MERGED_GW_PATH = "gws/merged_gw.csv"
 TEAMS_PATH = "teams.csv"
