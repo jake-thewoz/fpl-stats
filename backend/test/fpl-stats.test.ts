@@ -5,6 +5,9 @@ import {
   API_THROTTLE_BURST_LIMIT,
   API_THROTTLE_RATE_LIMIT,
   FplStatsStack,
+  BOOTSTRAP_SNAPSHOT_EXPIRATION_DAYS,
+  BOOTSTRAP_SNAPSHOT_PREFIX,
+  SNAPSHOT_EXPIRATION_DAYS,
 } from '../lib/fpl-stats-stack';
 import { DEFAULT_MEMORY_MB } from '../lib/fpl-python-function';
 
@@ -45,13 +48,17 @@ describe('SnapshotsBucket', () => {
     });
   });
 
-  test('tiers to Standard-IA at 30 days and expires at 90', () => {
+  test.each([
+    [BOOTSTRAP_SNAPSHOT_PREFIX, BOOTSTRAP_SNAPSHOT_EXPIRATION_DAYS],
+    ['fpl/fixtures/', SNAPSHOT_EXPIRATION_DAYS],
+  ])('tiers %s to Standard-IA at 30 days and expires it at %i', (prefix, days) => {
     template.hasResourceProperties('AWS::S3::Bucket', {
       LifecycleConfiguration: {
         Rules: Match.arrayWith([
           Match.objectLike({
+            Prefix: prefix,
             Status: 'Enabled',
-            ExpirationInDays: 90,
+            ExpirationInDays: days,
             NoncurrentVersionExpiration: { NoncurrentDays: 30 },
             Transitions: Match.arrayWith([
               Match.objectLike({
@@ -63,6 +70,17 @@ describe('SnapshotsBucket', () => {
         ]),
       },
     });
+  });
+
+  test('has no catch-all rule that would expire bootstrap snapshots early', () => {
+    const buckets = template.findResources('AWS::S3::Bucket');
+    const rules = Object.values(buckets).flatMap(
+      (bucket) =>
+        (bucket as { Properties?: { LifecycleConfiguration?: { Rules?: { Prefix?: string }[] } } })
+          .Properties?.LifecycleConfiguration?.Rules ?? [],
+    );
+    expect(rules.length).toBeGreaterThan(0);
+    expect(rules.every((rule) => rule.Prefix)).toBe(true);
   });
 
   test('exposes bucket name as a stack output', () => {

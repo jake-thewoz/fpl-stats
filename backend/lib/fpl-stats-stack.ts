@@ -31,6 +31,17 @@ import { FplPythonFunction } from './fpl-python-function';
 
 const ALERT_EMAIL = 'jake.thewoz@gmail.com';
 
+// Snapshot bucket prefixes, matching the ingest Lambda's S3 keys.
+export const BOOTSTRAP_SNAPSHOT_PREFIX = 'fpl/bootstrap-static/';
+const FIXTURES_SNAPSHOT_PREFIX = 'fpl/fixtures/';
+const CLUBELO_SNAPSHOT_PREFIX = 'clubelo/';
+// A season plus a margin, so last season's flag history survives the rollover.
+export const BOOTSTRAP_SNAPSHOT_EXPIRATION_DAYS = 400;
+export const SNAPSHOT_EXPIRATION_DAYS = 90;
+const SNAPSHOT_TRANSITION_DAYS = 30;
+const SNAPSHOT_NONCURRENT_EXPIRATION_DAYS = 30;
+const SNAPSHOT_ABORT_UPLOAD_DAYS = 7;
+
 // Applies to every route on the public API (requests per second, steady
 // and burst). Far above friends-and-family traffic, low enough that a
 // scraper hammering the 1024 MB transfers Lambda can't run up the bill.
@@ -56,8 +67,25 @@ export class FplStatsStack extends cdk.Stack {
 
     // Cold archive of raw FPL + external payloads. Written by ingest-style
     // Lambdas (Phase 3), read by analyzer Lambdas and Athena — never on the
-    // request path. Lifecycle thresholds are conservative; revisit once we
-    // see actual snapshot volume before the first prod deploy.
+    // request path. Bootstrap snapshots are the only record of when injury
+    // flags and prices changed, so they outlive a season (#245); the rest
+    // expires sooner. S3 rules can't exclude a prefix, so each prefix has
+    // its own rule: a new prefix gets no expiry until it's added here.
+    const transitionToInfrequentAccess = [
+      {
+        storageClass: StorageClass.INFREQUENT_ACCESS,
+        transitionAfter: cdk.Duration.days(SNAPSHOT_TRANSITION_DAYS),
+      },
+    ];
+    const snapshotRule = (id: string, prefix: string, expirationDays: number) => ({
+      id,
+      prefix,
+      enabled: true,
+      transitions: transitionToInfrequentAccess,
+      expiration: cdk.Duration.days(expirationDays),
+      noncurrentVersionExpiration: cdk.Duration.days(SNAPSHOT_NONCURRENT_EXPIRATION_DAYS),
+      abortIncompleteMultipartUploadAfter: cdk.Duration.days(SNAPSHOT_ABORT_UPLOAD_DAYS),
+    });
     const snapshotsBucket = new Bucket(this, 'SnapshotsBucket', {
       versioned: true,
       encryption: BucketEncryption.S3_MANAGED,
@@ -66,19 +94,9 @@ export class FplStatsStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       lifecycleRules: [
-        {
-          id: 'tier-and-expire',
-          enabled: true,
-          transitions: [
-            {
-              storageClass: StorageClass.INFREQUENT_ACCESS,
-              transitionAfter: cdk.Duration.days(30),
-            },
-          ],
-          expiration: cdk.Duration.days(90),
-          noncurrentVersionExpiration: cdk.Duration.days(30),
-          abortIncompleteMultipartUploadAfter: cdk.Duration.days(7),
-        },
+        snapshotRule('keep-bootstrap', BOOTSTRAP_SNAPSHOT_PREFIX, BOOTSTRAP_SNAPSHOT_EXPIRATION_DAYS),
+        snapshotRule('expire-fixtures', FIXTURES_SNAPSHOT_PREFIX, SNAPSHOT_EXPIRATION_DAYS),
+        snapshotRule('expire-clubelo', CLUBELO_SNAPSHOT_PREFIX, SNAPSHOT_EXPIRATION_DAYS),
       ],
     });
 

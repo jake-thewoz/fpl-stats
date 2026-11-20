@@ -38,7 +38,7 @@ AWS behaviour described here is as of mid-2026. Check current docs before relyin
 
 - **Standard-IA** bills a 30-day minimum and a 128 KB minimum object size; since September 2024 lifecycle rules skip objects under 128 KB by default. Retrieval is milliseconds with a per-GB fee (hours-long retrieval is Glacier Flexible / Deep Archive).
 - **`enforceSSL`** adds a bucket policy denying requests where `aws:SecureTransport` is false.
-- **Lifecycle expiry at 90 days** means last season's raw snapshots are gone. Copy anything you need to a non-expiring prefix first (e.g. the ClubELO seed for #166).
+- **Lifecycle expiry** removed this season's early bootstrap snapshots at 90 days before anyone noticed (#245). They were rescued because the bucket is **versioned**: expiry only adds a delete marker, and the old version lives on for `NoncurrentVersionExpiration` (30 days), so copying that version back over the key restores it. Bootstrap snapshots now keep 400 days. A lifecycle rule can't exclude a prefix, so "keep one prefix longer" means one rule per prefix.
 
 ### EventBridge
 

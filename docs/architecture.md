@@ -33,7 +33,7 @@ Everything lives in one CDK stack, `FplStatsStack` (`backend/lib/fpl-stats-stack
 | Resource | Configuration | Notes |
 | --- | --- | --- |
 | DynamoDB `CacheTable` | `pk` (S) + `sk` (S), on-demand, TTL attribute `ttl`, `RemovalPolicy.DESTROY` | Single-table design, no GSIs. Every read knows its key. |
-| S3 `SnapshotsBucket` | Versioned, Block Public Access, SSE-S3, `enforceSSL`; Standard → Standard-IA at 30 days, delete at 90 | Raw FPL payloads, never on the request path. |
+| S3 `SnapshotsBucket` | Versioned, Block Public Access, SSE-S3, `enforceSSL`; Standard → Standard-IA at 30 days; `fpl/bootstrap-static/` deleted at 400 days (the injury-flag and price history, #245), everything else at 90. Each prefix has its own rule, so a new prefix never expires until it is added | Raw FPL payloads, never on the request path. |
 | Lambda layer `fpl_schemas` | `backend/layers/fpl_schemas/python/` | Attached to every Lambda except `health`. |
 | API Gateway HTTP API | 11 `GET` routes, CORS `*` for GET/OPTIONS, no authorizer; `$default` stage throttled to 20 req/s, burst 40 | Throttle set through a `CfnStage` escape hatch, because CDK only exposes `throttle` on stages added with `addStage()`. |
 | EventBridge | 4 rules (below) | Cron times are UTC. |
