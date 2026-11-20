@@ -14,3 +14,4 @@ amplify/#current-cloud-backend
 
 # Downloaded FPL archive seasons (backend/scripts/season_archive.py).
 .season_cache/
+backend/scripts/spikes/flag_history/
