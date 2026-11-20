@@ -7,6 +7,7 @@ from compute import (
     MAX_BANKED_FREE_TRANSFERS,
     MAX_BUNDLE_SIZE,
     MAX_PLAYERS_PER_TEAM,
+    PER_POSITION_TOP_K,
     TransferBundle,
     TransferCandidate,
     derive_free_transfers,
@@ -824,3 +825,63 @@ class TestSuggestTransferBundlesMultiMove:
         ]
         assert [k for k, _ in actual_top] == [k for k, _ in expected_top]
         assert [n for _, n in actual_top] == pytest.approx([n for _, n in expected_top])
+
+
+class TestSuggestTransferBundlesTightBank:
+    """#254: the shortlist used to be the top ``PER_POSITION_TOP_K`` by xP
+    alone, so a tight bank could leave every candidate unaffordable."""
+
+    PRICEY_COST = 120
+    CHEAP_COST = 60
+
+    def _pricey_pool(self, *, position: int = 3) -> list[Player]:
+        # More high-xP, unaffordable players than the top-K can hold.
+        return [
+            _player(1000 + i, team=10 + i, position=position, cost=self.PRICEY_COST)
+            for i in range(PER_POSITION_TOP_K + 5)
+        ]
+
+    def test_finds_affordable_upgrade_outside_top_k_with_empty_bank(self):
+        squad = [_player(1, team=1, cost=self.CHEAP_COST)]
+        pricey = self._pricey_pool()
+        affordable = _player(2000, team=99, cost=self.CHEAP_COST)
+        horizon_xps = {1: 2.0, affordable.id: 3.0}
+        horizon_xps.update({p.id: 10.0 for p in pricey})
+
+        result = suggest_transfer_bundles(
+            squad, bank=0, candidate_pool=pricey + [affordable],
+            horizon_xps=horizon_xps, free_transfers=1, max_transfers=1, top_n=5,
+        )
+
+        assert [_bundle_pairs(b) for b in result] == [[(1, affordable.id)]]
+        assert result[0].delta_xp_net == pytest.approx(1.0)
+
+    def test_same_position_slots_at_different_prices_share_candidates(self):
+        """Each slot's affordable picks join one shared list for the
+        position. The walk only builds same-position bundles whose
+        in-player ids rise with slot order, so this bundle is reachable
+        only as cheap_out -> dear_in plus dear_out -> cheap_in: dear_in is
+        not cheap_out's own affordable pick, so with per-slot lists the
+        bundle would be lost."""
+        cheap_out = _player(1, team=1, cost=50)
+        dear_out = _player(2, team=2, cost=80)
+        dear_in = _player(3000, team=98, cost=80)
+        cheap_in = _player(3001, team=97, cost=50)
+        pricey = self._pricey_pool()
+        horizon_xps = {cheap_out.id: 1.0, dear_out.id: 1.0, cheap_in.id: 3.0, dear_in.id: 4.0}
+        horizon_xps.update({p.id: 10.0 for p in pricey})
+
+        result = suggest_transfer_bundles(
+            [cheap_out, dear_out], bank=0,
+            candidate_pool=pricey + [cheap_in, dear_in],
+            horizon_xps=horizon_xps, free_transfers=2, max_transfers=2, top_n=10,
+        )
+
+        both = [
+            b for b in result
+            if {m.in_player_id for m in b.moves} == {cheap_in.id, dear_in.id}
+        ]
+        assert len(both) == 1
+        assert {m.out_player_id for m in both[0].moves} == {cheap_out.id, dear_out.id}
+        assert result[0] is both[0]
+

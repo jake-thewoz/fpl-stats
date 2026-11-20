@@ -26,8 +26,8 @@ SIMPLIFICATIONS = (
     "No injury news: scorers only see past minutes.",
     "Starts at gameweek 5, so totals cover GW5 to the end of the season.",
     "No vice-captain: if the captain doesn't play, nobody is doubled.",
-    "Transfers come from the app's own search, which shortlists 25 upgrades per "
-    "squad slot before checking the budget.",
+    "Transfers come from the app's own search, which shortlists each position's 25 "
+    "best upgrades plus the best few each squad slot can afford.",
 )
 
 

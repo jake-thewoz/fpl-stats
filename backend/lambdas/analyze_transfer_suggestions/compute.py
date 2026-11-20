@@ -32,12 +32,19 @@ HIT_COST_POINTS = 4
 # Handler clamps user input (``max_transfers`` query param) to this.
 MAX_BUNDLE_SIZE = 5
 
-# Per-squad-slot top-K replacement candidates retained for bundle assembly.
+# Top-K replacement candidates by xP kept per position for bundle assembly.
 # Bundle search enumerates combinations across slots, so total work scales
 # as (squad_size choose k) × K^k. With squad=15, K=25, k=3 → ~7M combos —
 # fits within the 5s Lambda budget. Larger K rarely changes top-N output:
 # the optimal multi-move bundle almost always uses each slot's top few moves.
-PER_SLOT_TOP_K = 25
+PER_POSITION_TOP_K = 25
+
+# Extra candidates per squad slot: the best upgrades that slot can afford
+# on a single swap from the current bank. Without them a tight bank can
+# leave every top-K candidate unaffordable, and the search returns nothing
+# even when affordable upgrades exist (#254). A handful is enough: a lone
+# swap only ever wants the slot's best affordable move.
+AFFORDABLE_PER_SLOT = 5
 
 
 @dataclass(frozen=True)
@@ -213,42 +220,57 @@ def derive_free_transfers(
     return ft
 
 
-def _per_slot_top_k_moves(
+def _per_slot_candidate_moves(
     *,
     squad: list[Player],
     candidate_pool: Iterable[Player],
     squad_ids: set[int],
     horizon_xps: dict[int, float],
-    k: int,
+    bank: int,
 ) -> list[list[TransferCandidate]]:
-    """For each squad slot, the top-K replacement candidates ranked by
-    gross delta-xp. Bank and team-count constraints are NOT applied here
-    — they're bundle-level concerns checked later, since a single
+    """For each squad slot, its replacement candidates ranked by gross
+    delta-xp.
+
+    Candidates are shortlisted per position, not per slot: the position's
+    top ``PER_POSITION_TOP_K`` by xP, plus the best ``AFFORDABLE_PER_SLOT``
+    each of its slots can afford on a single swap. Every slot of a
+    position gets the same in-players in the same order, which the
+    bundle walk's same-position symmetry rule relies on.
+
+    Bank and team-count constraints are otherwise NOT applied here.
+    They're bundle-level concerns checked later, since a single
     expensive swap might be valid only in combination with a cheaper
     sell elsewhere in the same bundle."""
-    pool = list(candidate_pool)
+    slots_by_position: dict[int, list[Player]] = defaultdict(list)
+    for out_p in squad:
+        slots_by_position[out_p.element_type].append(out_p)
+
+    ranked_by_position: dict[int, list[Player]] = defaultdict(list)
+    for in_p in candidate_pool:
+        if in_p.id not in squad_ids and in_p.element_type in slots_by_position:
+            ranked_by_position[in_p.element_type].append(in_p)
+
+    shortlist_by_position: dict[int, list[Player]] = {}
+    for position, ranked in ranked_by_position.items():
+        ranked.sort(key=lambda p: (-horizon_xps.get(p.id, 0.0), p.id))
+        shortlisted_ids = {p.id for p in ranked[:PER_POSITION_TOP_K]}
+        for out_p in slots_by_position[position]:
+            affordable = [p for p in ranked if p.now_cost - out_p.now_cost <= bank]
+            shortlisted_ids.update(p.id for p in affordable[:AFFORDABLE_PER_SLOT])
+        shortlist_by_position[position] = [p for p in ranked if p.id in shortlisted_ids]
+
     per_slot: list[list[TransferCandidate]] = []
     for out_p in squad:
-        moves: list[TransferCandidate] = []
         out_xp = horizon_xps.get(out_p.id, 0.0)
-        for in_p in pool:
-            if in_p.id == out_p.id:
-                continue
-            if in_p.id in squad_ids:
-                continue
-            if in_p.element_type != out_p.element_type:
-                continue
-            delta = horizon_xps.get(in_p.id, 0.0) - out_xp
-            moves.append(
-                TransferCandidate(
-                    out_player_id=out_p.id,
-                    in_player_id=in_p.id,
-                    delta_xp=delta,
-                    cost_change=in_p.now_cost - out_p.now_cost,
-                )
+        per_slot.append([
+            TransferCandidate(
+                out_player_id=out_p.id,
+                in_player_id=in_p.id,
+                delta_xp=horizon_xps.get(in_p.id, 0.0) - out_xp,
+                cost_change=in_p.now_cost - out_p.now_cost,
             )
-        moves.sort(key=lambda m: (-m.delta_xp, m.in_player_id))
-        per_slot.append(moves[:k])
+            for in_p in shortlist_by_position.get(out_p.element_type, [])
+        ])
     return per_slot
 
 
@@ -340,16 +362,17 @@ def suggest_transfer_bundles(
     """Generate, filter, and rank multi-transfer bundles by net delta-xp.
 
     For each bundle size 1..``max_transfers``: enumerate every combination
-    of squad slots, then for each slot pick from its per-slot top-K
+    of squad slots, then for each slot pick from its shortlisted
     replacement candidates (cartesian product). Apply bundle-level
     constraints (combined budget, post-bundle team counts, no overlapping
     in-players). Score each valid bundle by gross delta-xp minus the FT-aware
     hit cost; rank descending.
 
-    Per-slot top-K (``PER_SLOT_TOP_K``) is the throttle that keeps this
-    tractable. The optimal multi-move bundle almost always uses each
-    slot's top few moves; widening K beyond ~25 rarely changes top-N
-    output but multiplies work geometrically.
+    The shortlist (top ``PER_POSITION_TOP_K`` by xP plus each slot's best
+    ``AFFORDABLE_PER_SLOT`` single-swap upgrades) is the throttle that
+    keeps this tractable. The optimal multi-move bundle almost always
+    uses each slot's top few moves; widening K beyond ~25 rarely changes
+    top-N output but multiplies work geometrically.
 
     ``max_transfers`` is clamped to ``MAX_BUNDLE_SIZE``.
 
@@ -359,21 +382,22 @@ def suggest_transfer_bundles(
     if max_transfers < 1:
         return []
     capped_max = min(max_transfers, MAX_BUNDLE_SIZE)
+    pool = list(candidate_pool)
 
     squad_ids = {p.id for p in squad}
     counts = team_counts(squad)
-    per_slot_moves = _per_slot_top_k_moves(
+    per_slot_moves = _per_slot_candidate_moves(
         squad=squad,
-        candidate_pool=candidate_pool,
+        candidate_pool=pool,
         squad_ids=squad_ids,
         horizon_xps=horizon_xps,
-        k=PER_SLOT_TOP_K,
+        bank=bank,
     )
 
     # Lookup for is_valid_bundle's team-count simulation. Includes both
     # squad and pool members so any move's player resolves.
     player_by_id: dict[int, Player] = {p.id: p for p in squad}
-    for p in candidate_pool:
+    for p in pool:
         player_by_id[p.id] = p
 
     # Branch-and-bound + heap-based top-N. Without pruning, max_transfers=3
@@ -399,7 +423,7 @@ def suggest_transfer_bundles(
             slot_options = [per_slot_moves[i] for i in slot_indices]
             if any(not opts for opts in slot_options):
                 continue
-            # Per-slot top-K is sorted by delta desc, so opts[0] is each
+            # Each slot's candidates are sorted by delta desc, so opts[0] is each
             # slot's best move. The sum is an upper bound on any bundle
             # we could build from this slot subset (constraints can only
             # lower it). If even that ceiling can't beat the current
