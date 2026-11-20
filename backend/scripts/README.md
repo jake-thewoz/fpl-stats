@@ -215,8 +215,13 @@ python3 delete_v1_xp_rows.py --table-name "$TABLE"
 gives every player's xP for the next `horizon` gameweeks, using only what
 was known before `as_of_gw` (the fixture list aside). It is the engine the
 season replay runs on. Chance of playing is the season play rate so far;
-the archive has no injury flags. Opponent strength is pluggable:
-`NeutralStrength` (0.5) or `FplDifficultyStrength` (FPL's 1–5 difficulty).
+the archive has no injury flags. Opponent strength is pluggable
+(`--strength`): `neutral` (0.5), `fpl` (FPL's 1–5 difficulty), `odds`
+(pre-match bookmaker odds for the next gameweek, FPL difficulty after;
+`odds.py`), `odds_closing` (closing odds, an upper bound) or
+`odds_all_weeks` (odds for every week ahead: a leak, for comparison
+only). Odds come from football-data.co.uk and are cached under
+`.season_cache/odds/`. See `docs/odds-vs-fpl-difficulty.md`.
 
 `replay_accuracy.py` predicts each gameweek from 5 on for **every** player
 (0 points if they didn't play) and reports MAE and Spearman ρ:
@@ -229,7 +234,9 @@ python3 replay_accuracy.py --season 2025-26 --strength fpl
 ```
 
 Writes `backtest_results/replay-accuracy-<season>-<strength>-<date>.md`
-(`--dry-run` only prints). Non-players dominate these rows and are easy to
+(`--dry-run` only prints). `strength_signal.py --season <s> ...` tests the
+strength sources directly: how well each ranks goals conceded and clean
+sheets, match by match. Non-players dominate these rows and are easy to
 predict, so the numbers are not comparable with `backtest_xp.py`'s.
 
 ## `replay_season.py` — does following xP win FPL points?

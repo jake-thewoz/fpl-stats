@@ -11,6 +11,7 @@ Usage
     source .venv/bin/activate
     python3 replay_accuracy.py --season 2025-26 --strength neutral
     python3 replay_accuracy.py --season 2025-26 --strength fpl
+    python3 replay_accuracy.py --season 2025-26 --strength odds
 
 Writes ``backtest_results/replay-accuracy-<season>-<strength>-<date>.md``.
 """
@@ -19,6 +20,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,27 +35,67 @@ from replay_accuracy_report import (  # noqa: E402
     render_accuracy_report,
     single_gameweek_rows,
 )
-from replay_predictions import FplDifficultyStrength, NeutralStrength  # noqa: E402
-from season_archive import ARCHIVE_SEASONS, load_archive_season  # noqa: E402
+from odds import (  # noqa: E402
+    OddsStrength,
+    average_home_share,
+    home_share_by_team_ids,
+    parse_odds_csv,
+)
+from replay_predictions import FixtureStrength, FplDifficultyStrength, NeutralStrength  # noqa: E402
+from season_archive import (  # noqa: E402
+    ARCHIVE_SEASONS,
+    load_archive_season,
+    load_odds_csv,
+    load_team_ids,
+    previous_season,
+)
 from xp_v2 import load_default_coefficients  # noqa: E402
 from xp_v2_features import FeatureWindow, load_default_priors  # noqa: E402
 
 log = logging.getLogger(__name__)
 
 _BACKTEST_RESULTS_DIR = _THIS_DIR / "backtest_results"
-STRENGTH_BY_NAME = {
-    "neutral": NeutralStrength(),
-    "fpl": FplDifficultyStrength(),
-}
-DEFAULT_STRENGTH = "neutral"
+NEUTRAL = "neutral"
+FPL = "fpl"
+ODDS = "odds"
+ODDS_CLOSING = "odds_closing"
+ODDS_ALL_WEEKS = "odds_all_weeks"
+STRENGTH_NAMES = (NEUTRAL, FPL, ODDS, ODDS_CLOSING, ODDS_ALL_WEEKS)
+DEFAULT_STRENGTH = NEUTRAL
+STRENGTH_HELP = (
+    f"Opponent strength source: {NEUTRAL} (everyone mid-table), {FPL} (FPL's 1-5 "
+    f"difficulty), {ODDS} (pre-match bookmaker odds for the next gameweek, FPL difficulty "
+    f"after), {ODDS_CLOSING} (closing odds: an upper bound), {ODDS_ALL_WEEKS} (pre-match "
+    "odds for every week ahead: a leak, for comparison only)."
+)
+
+
+def build_fixture_strength(name: str, season: str) -> FixtureStrength:
+    """The strength source ``name`` for ``season``; odds sources download
+    that season's odds and the season before's (for the home baseline)."""
+    if name == NEUTRAL:
+        return NeutralStrength()
+    if name == FPL:
+        return FplDifficultyStrength()
+    matches = parse_odds_csv(load_odds_csv(season), closing=name == ODDS_CLOSING)
+    baseline = average_home_share(parse_odds_csv(load_odds_csv(previous_season(season)),
+                                                 closing=False))
+    strength = OddsStrength(
+        home_share_by_clubs=home_share_by_team_ids(matches, load_team_ids(season)),
+        baseline_home_share=baseline,
+        fallback=FplDifficultyStrength(),
+    )
+    if name == ODDS_ALL_WEEKS:
+        return replace(strength, available_gameweeks=None)
+    return strength
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--season", required=True, choices=ARCHIVE_SEASONS)
-    parser.add_argument("--strength", choices=sorted(STRENGTH_BY_NAME), default=DEFAULT_STRENGTH,
-                        help="Opponent strength source (default neutral).")
+    parser.add_argument("--strength", choices=STRENGTH_NAMES, default=DEFAULT_STRENGTH,
+                        help=STRENGTH_HELP)
     parser.add_argument("--first-gameweek", type=int, default=DEFAULT_FIRST_SCORED_GAMEWEEK,
                         help=f"First gameweek scored (default {DEFAULT_FIRST_SCORED_GAMEWEEK}).")
     parser.add_argument("--dry-run", action="store_true",
@@ -70,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         coefs=load_default_coefficients(),
         priors=load_default_priors(),
         window=FeatureWindow(),
-        fixture_strength=STRENGTH_BY_NAME[args.strength],
+        fixture_strength=build_fixture_strength(args.strength, args.season),
     )
     run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     report = render_accuracy_report(

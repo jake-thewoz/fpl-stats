@@ -30,7 +30,12 @@ sys.path.insert(0, str(_TRANSFER_LAMBDA_DIR))
 sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
-from replay_accuracy import DEFAULT_STRENGTH, STRENGTH_BY_NAME  # noqa: E402
+from replay_accuracy import (  # noqa: E402
+    DEFAULT_STRENGTH,
+    STRENGTH_HELP,
+    STRENGTH_NAMES,
+    build_fixture_strength,
+)
 from replay_chips import (  # noqa: E402
     CHIP_WINDOWS_BY_SEASON,
     FIXTURE_LOOKAHEAD_GAMEWEEKS,
@@ -79,8 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--season", required=True, choices=ARCHIVE_SEASONS)
-    parser.add_argument("--strength", choices=sorted(STRENGTH_BY_NAME), default=DEFAULT_STRENGTH,
-                        help=f"Opponent strength source for xP (default {DEFAULT_STRENGTH}).")
+    parser.add_argument("--strength", choices=STRENGTH_NAMES, default=DEFAULT_STRENGTH,
+                        help=STRENGTH_HELP)
     parser.add_argument("--coefficients", type=Path,
                         help="Coefficients JSON for xP (default: the bundled file).")
     parser.add_argument("--budget", type=float,
@@ -105,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     coefs = load_coefficients(args.coefficients) if args.coefficients else load_default_coefficients()
     xp_scorer = XpScorer(
         coefs=coefs, priors=load_default_priors(), window=FeatureWindow(),
-        fixture_strength=STRENGTH_BY_NAME[args.strength],
+        fixture_strength=build_fixture_strength(args.strength, args.season),
     )
     budget_tenths = round(args.budget * TENTHS_PER_MILLION)
     strategies = {
