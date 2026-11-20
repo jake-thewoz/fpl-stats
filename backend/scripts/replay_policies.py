@@ -2,9 +2,8 @@
 free transfers and this week's scores, which transfers to make.
 
 ``one_a_week``, ``UseBanked`` and ``AllowHits`` use production's
-``suggest_transfer_bundles``, with the same 25-candidates-per-slot
-shortlist: if the 25 best upgrades for every slot are unaffordable, no
-transfer is made, as in the app. ``Planner`` plans several weeks at
+``suggest_transfer_bundles``, with the same shortlist as the app: each
+position's 25 best upgrades plus the best few each slot can afford. ``Planner`` plans several weeks at
 once with ``transfer_planner.py`` and makes only this week's moves.
 """
 from __future__ import annotations
