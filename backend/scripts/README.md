@@ -220,7 +220,10 @@ the archive has no injury flags. Opponent strength is pluggable
 (pre-match bookmaker odds for the next gameweek, FPL difficulty after;
 `odds.py`), `odds_closing` (closing odds, an upper bound) or
 `odds_all_weeks` (odds for every week ahead: a leak, for comparison
-only). Odds come from football-data.co.uk and are cached under
+only). `odds_goals` and `odds_defence` also turn the odds into each
+side's expected goals and pass them to xP as per-match multipliers
+(`odds_defence`, the better one, measures goals conceded against the
+league so the odds' view of each defence replaces ours; #255). Odds come from football-data.co.uk and are cached under
 `.season_cache/odds/`. See `docs/odds-vs-fpl-difficulty.md`.
 
 `replay_accuracy.py` predicts each gameweek from 5 on for **every** player

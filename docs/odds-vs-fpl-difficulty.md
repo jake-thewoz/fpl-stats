@@ -1,6 +1,6 @@
 # Spike: do bookmaker odds beat FPL difficulty? (#244)
 
-**Verdict:** odds are a **better signal** than FPL's 1–5 fixture difficulty. Our xP model hardly uses fixture strength at all, though, so swapping odds in **does not change predictions or points yet**. Build it in only together with a model change that makes fixture strength count (follow-up #255). Production can get odds free.
+**Verdict:** odds are a **better signal** than FPL's 1–5 fixture difficulty. Our xP model hardly uses fixture strength at all, though, so swapping odds in as a strength **does not change predictions or points**. Feeding odds in as **expected goals** does help (#255, section 4b): `odds_defence` improves accuracy in every season and points in 8 of 9 replays, by a modest +20 to +45 a season. Production can get odds free.
 
 ## 1. Data
 
@@ -59,6 +59,42 @@ I also tried tripling the fixture-strength weights. The totals moved randomly fo
 ## 4. The stronger use
 
 Odds give each team's **expected goals** in a match directly: the home/draw/away price together with the over/under 2.5 goals price. Clean sheets (`P(0 conceded)`), goals conceded and an attacking boost can then come straight from those expected goals, instead of a season-average rate nudged by a 0–1 strength. That's where the better signal could reach the points. It's a model change to `xp_v2`, though, so it's filed as follow-up **#255** and not attempted in this spike.
+
+## 4b. Results of the stronger use (#255)
+
+`xp_v2.FixtureContext` gained two optional per-match multipliers: `concede_multiplier` (it replaces the clean-sheet and goals-conceded fixture factor) and `attack_multiplier` (it replaces the goals and assists factor). Left empty, which is the case in production, nothing changes. `odds.py` turns the home/draw/away and over/under 2.5 prices into each side's expected goals, assuming independent Poisson scores. I tried three ways to feed them in, all using odds for the next gameweek only:
+
+| Variant (`--strength`) | Clean sheets and goals conceded | Goals and assists |
+|---|---|---|
+| absolute (first try, not kept) | the odds' expected goals conceded used directly | this match ÷ the team's usual |
+| `odds_goals` | this match ÷ the team's **usual** goals conceded | this match ÷ the team's usual |
+| **`odds_defence`** | this match ÷ the **league average**, scaled by the league's goals-conceded rate over the team's own. The odds' view of each defence replaces ours | this match ÷ the team's usual |
+
+**The absolute version was miscalibrated.** The odds themselves are well calibrated: a 26.1% implied clean-sheet rate against 25.5% actual in 2025-26. But the fitted weights (`cs_w` ≈ 0.45, `concede_w` ≈ 1.4) were tuned to correct our own goals-conceded input, so they halve clean sheets a second time. Goalkeepers and defenders came out ~35% below their actual average. That flattered the error figure (most player-weeks score 0), so I dropped it. The two relative versions keep the model's units and need no refit.
+
+**Accuracy** (`replay_accuracy.py`; overall error / ranking ρ, defender ρ, captain points):
+
+| season | FPL difficulty | `odds_goals` | **`odds_defence`** |
+|---|---|---|---|
+| 2023-24 | 0.975 / 0.638, DEF 0.539, 207 | 0.971 / 0.641, DEF 0.544, 187 | **0.960 / 0.644, DEF 0.553**, 199 |
+| 2024-25 | 1.006 / 0.650, DEF 0.581, 286 | 1.002 / 0.651, DEF 0.583, 310 | **1.000 / 0.651, DEF 0.584**, 311 |
+| 2025-26 | 0.976 / 0.685, DEF 0.627, 237 | 0.972 / 0.686, DEF 0.629, 229 | **0.968 / 0.686, DEF 0.632**, 229 |
+
+- `odds_defence` is better on error and ranking in every season, with the biggest gains for goalkeepers and defenders.
+- Average predicted goalkeeper and defender points stay level with FPL difficulty's.
+- The captain test is mixed. It turns on attackers, and the attack multiplier helps less than the defence one.
+
+**Season replay** (points, GW5–38):
+
+| strategy | FPL difficulty | `odds_goals` | **`odds_defence`** |
+|---|---|---|---|
+| `xp` | 1807 / 1866 / 1947 | 1817 / 1935 / 1992 | **1868 / 1870 / 2015** (+61, +4, +68) |
+| `xp_use_banked` | 1873 / 2111 / 1954 | 1870 / 2045 / 2033 | **1879 / 2117 / 2007** (+6, +6, +53) |
+| `xp_planner_h3` | 1859 / 2029 / 1964 | 1835 / 2104 / 1989 | **1868 / 2004 / 1986** (+9, −25, +22) |
+
+`odds_defence` gains in 8 of 9 runs, and every strategy wins at least two of three seasons. Each gain is small, about +20 to +45 points a season, which is below the single-season noise. The consistency is what makes it believable. Using odds for every week ahead (`odds_goals_all_weeks`, a leak) adds little over the next week alone.
+
+**Verdict for #255:** a real but modest improvement. Worth building into production if a live odds feed is cheap to run (section 5).
 
 ## 5. What production would need
 

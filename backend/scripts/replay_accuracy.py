@@ -38,6 +38,8 @@ from replay_accuracy_report import (  # noqa: E402
 from odds import (  # noqa: E402
     OddsStrength,
     average_home_share,
+    average_team_goals,
+    expected_goals_by_team_ids,
     home_share_by_team_ids,
     parse_odds_csv,
 )
@@ -60,13 +62,21 @@ FPL = "fpl"
 ODDS = "odds"
 ODDS_CLOSING = "odds_closing"
 ODDS_ALL_WEEKS = "odds_all_weeks"
-STRENGTH_NAMES = (NEUTRAL, FPL, ODDS, ODDS_CLOSING, ODDS_ALL_WEEKS)
+ODDS_GOALS = "odds_goals"
+ODDS_GOALS_ALL_WEEKS = "odds_goals_all_weeks"
+ODDS_DEFENCE = "odds_defence"
+STRENGTH_NAMES = (NEUTRAL, FPL, ODDS, ODDS_CLOSING, ODDS_ALL_WEEKS, ODDS_GOALS,
+                  ODDS_GOALS_ALL_WEEKS, ODDS_DEFENCE)
 DEFAULT_STRENGTH = NEUTRAL
 STRENGTH_HELP = (
     f"Opponent strength source: {NEUTRAL} (everyone mid-table), {FPL} (FPL's 1-5 "
     f"difficulty), {ODDS} (pre-match bookmaker odds for the next gameweek, FPL difficulty "
     f"after), {ODDS_CLOSING} (closing odds: an upper bound), {ODDS_ALL_WEEKS} (pre-match "
-    "odds for every week ahead: a leak, for comparison only)."
+    f"odds for every week ahead: a leak, for comparison only), {ODDS_GOALS} (as {ODDS}, plus "
+    "odds-implied expected goals for clean sheets, goals conceded and attack), "
+    f"{ODDS_GOALS_ALL_WEEKS} (the same for every week ahead: a leak), {ODDS_DEFENCE} (as "
+    f"{ODDS_GOALS}, but goals conceded measured against the league, so the odds' view of "
+    "each defence replaces ours)."
 )
 
 
@@ -78,14 +88,21 @@ def build_fixture_strength(name: str, season: str) -> FixtureStrength:
     if name == FPL:
         return FplDifficultyStrength()
     matches = parse_odds_csv(load_odds_csv(season), closing=name == ODDS_CLOSING)
-    baseline = average_home_share(parse_odds_csv(load_odds_csv(previous_season(season)),
-                                                 closing=False))
+    earlier_matches = parse_odds_csv(load_odds_csv(previous_season(season)), closing=False)
+    team_ids = load_team_ids(season)
     strength = OddsStrength(
-        home_share_by_clubs=home_share_by_team_ids(matches, load_team_ids(season)),
-        baseline_home_share=baseline,
+        home_share_by_clubs=home_share_by_team_ids(matches, team_ids),
+        baseline_home_share=average_home_share(earlier_matches),
         fallback=FplDifficultyStrength(),
     )
-    if name == ODDS_ALL_WEEKS:
+    if name in (ODDS_GOALS, ODDS_GOALS_ALL_WEEKS, ODDS_DEFENCE):
+        strength = replace(
+            strength,
+            expected_goals_by_clubs=expected_goals_by_team_ids(matches, team_ids),
+            baseline_team_goals=average_team_goals(earlier_matches),
+            concede_vs_league=name == ODDS_DEFENCE,
+        )
+    if name in (ODDS_ALL_WEEKS, ODDS_GOALS_ALL_WEEKS):
         return replace(strength, available_gameweeks=None)
     return strength
 

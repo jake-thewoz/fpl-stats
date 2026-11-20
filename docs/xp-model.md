@@ -99,6 +99,13 @@ Each component is computed independently. Output is in real FPL points.
 attacking components (stronger opp = less output), positive for defensive
 ones (stronger opp = more saves / defcon work / conceded).
 
+`FixtureContext` also takes two optional per-match multipliers, unused in
+production so far: `concede_multiplier` replaces the factor for clean
+sheets and goals conceded, and `attack_multiplier` replaces it for goals
+and assists. The offline replay fills them from bookmaker odds
+(`--strength odds_defence`), which improved accuracy in every archive
+season (#255, `docs/odds-vs-fpl-difficulty.md`).
+
 ### Defcon threshold
 
 The `defensive_contribution` field FPL ships per-match is the

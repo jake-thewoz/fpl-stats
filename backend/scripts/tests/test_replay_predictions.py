@@ -1,6 +1,8 @@
 """Tests for point-in-time predictions — synthetic seasons, no I/O."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from dataclasses import replace
 
 import pytest
@@ -9,6 +11,7 @@ from replay_accuracy_report import render_accuracy_report, single_gameweek_rows
 from replay_predictions import (
     NEUTRAL_OPPONENT_STRENGTH,
     FplDifficultyStrength,
+    GoalMultipliers,
     NeutralStrength,
     predict_horizon,
 )
@@ -240,6 +243,27 @@ def test_harder_fixture_lowers_an_attackers_prediction() -> None:
     hard_points = _predict(_season(fixtures=hard), strength=FplDifficultyStrength())[13][AS_OF_GW]
 
     assert easy_points > hard_points
+
+
+@dataclass(frozen=True)
+class _FixedMultipliers(NeutralStrength):
+    """Every match: the side concedes and scores these multiples of its usual."""
+
+    concede: float
+    attack: float
+
+    def goal_multipliers(self, season, fixture, for_home_team, as_of_gw=None):
+        return GoalMultipliers(self.concede, self.attack)
+
+
+def test_goal_multipliers_reach_the_prediction() -> None:
+    season = _season()
+    neutral = _predict(season)[13][AS_OF_GW]
+    easy = _FixedMultipliers(concede=0.5, attack=1.5)
+    hard = _FixedMultipliers(concede=2.0, attack=0.5)
+    # Conceding less and attacking more both add points for any outfielder.
+    assert _predict(season, strength=easy)[13][AS_OF_GW] > neutral
+    assert _predict(season, strength=hard)[13][AS_OF_GW] < neutral
 
 
 # ---------------------------------------------------------------------------
