@@ -10,11 +10,13 @@ unused ones are saved up to five, and every transfer beyond the saved
 count costs 4 points. *Which* transfers to make is the transfer policy's
 choice (``replay_policies.py``); the replay only checks they are legal.
 
+Money follows FPL's rules too: a player is bought at that round's price
+and sold at his selling price, which keeps only half of any rise since
+he was bought (``selling_price``).
+
 Simplifications:
 
 - No chips.
-- Buy price = sell price = that round's price (FPL's sell-on profit
-  rule is ignored).
 - No injury news: scorers only see past minutes.
 - The replay starts at gameweek 5, so totals cover GW5 to the end.
 - No vice-captain: if the captain doesn't play, nobody is doubled.
@@ -38,6 +40,8 @@ STARTING_BUDGET_TENTHS = 1000
 SCORING_HORIZON = 3
 FREE_TRANSFERS_GAINED_PER_WEEK = 1
 CAPTAIN_MULTIPLIER = 2
+# A sale keeps 1 / SELL_ON_PROFIT_DIVISOR of a price rise; a fall is taken in full.
+SELL_ON_PROFIT_DIVISOR = 2
 # Player fields the transfer search never reads; archive players have no
 # live equivalents, so these fill the required schema slots.
 _UNUSED_PLAYER_TEXT = ""
@@ -62,14 +66,25 @@ class Transfer:
 
 @dataclass(frozen=True)
 class TransferState:
-    """What a transfer policy sees just before a gameweek's deadline."""
+    """What a transfer policy sees just before a gameweek's deadline.
+    Money is in tenths of £1m, as in FPL's API."""
 
     season: SeasonData
     gameweek: int
-    squad: frozenset[int]
+    purchase_price_by_player: dict[int, int]
     bank: int
     free_transfers: int
     scores: Scores
+
+    @property
+    def squad(self) -> frozenset[int]:
+        return frozenset(self.purchase_price_by_player)
+
+    def squad_player(self, player_id: int) -> Player:
+        """A squad player as the transfer search should see him: priced
+        at what selling him would raise."""
+        return sold_player(self.season, player_id, self.gameweek,
+                           self.purchase_price_by_player[player_id])
 
 
 TransferPolicy = Callable[[TransferState], tuple[Transfer, ...]]
@@ -102,7 +117,9 @@ class Lineup:
 
 @dataclass(frozen=True)
 class GameweekResult:
-    """``points`` is net of ``hit_points``."""
+    """``points`` is net of ``hit_points``. ``bank`` and ``team_value``
+    (squad selling value + bank) are in tenths of £1m, after the week's
+    transfers."""
 
     gameweek: int
     points: int
@@ -111,6 +128,8 @@ class GameweekResult:
     transfers: tuple[Transfer, ...]
     hit_points: int
     free_transfers_after: int
+    bank: int
+    team_value: int
 
 
 @dataclass(frozen=True)
@@ -137,6 +156,18 @@ class ReplayResult:
     def free_transfers_at_end(self) -> int:
         return self.gameweeks[-1].free_transfers_after
 
+    @property
+    def team_value_at_start(self) -> int:
+        return self.gameweeks[0].team_value
+
+    @property
+    def team_value_at_middle(self) -> int:
+        return self.gameweeks[len(self.gameweeks) // 2].team_value
+
+    @property
+    def team_value_at_end(self) -> int:
+        return self.gameweeks[-1].team_value
+
 
 @dataclass(frozen=True)
 class _ActualOutcomes:
@@ -158,7 +189,7 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
     last_gameweek = max(row.round for row in season.rows)
 
     scores = scorer(season, config.start_gameweek, config.horizon)
-    squad, bank = _initial_squad(season, scores, config)
+    purchase_prices, bank = _initial_squad(season, scores, config)
 
     # Building the squad is not a transfer; its deadline grants the first free one.
     free_transfers = 0
@@ -169,14 +200,16 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
         if gameweek > config.start_gameweek:
             scores = scorer(season, gameweek, config.horizon)
             if config.transfer_policy is not None:
-                state = TransferState(season, gameweek, squad, bank, free_transfers, scores)
+                state = TransferState(season, gameweek, purchase_prices, bank,
+                                      free_transfers, scores)
                 transfers = tuple(config.transfer_policy(state))
-                squad, bank = apply_transfers(state, transfers, config.rules)
+                purchase_prices, bank = apply_transfers(state, transfers, config.rules)
                 hit_points = max(0, len(transfers) - free_transfers) * HIT_COST_POINTS
                 free_transfers = max(0, free_transfers - len(transfers))
         free_transfers = min(
             MAX_BANKED_FREE_TRANSFERS, free_transfers + FREE_TRANSFERS_GAINED_PER_WEEK,
         )
+        squad = frozenset(purchase_prices)
         lineup = pick_lineup(
             squad=squad,
             score_by_player={p: scores.get(p, {}).get(gameweek, 0.0) for p in squad},
@@ -194,6 +227,7 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
             gameweek=gameweek, points=points - hit_points, captain_bonus=captain_bonus,
             automatic_substitutions=substitutions, transfers=transfers,
             hit_points=hit_points, free_transfers_after=free_transfers,
+            bank=bank, team_value=bank + squad_selling_value(season, purchase_prices, gameweek),
         ))
     return ReplayResult(gameweeks=tuple(weeks))
 
@@ -294,9 +328,31 @@ def archive_player(season: SeasonData, player_id: int, gameweek: int) -> Player:
     )
 
 
+def selling_price(purchase_price: int, current_price: int) -> int:
+    """What FPL pays for a player bought at ``purchase_price``: half of
+    any rise, rounded down to £0.1m; a fall in full."""
+    if current_price <= purchase_price:
+        return current_price
+    return purchase_price + (current_price - purchase_price) // SELL_ON_PROFIT_DIVISOR
+
+
+def sold_player(season: SeasonData, player_id: int, gameweek: int, purchase_price: int) -> Player:
+    """``archive_player`` priced at his selling price rather than his price."""
+    player = archive_player(season, player_id, gameweek)
+    return player.model_copy(update={"now_cost": selling_price(purchase_price, player.now_cost)})
+
+
+def squad_selling_value(season: SeasonData, purchase_price_by_player: dict[int, int],
+                        gameweek: int) -> int:
+    return sum(
+        sold_player(season, player_id, gameweek, purchase_price).now_cost
+        for player_id, purchase_price in purchase_price_by_player.items()
+    )
+
+
 def _initial_squad(
     season: SeasonData, scores: Scores, config: ReplayConfig,
-) -> tuple[frozenset[int], int]:
+) -> tuple[dict[int, int], int]:
     gameweek = config.start_gameweek
     candidates = [
         Candidate(
@@ -315,40 +371,39 @@ def _initial_squad(
         rules=config.rules, bench_weight=config.bench_weight,
     )
     return (
-        frozenset(player.player_id for player in squad.squad),
+        {player.player_id: player.cost_tenths for player in squad.squad},
         config.budget_tenths - squad.total_cost_tenths,
     )
 
 
 def apply_transfers(
     state: TransferState, transfers: tuple[Transfer, ...], rules: SquadRules,
-) -> tuple[frozenset[int], int]:
-    """The squad and bank after ``transfers``, or ``IllegalTransfer``.
+) -> tuple[dict[int, int], int]:
+    """The squad's purchase prices and the bank after ``transfers``, or
+    ``IllegalTransfer``.
 
-    Buys and sells at the gameweek's price. Budget and the club limit
-    are checked once all moves are made, so one sale can fund another buy."""
+    Buys at the gameweek's price and sells at the selling price. Budget
+    and the club limit are checked once all moves are made, so one sale
+    can fund another buy."""
     season, gameweek = state.season, state.gameweek
-    squad = set(state.squad)
+    purchase_prices = dict(state.purchase_price_by_player)
     bank = state.bank
     buyable = set(buyable_players(season, gameweek))
     for transfer in transfers:
         sold, bought = transfer.out_player_id, transfer.in_player_id
-        if sold not in squad:
+        if sold not in purchase_prices:
             raise IllegalTransfer(f"GW{gameweek}: player {sold} is not in the squad")
-        if bought in squad or bought not in buyable:
+        if bought in purchase_prices or bought not in buyable:
             raise IllegalTransfer(f"GW{gameweek}: player {bought} cannot be bought")
         if season.position_by_player[sold] != season.position_by_player[bought]:
             raise IllegalTransfer(f"GW{gameweek}: {sold} -> {bought} changes position")
-        squad.remove(sold)
-        squad.add(bought)
-        bank += (
-            archive_player(season, sold, gameweek).now_cost
-            - archive_player(season, bought, gameweek).now_cost
-        )
+        price = archive_player(season, bought, gameweek).now_cost
+        bank += sold_player(season, sold, gameweek, purchase_prices.pop(sold)).now_cost - price
+        purchase_prices[bought] = price
     if bank < 0:
         raise IllegalTransfer(f"GW{gameweek}: transfers overspend by {-bank}")
     players_by_club: dict[int, int] = defaultdict(int)
-    for player_id in squad:
+    for player_id in purchase_prices:
         players_by_club[archive_player(season, player_id, gameweek).team] += 1
     # Only clubs bought into are checked: a squad player's real-life move
     # can leave four from one club, which FPL lets a manager keep.
@@ -356,7 +411,7 @@ def apply_transfers(
         club = archive_player(season, transfer.in_player_id, gameweek).team
         if players_by_club[club] > rules.max_players_per_team:
             raise IllegalTransfer(f"GW{gameweek}: too many players from club {club}")
-    return frozenset(squad), bank
+    return purchase_prices, bank
 
 
 def buyable_players(season: SeasonData, gameweek: int) -> list[int]:

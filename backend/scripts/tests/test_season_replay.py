@@ -20,6 +20,7 @@ from season_replay import (
     pick_lineup,
     run_replay,
     score_gameweek,
+    selling_price,
 )
 from season_replay_report import render_replay_report
 from squad_optimizer import SquadRules
@@ -280,6 +281,56 @@ class TestFreeTransfersAndHits:
                        replace(CONFIG, transfer_policy=policy))
 
 
+class TestSellingPrices:
+    """Squad players were bought at ``PRICE`` in gameweek 1."""
+
+    POINTS = {(p, g): 1 for p in range(1, 11) for g in range(1, LAST_GAMEWEEK + 1)}
+
+    @pytest.mark.parametrize("purchase, current, expected", [
+        (55, 58, 56),  # a rise of 3 keeps 1
+        (55, 56, 55),  # a rise of 1 keeps nothing
+        (55, 52, 52),  # a fall is taken in full
+        (55, 55, 55),
+    ])
+    def test_selling_price(self, purchase, current, expected):
+        assert selling_price(purchase, current) == expected
+
+    @staticmethod
+    def _risen(player_id: int, price: int) -> dict[tuple[int, int], int]:
+        return {(player_id, g): price for g in range(2, LAST_GAMEWEEK + 1)}
+
+    def test_a_sale_raises_only_half_the_rise(self):
+        # MID 6 rose by 3 so sells for 51; MID 16 costs 52.
+        season = _season(self.POINTS, price=self._risen(6, PRICE + 3) | self._risen(16, PRICE + 2))
+        policy = _scripted_policy({2: (Transfer(6, 16, 0.0),)})
+        with pytest.raises(IllegalTransfer):
+            run_replay(season, _fixed_scorer(GOOD_POOL_SCORES),
+                       replace(CONFIG, transfer_policy=policy))
+
+    @pytest.mark.parametrize("rise, transfers", [(4, 1), (3, 0)])
+    def test_the_policy_spends_only_the_selling_price(self, rise, transfers):
+        def scorer(season, as_of_gw, horizon):
+            return _fixed_scorer(GOOD_POOL_SCORES | {16: 5.0} if as_of_gw >= 2
+                                 else GOOD_POOL_SCORES)(season, as_of_gw, horizon)
+        season = _season({}, price=self._risen(6, PRICE + rise) | self._risen(16, PRICE + 2))
+        result = run_replay(season, scorer, CONFIG)
+        assert result.transfers_made == transfers
+        assert all(week.bank >= 0 for week in result.gameweeks)
+
+    def test_team_value_counts_selling_prices_and_the_new_purchase_price(self):
+        # GW2: MID 6 rose by 4 (worth +2), sold for 52 to buy MID 16 at 50,
+        # leaving 2 in the bank. GW3: 16 rises by 2 (worth +1).
+        price = self._risen(6, PRICE + 4) | {(16, 3): PRICE + 2}
+        policy = _scripted_policy({2: (Transfer(6, 16, 0.0),)})
+        result = run_replay(_season(self.POINTS, price=price), _fixed_scorer(GOOD_POOL_SCORES),
+                            replace(CONFIG, transfer_policy=policy))
+        assert [week.bank for week in result.gameweeks] == [0, 2, 2]
+        assert [week.team_value for week in result.gameweeks] == [
+            SQUAD_PRICE, SQUAD_PRICE + 2, SQUAD_PRICE + 3]
+        assert (result.team_value_at_start, result.team_value_at_middle,
+                result.team_value_at_end) == (SQUAD_PRICE, SQUAD_PRICE + 2, SQUAD_PRICE + 3)
+
+
 class TestSavingPolicies:
     """Squad players score 2.0; MID 16 improves by ``gain`` from gameweek 2."""
 
@@ -347,8 +398,9 @@ def test_report_lists_strategies_by_total():
         "steady": run_replay(season, _fixed_scorer(GOOD_POOL_SCORES), CONFIG),
         "hindsight": run_replay(season, hindsight_scorer, CONFIG),
     }
-    report = render_replay_report(results=results, ceiling_name="hindsight", season=SEASON,
+    report = render_replay_report(results=results, ceiling_name="hindsight",
+                                  budget_tenths=SQUAD_PRICE, season=SEASON,
                                   strength_name="neutral", coefficients_label="bundled",
                                   run_date="2026-11-19")
-    assert "| steady | 24 | 3 | 0 | 0 | 3 | 100% |" in report
+    assert "| steady | 24 | 3 | 0 | 0 | 3 | £50.0m / £50.0m / £50.0m | 100% |" in report
     assert "## Simplifications" in report

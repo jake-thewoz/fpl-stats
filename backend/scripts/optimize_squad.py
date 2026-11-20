@@ -36,8 +36,10 @@ from squad_optimizer import (  # noqa: E402
     DEFAULT_BENCH_WEIGHT,
     Candidate,
     NoFeasibleSquad,
+    TENTHS_PER_MILLION,
     OptimizedSquad,
     SquadRules,
+    format_millions,
     optimize_squad,
 )
 from v2_horizon import read_v2_horizon_xps  # noqa: E402
@@ -48,7 +50,6 @@ log = logging.getLogger(__name__)
 
 _DEFAULT_HORIZON = 5
 _MAX_HORIZON = 5
-_TENTHS_PER_MILLION = 10
 # 'a' = available, 'd' = doubtful (xP already discounts the doubt).
 # Injured, suspended and unavailable players are left out entirely.
 _SELECTABLE_STATUSES = frozenset({"a", "d"})
@@ -85,16 +86,13 @@ def render_squad(
     gameweek_ids: list[int],
     budget_tenths: int,
 ) -> str:
-    def millions(tenths: int) -> str:
-        return f"£{tenths / _TENTHS_PER_MILLION:.1f}m"
-
     def line(player: Candidate) -> str:
         captain_mark = " (C)" if player.player_id == squad.captain.player_id else ""
         return (
             f"  {_POSITION_LABELS[player.position]}  "
             f"{player.web_name + captain_mark:<22}"
             f"{team_short_names.get(player.team_id, '?'):<5}"
-            f"{millions(player.cost_tenths):>7}"
+            f"{format_millions(player.cost_tenths):>7}"
             f"{player.next_gw_xp:>8.2f}"
             f"{player.horizon_xp:>9.2f}"
             f"   id {player.player_id}"
@@ -119,8 +117,8 @@ def render_squad(
         "Bench",
         *(line(p) for p in sorted(squad.bench, key=bench_order)),
         "",
-        f"Cost: {millions(squad.total_cost_tenths)} of {millions(budget_tenths)} "
-        f"({millions(budget_tenths - squad.total_cost_tenths)} left)",
+        f"Cost: {format_millions(squad.total_cost_tenths)} of {format_millions(budget_tenths)} "
+        f"({format_millions(budget_tenths - squad.total_cost_tenths)} left)",
         f"Starting XI xP over the horizon: {squad.starters_horizon_xp:.1f}",
         f"Captain: {squad.captain.web_name} "
         f"({squad.captain.next_gw_xp:.2f} xP next gameweek)",
@@ -164,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         horizon_xps=read_v2_horizon_xps(table=table, horizon_gw_ids=gameweek_ids),
         next_gw_xps=read_v2_horizon_xps(table=table, horizon_gw_ids=gameweek_ids[:1]),
     )
-    budget_tenths = round(args.budget * _TENTHS_PER_MILLION)
+    budget_tenths = round(args.budget * TENTHS_PER_MILLION)
     try:
         squad = optimize_squad(
             candidates=candidates,
