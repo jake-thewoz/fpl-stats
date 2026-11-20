@@ -308,6 +308,23 @@ collapsed, the archive's leaky `xP` column never read) live in
 [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League),
 the community archive of the official FPL API.
 
+## `spikes/` — injury-flag history (#245)
+
+`spikes/archive_flag_history.py` reads every bootstrap snapshot in the S3
+snapshots bucket and writes a compact change log of each player's flag,
+news and price to `spikes/flag_history/changes.jsonl.gz` (gitignored).
+Re-running it adds new snapshots and keeps old ones. `spikes/flag_history.py`
+joins that log with this season's results from the cache table and prints
+when flags change, what they are worth and how many reach the app too late.
+The pure logic is in `flag_history.py`; findings in `docs/spike-team-news.md`.
+
+```bash
+cd backend/scripts
+source .venv/bin/activate
+python3 spikes/archive_flag_history.py
+python3 spikes/flag_history.py
+```
+
 ## Tests
 
 ```bash

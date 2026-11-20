@@ -8,6 +8,7 @@ Start with the [project README](../README.md) for the overview and quick start.
 | [xP model](xp-model.md) | The expected-points model: components, availability, the data pipeline, fitting and backtesting, and how to make common changes. |
 | [Operations runbook](operations.md) | Copy-pasteable commands for deploying, smoke tests, running jobs by hand, alarms, inspecting data; the season rollover checklist; dev gotchas; free-tier notes. |
 | [Odds vs FPL difficulty](odds-vs-fpl-difficulty.md) | Spike #244: bookmaker odds as a fixture-strength signal, results and verdict. |
+| [Team news spike](spike-team-news.md) | Spike #245: when FPL injury flags change, what they are worth, and why xP should re-run before Friday deadlines. |
 | [Performance](performance.md) | The 128 MB bottleneck write-up, how to diagnose Lambda latency, and the open CloudFront / precompute options. |
 | [AWS learning notes](aws-learning-notes.md) | Solutions Architect notes per service, drawn from this stack, plus eight exam drills. |
 | [Project history](history.md) | Timeline, key decisions and their reasons, incidents, and a milestone snapshot. |
