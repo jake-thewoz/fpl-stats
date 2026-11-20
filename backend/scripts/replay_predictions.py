@@ -47,11 +47,29 @@ EASIEST_FPL_DIFFICULTY = 1
 FPL_DIFFICULTY_SPAN = 4
 
 
+@dataclass(frozen=True)
+class GoalMultipliers:
+    """This match's expected goals for one side, as multiples of a
+    baseline: ``attack`` against the side's usual; ``concede`` against
+    its usual, or against the league's average when ``concede_vs_league``
+    (then it is scaled by the league's average goals-conceded rate over
+    the team's own, so the odds' view of the defence replaces ours)."""
+
+    concede: float
+    attack: float
+    concede_vs_league: bool = False
+
+
 class FixtureStrength(Protocol):
     def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
                  as_of_gw: int | None = None) -> float:
         """Opponent strength in 0..1 from the given side's point of view,
         standing just before ``as_of_gw`` (None: no time limit)."""
+        ...
+
+    def goal_multipliers(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                         as_of_gw: int | None = None) -> GoalMultipliers | None:
+        """Per-match goal multipliers for xP, or None to use the strength alone."""
         ...
 
 
@@ -62,6 +80,10 @@ class NeutralStrength:
     def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
                  as_of_gw: int | None = None) -> float:
         return NEUTRAL_OPPONENT_STRENGTH
+
+    def goal_multipliers(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                         as_of_gw: int | None = None) -> GoalMultipliers | None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -74,6 +96,10 @@ class FplDifficultyStrength:
         if difficulty is None:
             return NEUTRAL_OPPONENT_STRENGTH
         return (difficulty - EASIEST_FPL_DIFFICULTY) / FPL_DIFFICULTY_SPAN
+
+    def goal_multipliers(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                         as_of_gw: int | None = None) -> GoalMultipliers | None:
+        return None
 
 
 def predict_horizon(
@@ -101,7 +127,14 @@ def predict_horizon(
             fixtures_by_team_gameweek[(fixture.team_h, fixture.event)].append(fixture)
             fixtures_by_team_gameweek[(fixture.team_a, fixture.event)].append(fixture)
 
-    team_xgc_by_team: dict[int, float] = {}
+    team_xgc_by_team = {
+        team_id: compute_team_xgc_at_gw(
+            team_history_rows=team_rows, as_of_gw=as_of_gw, priors=priors, window=window,
+        )
+        for team_id, team_rows in rows_by_team.items()
+    }
+    league_mean_xgc = (sum(team_xgc_by_team.values()) / len(team_xgc_by_team)
+                       if team_xgc_by_team else None)
     predictions: dict[int, dict[int, float]] = {}
     for player_id, player_rows in rows_by_player.items():
         position = season.position_by_player.get(player_id)
@@ -116,6 +149,8 @@ def predict_horizon(
                 team_history_rows=rows_by_team[team_id],
                 as_of_gw=as_of_gw, priors=priors, window=window,
             )
+        league_vs_team_xgc = (league_mean_xgc / team_xgc_by_team[team_id]
+                              if league_mean_xgc and team_xgc_by_team[team_id] else 1.0)
         rates = merge_team_xgc(
             compute_rates_at_gw(
                 history=player_rows, position=position,
@@ -129,7 +164,8 @@ def predict_horizon(
         )
         fixtures_by_gw = {
             gameweek: [
-                _fixture_context(season, fixture, team_id, fixture_strength, as_of_gw)
+                _fixture_context(season, fixture, team_id, fixture_strength, as_of_gw,
+                                 league_vs_team_xgc)
                 for fixture in fixtures_by_team_gameweek[(team_id, gameweek)]
             ]
             for gameweek in target_gameweeks
@@ -156,12 +192,20 @@ def _club_before(
 
 def _fixture_context(
     season: SeasonData, fixture: Fixture, team_id: int, fixture_strength: FixtureStrength,
-    as_of_gw: int,
+    as_of_gw: int, league_vs_team_xgc: float,
 ) -> FixtureContext:
     is_home = fixture.team_h == team_id
+    multipliers = fixture_strength.goal_multipliers(season, fixture, for_home_team=is_home,
+                                                    as_of_gw=as_of_gw)
     return FixtureContext(
         home=is_home,
         opponent_strength=fixture_strength.strength(season, fixture, for_home_team=is_home,
                                                     as_of_gw=as_of_gw),
         fpl_difficulty=fixture.team_h_difficulty if is_home else fixture.team_a_difficulty,
+        concede_multiplier=(
+            None if multipliers is None
+            else multipliers.concede * league_vs_team_xgc if multipliers.concede_vs_league
+            else multipliers.concede
+        ),
+        attack_multiplier=multipliers.attack if multipliers else None,
     )

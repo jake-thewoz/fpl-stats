@@ -143,11 +143,24 @@ class FixtureContext:
     multiplex on it. The Phase 2 pipeline derives ``opponent_strength``
     from whichever upstream signal is cleanest (an Elo win-prob once
     #166 lands).
+
+    Optional per-match multipliers (e.g. from bookmaker odds, #255): this
+    match's expected goals over the team's usual, which already include
+    home advantage and both teams' quality. Relative, so the fitted
+    weights keep their calibration:
+
+    - ``concede_multiplier`` replaces the clean-sheet and goals-conceded
+      fixture factors (goals conceded = ``team_xgc_p90 · multiplier``).
+    - ``attack_multiplier`` replaces the goals and assists fixture factors.
+
+    Left as None, every component behaves as before.
     """
 
     home: bool
     opponent_strength: float
     fpl_difficulty: int | None = None
+    concede_multiplier: float | None = None
+    attack_multiplier: float | None = None
 
 
 @dataclass(frozen=True)
@@ -280,6 +293,20 @@ def _factor(component: str, fixture: FixtureContext, coefs: V2Coefficients) -> f
     return 1.0 + home_term + opp_w * (fixture.opponent_strength - 0.5)
 
 
+def _attack_factor(component: str, fixture: FixtureContext, coefs: V2Coefficients) -> float:
+    if fixture.attack_multiplier is not None:
+        return fixture.attack_multiplier
+    return _factor(component, fixture, coefs)
+
+
+def _expected_conceded(component: str, rates: PerNinetyRates, fixture: FixtureContext,
+                       coefs: V2Coefficients) -> float:
+    """Goals the player's team is expected to concede in this match."""
+    factor = (fixture.concede_multiplier if fixture.concede_multiplier is not None
+              else _factor(component, fixture, coefs))
+    return max(0.0, rates.team_xgc_p90 * factor)
+
+
 def _appearance_xp(*, p60: float, p_any: float, rules: ScoringRules) -> float:
     """E[appearance points] = P(60+ min) · 2 + P(0–59 min) · 1.
 
@@ -300,7 +327,7 @@ def _goals_xp(
     rules: ScoringRules,
     coefs: V2Coefficients,
 ) -> float:
-    factor = _factor("goals", fixture, coefs)
+    factor = _attack_factor("goals", fixture, coefs)
     return rules.goal_pts[position] * p60 * rates.npxg_p90 * coefs.goals_w[position] * factor
 
 
@@ -313,7 +340,7 @@ def _assists_xp(
     rules: ScoringRules,
     coefs: V2Coefficients,
 ) -> float:
-    factor = _factor("assists", fixture, coefs)
+    factor = _attack_factor("assists", fixture, coefs)
     return rules.assist_pts * p60 * rates.xa_p90 * coefs.assists_w[position] * factor
 
 
@@ -335,9 +362,7 @@ def _cs_xp(
     cs_pts = rules.clean_sheet_pts[position]
     if cs_pts == 0:
         return 0.0
-    factor = _factor("cs", fixture, coefs)
-    lam = max(0.0, rates.team_xgc_p90 * factor)
-    p_cs = math.exp(-lam)
+    p_cs = math.exp(-_expected_conceded("cs", rates, fixture, coefs))
     return cs_pts * p60 * p_cs * coefs.cs_w[position]
 
 
@@ -353,8 +378,7 @@ def _concede_xp(
     """−1 per 2 conceded for GK/DEF (when ≥60 min played). Outfield others 0."""
     if position not in (GKP, DEF):
         return 0.0
-    factor = _factor("concede", fixture, coefs)
-    expected_pairs = max(0.0, rates.team_xgc_p90 * factor) / rules.concede_per_penalty
+    expected_pairs = _expected_conceded("concede", rates, fixture, coefs) / rules.concede_per_penalty
     return -1.0 * p60 * expected_pairs * coefs.concede_w[position]
 
 

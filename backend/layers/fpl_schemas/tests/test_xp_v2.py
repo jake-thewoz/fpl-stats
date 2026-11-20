@@ -146,6 +146,29 @@ def test_cs_xp_poisson_p_zero_conceded() -> None:
     assert c.cs_xp == pytest.approx(expected, rel=1e-4)
 
 
+def test_concede_multiplier_replaces_the_clean_sheet_and_conceded_factor() -> None:
+    """With a multiplier, λ = team_xgc_p90 × multiplier regardless of venue
+    or opponent strength: CS = exp(−λ), conceded = λ / 2."""
+    fixture = FixtureContext(home=True, opponent_strength=0.9, concede_multiplier=0.5)
+    c = xp_for_fixture(
+        position=DEF, rates=_baseline_rates(team_xgc_p90=1.6), fixture=fixture,
+        minutes_prob=1.0, p60=1.0, coefs=_TEST_COEFS,
+    )
+    assert c.cs_xp == pytest.approx(4 * math.exp(-0.8))
+    assert c.concede_xp == pytest.approx(-0.8 / 2)
+
+
+def test_attack_multiplier_replaces_the_goals_and_assists_factor() -> None:
+    fixture = FixtureContext(home=False, opponent_strength=0.9, attack_multiplier=1.5)
+    c = xp_for_fixture(
+        position=FWD, rates=_baseline_rates(npxg_p90=0.5, xa_p90=0.2), fixture=fixture,
+        minutes_prob=1.0, p60=1.0, coefs=_TEST_COEFS,
+    )
+    # Forward goal = 4 pts, assist = 3 pts, both × 1.5 regardless of venue or opponent.
+    assert c.goals_xp == pytest.approx(4 * 0.5 * 1.5)
+    assert c.assists_xp == pytest.approx(3 * 0.2 * 1.5)
+
+
 def test_cs_xp_zero_for_forwards() -> None:
     rates = _baseline_rates(team_xgc_p90=0.5)  # very tight defence
     c = xp_for_fixture(
