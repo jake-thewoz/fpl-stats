@@ -14,9 +14,18 @@ Money follows FPL's rules too: a player is bought at that round's price
 and sold at his selling price, which keeps only half of any rise since
 he was bought (``selling_price``).
 
+Chips (``ChipWindow``, ``ChipPolicy``) follow FPL's rules: one chip a
+gameweek, each used once inside its window. Wildcard and free hit
+rebuild the squad with ``optimize_squad`` for the money available, keep
+saved free transfers and skip that week's new one, as in
+``compute.derive_free_transfers``; a free hit's squad lasts one week.
+Bench boost scores all 15; triple captain counts the captain three
+times. *When* to play them is the chip policy's choice
+(``replay_chips.py``).
+
 Simplifications:
 
-- No chips.
+- No Assistant Manager chip (2024-25 only).
 - No injury news: scorers only see past minutes.
 - The replay starts at gameweek 5, so totals cover GW5 to the end.
 - No vice-captain: if the captain doesn't play, nobody is doubled.
@@ -27,7 +36,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Callable, Protocol
+from typing import Callable, NamedTuple, Protocol
 
 from compute import HIT_COST_POINTS, MAX_BANKED_FREE_TRANSFERS, MAX_PLAYERS_PER_TEAM
 from schemas import Player
@@ -40,6 +49,13 @@ STARTING_BUDGET_TENTHS = 1000
 SCORING_HORIZON = 3
 FREE_TRANSFERS_GAINED_PER_WEEK = 1
 CAPTAIN_MULTIPLIER = 2
+TRIPLE_CAPTAIN_MULTIPLIER = 3
+# Chip names as FPL's API spells them.
+WILDCARD = "wildcard"
+FREE_HIT = "freehit"
+BENCH_BOOST = "bboost"
+TRIPLE_CAPTAIN = "3xc"
+SQUAD_CHIPS = frozenset({WILDCARD, FREE_HIT})
 # A sale keeps 1 / SELL_ON_PROFIT_DIVISOR of a price rise; a fall is taken in full.
 SELL_ON_PROFIT_DIVISOR = 2
 # Player fields the transfer search never reads; archive players have no
@@ -94,11 +110,63 @@ class IllegalTransfer(Exception):
     """A policy asked for a move FPL would not allow."""
 
 
+class IllegalChip(Exception):
+    """A chip policy asked for a chip FPL would not allow."""
+
+
+@dataclass(frozen=True)
+class ChipWindow:
+    """One use of ``chip``, playable in any gameweek from ``first_gameweek``
+    to ``last_gameweek`` inclusive."""
+
+    chip: str
+    first_gameweek: int
+    last_gameweek: int
+
+    def contains(self, gameweek: int) -> bool:
+        return self.first_gameweek <= gameweek <= self.last_gameweek
+
+
+@dataclass(frozen=True)
+class ChipState:
+    """What a chip policy sees just before a gameweek's deadline. It is
+    asked before the transfer policy; a wildcard or free hit replaces
+    that week's transfers."""
+
+    season: SeasonData
+    gameweek: int
+    start_gameweek: int
+    squad: frozenset[int]
+    scores: Scores
+    unplayed: tuple[ChipWindow, ...]
+    previous_chip: str | None
+    rules: SquadRules
+
+    def playable_window(self, chip: str) -> ChipWindow | None:
+        """The unplayed window ``chip`` would use this week, or None if
+        FPL would not allow it now."""
+        if chip in SQUAD_CHIPS and self.gameweek == self.start_gameweek:
+            return None  # the squad was only just built
+        if chip == FREE_HIT and self.previous_chip == FREE_HIT:
+            return None  # the squad must come back before another free hit
+        return next(
+            (window for window in self.unplayed
+             if window.chip == chip and window.contains(self.gameweek)),
+            None,
+        )
+
+
+ChipPolicy = Callable[[ChipState], str | None]
+
+
 @dataclass(frozen=True)
 class ReplayConfig:
-    """``transfer_policy=None`` keeps the starting squad all season."""
+    """``transfer_policy=None`` keeps the starting squad all season;
+    ``chip_policy=None`` plays no chips."""
 
     transfer_policy: TransferPolicy | None = None
+    chip_policy: ChipPolicy | None = None
+    chip_windows: tuple[ChipWindow, ...] = ()
     start_gameweek: int = START_GAMEWEEK
     budget_tenths: int = STARTING_BUDGET_TENTHS
     horizon: int = SCORING_HORIZON
@@ -117,14 +185,18 @@ class Lineup:
 
 @dataclass(frozen=True)
 class GameweekResult:
-    """``points`` is net of ``hit_points``. ``bank`` and ``team_value``
-    (squad selling value + bank) are in tenths of £1m, after the week's
-    transfers."""
+    """``points`` is net of ``hit_points``. ``bench_points`` is what the
+    players left on the bench scored. ``squad``, ``bank`` and
+    ``team_value`` (squad selling value + bank, in tenths of £1m) are
+    after the week's transfers, and after a free hit's squad goes back."""
 
     gameweek: int
     points: int
     captain_bonus: int
+    bench_points: int
     automatic_substitutions: int
+    chip: str | None
+    squad: frozenset[int]
     transfers: tuple[Transfer, ...]
     hit_points: int
     free_transfers_after: int
@@ -143,6 +215,10 @@ class ReplayResult:
     @property
     def captain_bonus(self) -> int:
         return sum(week.captain_bonus for week in self.gameweeks)
+
+    @property
+    def chips_played(self) -> dict[int, str]:
+        return {week.gameweek: week.chip for week in self.gameweeks if week.chip}
 
     @property
     def transfers_made(self) -> int:
@@ -193,22 +269,43 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
 
     # Building the squad is not a transfer; its deadline grants the first free one.
     free_transfers = 0
+    unplayed = list(config.chip_windows)
+    chip: str | None = None
     weeks: list[GameweekResult] = []
     for gameweek in range(config.start_gameweek, last_gameweek + 1):
-        transfers: tuple[Transfer, ...] = ()
-        hit_points = 0
         if gameweek > config.start_gameweek:
             scores = scorer(season, gameweek, config.horizon)
-            if config.transfer_policy is not None:
+        chip_state = ChipState(
+            season=season, gameweek=gameweek, start_gameweek=config.start_gameweek,
+            squad=frozenset(purchase_prices), scores=scores, unplayed=tuple(unplayed),
+            previous_chip=chip, rules=config.rules,
+        )
+        chip = config.chip_policy(chip_state) if config.chip_policy else None
+        if chip is not None:
+            window = chip_state.playable_window(chip)
+            if window is None:
+                raise IllegalChip(f"GW{gameweek}: {chip} cannot be played")
+            unplayed.remove(window)
+
+        transfers: tuple[Transfer, ...] = ()
+        hit_points = 0
+        squad_before_free_hit = (purchase_prices, bank)
+        if chip in SQUAD_CHIPS:
+            purchase_prices, bank = rebuild_squad(
+                season, gameweek, scores, purchase_prices, bank, config,
+                horizon=1 if chip == FREE_HIT else config.horizon,
+            )
+        else:
+            if gameweek > config.start_gameweek and config.transfer_policy is not None:
                 state = TransferState(season, gameweek, purchase_prices, bank,
                                       free_transfers, scores)
                 transfers = tuple(config.transfer_policy(state))
                 purchase_prices, bank = apply_transfers(state, transfers, config.rules)
                 hit_points = max(0, len(transfers) - free_transfers) * HIT_COST_POINTS
                 free_transfers = max(0, free_transfers - len(transfers))
-        free_transfers = min(
-            MAX_BANKED_FREE_TRANSFERS, free_transfers + FREE_TRANSFERS_GAINED_PER_WEEK,
-        )
+            free_transfers = min(
+                MAX_BANKED_FREE_TRANSFERS, free_transfers + FREE_TRANSFERS_GAINED_PER_WEEK,
+            )
         squad = frozenset(purchase_prices)
         lineup = pick_lineup(
             squad=squad,
@@ -216,16 +313,21 @@ def run_replay(season: SeasonData, scorer: Scorer, config: ReplayConfig) -> Repl
             position_by_player=season.position_by_player,
             rules=config.rules,
         )
-        points, captain_bonus, substitutions = score_gameweek(
+        week_score = score_gameweek(
             lineup=lineup,
             points_by_player={p: outcomes.points_by_player_round.get((p, gameweek), 0) for p in squad},
             minutes_by_player={p: outcomes.minutes_by_player_round.get((p, gameweek), 0) for p in squad},
             position_by_player=season.position_by_player,
             rules=config.rules,
+            chip=chip,
         )
+        if chip == FREE_HIT:
+            purchase_prices, bank = squad_before_free_hit
         weeks.append(GameweekResult(
-            gameweek=gameweek, points=points - hit_points, captain_bonus=captain_bonus,
-            automatic_substitutions=substitutions, transfers=transfers,
+            gameweek=gameweek, points=week_score.points - hit_points,
+            captain_bonus=week_score.captain_bonus, bench_points=week_score.bench_points,
+            automatic_substitutions=week_score.automatic_substitutions, chip=chip,
+            squad=frozenset(purchase_prices), transfers=transfers,
             hit_points=hit_points, free_transfers_after=free_transfers,
             bank=bank, team_value=bank + squad_selling_value(season, purchase_prices, gameweek),
         ))
@@ -276,6 +378,13 @@ def pick_lineup(
     )
 
 
+class WeekScore(NamedTuple):
+    points: int
+    captain_bonus: int
+    automatic_substitutions: int
+    bench_points: int
+
+
 def score_gameweek(
     *,
     lineup: Lineup,
@@ -283,16 +392,20 @@ def score_gameweek(
     minutes_by_player: dict[int, int],
     position_by_player: dict[int, int],
     rules: SquadRules,
-) -> tuple[int, int, int]:
-    """(points, captain bonus, automatic substitutions) for the week.
-
-    A starter with 0 minutes is replaced by the first bench player, in
+    chip: str | None = None,
+) -> WeekScore:
+    """A starter with 0 minutes is replaced by the first bench player, in
     bench order, who played and keeps the formation legal. The captain
-    counts double only if he played."""
-    starters = list(lineup.starters)
-    unused_bench = list(lineup.bench)
+    counts double (triple with ``TRIPLE_CAPTAIN``) only if he played.
+    With ``BENCH_BOOST`` the bench scores too, so nobody is substituted."""
+    if chip == BENCH_BOOST:
+        starters = list(lineup.starters) + list(lineup.bench)
+        unused_bench: list[int] = []
+    else:
+        starters = list(lineup.starters)
+        unused_bench = list(lineup.bench)
     substitutions = 0
-    for index, starter in enumerate(lineup.starters):
+    for index, starter in enumerate(lineup.starters if chip != BENCH_BOOST else ()):
         if minutes_by_player.get(starter, 0) > 0:
             continue
         for substitute in unused_bench:
@@ -306,10 +419,16 @@ def score_gameweek(
                 break
 
     points = sum(points_by_player.get(p, 0) for p in starters)
+    multiplier = TRIPLE_CAPTAIN_MULTIPLIER if chip == TRIPLE_CAPTAIN else CAPTAIN_MULTIPLIER
     captain_bonus = 0
     if minutes_by_player.get(lineup.captain, 0) > 0:
-        captain_bonus = points_by_player.get(lineup.captain, 0) * (CAPTAIN_MULTIPLIER - 1)
-    return points + captain_bonus, captain_bonus, substitutions
+        captain_bonus = points_by_player.get(lineup.captain, 0) * (multiplier - 1)
+    return WeekScore(
+        points=points + captain_bonus,
+        captain_bonus=captain_bonus,
+        automatic_substitutions=substitutions,
+        bench_points=sum(points_by_player.get(p, 0) for p in unused_bench),
+    )
 
 
 def archive_player(season: SeasonData, player_id: int, gameweek: int) -> Player:
@@ -353,26 +472,47 @@ def squad_selling_value(season: SeasonData, purchase_price_by_player: dict[int, 
 def _initial_squad(
     season: SeasonData, scores: Scores, config: ReplayConfig,
 ) -> tuple[dict[int, int], int]:
-    gameweek = config.start_gameweek
-    candidates = [
-        Candidate(
-            player_id=player_id,
-            web_name=season.name_by_player.get(player_id, _UNUSED_PLAYER_TEXT),
-            team_id=season.team_by_player_round[(player_id, gameweek)],
-            position=season.position_by_player[player_id],
-            cost_tenths=season.value_by_player_round[(player_id, gameweek)],
-            horizon_xp=sum(scores.get(player_id, {}).values()),
-            next_gw_xp=scores.get(player_id, {}).get(gameweek, 0.0),
+    return rebuild_squad(season, config.start_gameweek, scores, {}, config.budget_tenths,
+                         config, horizon=config.horizon)
+
+
+def rebuild_squad(
+    season: SeasonData, gameweek: int, scores: Scores, purchase_price_by_player: dict[int, int],
+    bank: int, config: ReplayConfig, *, horizon: int,
+) -> tuple[dict[int, int], int]:
+    """The best squad for the money the current one would raise plus the
+    bank, rated on ``horizon`` weeks of ``scores``: the starting squad,
+    a wildcard or a free hit. A kept player costs his selling price and
+    keeps his purchase price."""
+    weeks_rated = range(gameweek, gameweek + horizon)
+    candidates = []
+    for player_id in buyable_players(season, gameweek):
+        player = (
+            sold_player(season, player_id, gameweek, purchase_price_by_player[player_id])
+            if player_id in purchase_price_by_player
+            else archive_player(season, player_id, gameweek)
         )
-        for player_id in buyable_players(season, gameweek)
-    ]
+        score_by_week = scores.get(player_id, {})
+        candidates.append(Candidate(
+            player_id=player_id,
+            web_name=player.web_name,
+            team_id=player.team,
+            position=player.element_type,
+            cost_tenths=player.now_cost,
+            horizon_xp=sum(score_by_week.get(week, 0.0) for week in weeks_rated),
+            next_gw_xp=score_by_week.get(gameweek, 0.0),
+        ))
+    money = bank + squad_selling_value(season, purchase_price_by_player, gameweek)
     squad = optimize_squad(
-        candidates=candidates, budget_tenths=config.budget_tenths,
+        candidates=candidates, budget_tenths=money,
         rules=config.rules, bench_weight=config.bench_weight,
     )
     return (
-        {player.player_id: player.cost_tenths for player in squad.squad},
-        config.budget_tenths - squad.total_cost_tenths,
+        {
+            player.player_id: purchase_price_by_player.get(player.player_id, player.cost_tenths)
+            for player in squad.squad
+        },
+        money - squad.total_cost_tenths,
     )
 
 

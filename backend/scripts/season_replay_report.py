@@ -2,13 +2,22 @@
 does the running and writing."""
 from __future__ import annotations
 
-from season_replay import ReplayResult
+from dataclasses import dataclass
+
+from season_replay import BENCH_BOOST, FREE_HIT, TRIPLE_CAPTAIN, WILDCARD, ReplayResult
 from squad_optimizer import format_millions
 
 _NO_SHARE = "—"
+CHIP_LABELS = {
+    WILDCARD: "wildcard",
+    FREE_HIT: "free hit",
+    BENCH_BOOST: "bench boost",
+    TRIPLE_CAPTAIN: "triple captain",
+}
 
 SIMPLIFICATIONS = (
-    "No chips.",
+    "The main table plays no chips; the Chips section, when present, adds them to `xp`.",
+    "No Assistant Manager chip (2024-25).",
     "Each strategy's transfer policy is in its name: `xp`, `form`, `ownership` and "
     "`hindsight` make one transfer a week if it gains anything; `xp_use_banked` saves "
     "transfers for bigger gains; `xp_allow_hits` may also take one 4-point hit a week.",
@@ -29,6 +38,7 @@ def render_replay_report(
     strength_name: str,
     coefficients_label: str,
     run_date: str,
+    chips: ChipComparison | None = None,
 ) -> str:
     """A ``ceiling_name`` missing from ``results`` leaves the share column blank."""
     ceiling = results.get(ceiling_name)
@@ -74,6 +84,69 @@ def render_replay_report(
         cells = [str(results[name].gameweeks[index].points) for name in names]
         lines.append(f"| {gameweek} | " + " | ".join(cells) + " |")
 
+    if chips is not None:
+        lines += render_chip_section(chips)
+
     lines += ["", "## Simplifications", ""]
     lines += [f"- {item}" for item in SIMPLIFICATIONS]
     return "\n".join(lines) + "\n"
+
+
+@dataclass(frozen=True)
+class ChipRun:
+    result: ReplayResult
+    gain_by_gameweek: dict[int, int]
+
+
+@dataclass(frozen=True)
+class ChipComparison:
+    """``runs`` by chip policy name; ``baseline`` is the one with no chips."""
+
+    strategy: str
+    baseline: str
+    runs: dict[str, ChipRun]
+    lookahead: int
+    ceiling: str
+
+
+def render_chip_section(chips: ChipComparison) -> list[str]:
+    baseline_total = chips.runs[chips.baseline].result.total_points
+    names = list(chips.runs)
+    lines = [
+        "",
+        "## Chips",
+        "",
+        f"`{chips.strategy}` with each chip policy. A chip's gain is the season total minus "
+        "the total with that one chip left out. Chip policies see fixtures only "
+        f"{chips.lookahead} gameweeks ahead, because the archive's fixture list is the final "
+        f"one. `{chips.ceiling}` knows the actual points: it is the ceiling for chip timing.",
+        "",
+        "| chip policy | total points | gain over no chips | chips played (GW: chip, gain) |",
+        "|---|---|---|---|",
+    ]
+    for name in names:
+        run = chips.runs[name]
+        played = ", ".join(
+            f"GW{week}: {CHIP_LABELS[chip]} {run.gain_by_gameweek[week]:+d}"
+            for week, chip in sorted(run.result.chips_played.items())
+        ) or _NO_SHARE
+        lines.append(f"| {name} | {run.result.total_points} | "
+                     f"{run.result.total_points - baseline_total:+d} | {played} |")
+
+    lines += [
+        "",
+        "Gain by chip, all uses added together:",
+        "",
+        "| chip | " + " | ".join(names) + " |",
+        "|---" * (len(names) + 1) + "|",
+    ]
+    for chip, label in CHIP_LABELS.items():
+        cells = []
+        for name in names:
+            run = chips.runs[name]
+            cells.append(str(sum(
+                run.gain_by_gameweek[week]
+                for week, played in run.result.chips_played.items() if played == chip
+            )))
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    return lines

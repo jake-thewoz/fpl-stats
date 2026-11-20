@@ -6,11 +6,24 @@ from dataclasses import replace
 import pytest
 
 from compute import HIT_COST_POINTS, MAX_BANKED_FREE_TRANSFERS
+from replay_chips import (
+    CHIP_WINDOWS_BY_SEASON,
+    ScheduledChips,
+    SimpleRules,
+    best_chip_schedule,
+    chip_gains,
+)
 from replay_policies import AllowHits, UseBanked, one_a_week
 from replay_strategies import form_scorer, hindsight_scorer, ownership_scorer
 from schemas import Fixture, PlayerHistoryRow
 from season_data import SeasonData
 from season_replay import (
+    BENCH_BOOST,
+    FREE_HIT,
+    TRIPLE_CAPTAIN,
+    WILDCARD,
+    ChipWindow,
+    IllegalChip,
     IllegalTransfer,
     Lineup,
     ReplayConfig,
@@ -107,37 +120,51 @@ class TestPickLineup:
 class TestScoreGameweek:
     LINEUP = Lineup(starters=(6, 7, 8, 3, 4, 9, 1), bench=(2, 10, 5), captain=6)
 
-    def _score(self, points: dict[int, int], did_not_play: set[int] = set()):
+    def _score(self, points: dict[int, int], did_not_play: set[int] = set(),
+               chip: str | None = None):
         return score_gameweek(
             lineup=self.LINEUP,
             points_by_player=points,
             minutes_by_player={p: 0 if p in did_not_play else 90 for p in SQUAD},
-            position_by_player=POSITION_BY_PLAYER, rules=RULES,
+            position_by_player=POSITION_BY_PLAYER, rules=RULES, chip=chip,
         )
 
     def test_captain_counts_double(self):
         points = {p: 2 for p in SQUAD} | {6: 10}
-        # Starters: 10 + 6 × 2 = 22, plus the captain's 10 again.
-        assert self._score(points) == (32, 10, 0)
+        # Starters: 10 + 6 × 2 = 22, plus the captain's 10 again; the
+        # bench's three players scored 2 each.
+        assert self._score(points) == (32, 10, 0, 6)
+
+    def test_triple_captain_counts_the_captain_three_times(self):
+        points = {p: 2 for p in SQUAD} | {6: 10}
+        week = self._score(points, chip=TRIPLE_CAPTAIN)
+        assert (week.points, week.captain_bonus) == (42, 20)
+
+    def test_bench_boost_counts_the_bench_and_makes_no_substitutions(self):
+        points = {p: 2 for p in SQUAD} | {6: 10, 5: 7}
+        week = self._score(points, did_not_play={3}, chip=BENCH_BOOST)
+        # All ten: 10 + 7 + 2 × 8 (DEF 3 scored 2 without minutes in
+        # this made-up week), plus the captain's 10 again.
+        assert week == (10 + 7 + 2 * 8 + 10, 10, 0, 0)
 
     def test_captain_who_did_not_play_is_not_doubled(self):
         points = {p: 2 for p in SQUAD} | {6: 0, 5: 3}
         # Bench order is GKP 2, FWD 10, DEF 5: the keeper can't play
         # outfield, FWD 10 comes on (GKP-DEF-MID-FWD 1-2-2-2 is legal).
-        total, captain_bonus, substitutions = self._score(points, did_not_play={6})
+        total, captain_bonus, substitutions, _ = self._score(points, did_not_play={6})
         assert (total, captain_bonus, substitutions) == (12 + 2, 0, 1)
 
     def test_auto_sub_skips_players_who_would_break_the_formation(self):
         # DEF 3 out: GKP 2 can't play outfield, FWD 10 would leave one
         # defender, so DEF 5 comes on.
         points = {p: 2 for p in SQUAD} | {5: 7}
-        total, _, substitutions = self._score(points, did_not_play={3})
+        total, _, substitutions, _ = self._score(points, did_not_play={3})
         assert substitutions == 1
         assert total == 2 * 6 + 7 + 2  # six starters, DEF 5, captain doubled
 
     def test_bench_player_who_did_not_play_is_skipped(self):
         points = {p: 2 for p in SQUAD} | {9: 0, 10: 0}
-        total, _, substitutions = self._score(points, did_not_play={9, 10})
+        total, _, substitutions, _ = self._score(points, did_not_play={9, 10})
         # FWD 9 out, no forward on the bench played: one forward is the
         # minimum, so GKP 2 and DEF 5 can't come on either.
         assert substitutions == 0
@@ -329,6 +356,116 @@ class TestSellingPrices:
             SQUAD_PRICE, SQUAD_PRICE + 2, SQUAD_PRICE + 3]
         assert (result.team_value_at_start, result.team_value_at_middle,
                 result.team_value_at_end) == (SQUAD_PRICE, SQUAD_PRICE + 2, SQUAD_PRICE + 3)
+
+
+class TestChips:
+    """Squad players 1-10 score 1 point a week; 11-20 score 3 in gameweek
+    2 only, when the scorer also rates them above the squad."""
+
+    POINTS = ({(p, g): 1 for p in range(1, 11) for g in range(1, LONG_SEASON_LAST_GAMEWEEK + 1)}
+              | {(p, 2): 3 for p in range(11, 21)})
+    ONE_OF_EACH = tuple(
+        ChipWindow(chip, FIRST_GAMEWEEK, LONG_SEASON_LAST_GAMEWEEK)
+        for chip in (WILDCARD, FREE_HIT, BENCH_BOOST, TRIPLE_CAPTAIN)
+    )
+
+    @staticmethod
+    def _scorer(season, as_of_gw, horizon):
+        week_two_stars = {p: 5.0 for p in range(11, 21)}
+        return {p: {g: (week_two_stars.get(p, 1.0) if g == 2 else GOOD_POOL_SCORES[p])
+                    for g in range(as_of_gw, as_of_gw + horizon)}
+                for p in POSITION_BY_PLAYER}
+
+    def _run(self, chip_by_gameweek, windows=ONE_OF_EACH, season=None):
+        config = replace(CONFIG, transfer_policy=None, chip_windows=windows,
+                         chip_policy=ScheduledChips(chip_by_gameweek))
+        season = season or _season(self.POINTS, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        return run_replay(season, self._scorer, config)
+
+    def test_free_hit_squad_lasts_one_week_and_keeps_saved_transfers(self):
+        result = self._run({2: FREE_HIT})
+        # The free-hit side are 11-20: seven starters score 3, captain 3 again.
+        assert result.gameweeks[1].points == 7 * 3 + 3
+        assert result.gameweeks[1].squad == SQUAD
+        assert result.gameweeks[2].points == 8
+        assert [w.free_transfers_after for w in result.gameweeks][:3] == [1, 1, 2]
+
+    def test_wildcard_squad_stays(self):
+        result = self._run({2: WILDCARD})
+        assert result.gameweeks[1].squad == frozenset(range(11, 21))
+        assert result.gameweeks[2].squad == frozenset(range(11, 21))
+        assert result.gameweeks[1].free_transfers_after == 1
+
+    def test_bench_boost_and_triple_captain_in_the_replay(self):
+        result = self._run({1: BENCH_BOOST, 3: TRIPLE_CAPTAIN})
+        # Ten players score 1, captain 1 again; then seven, captain twice more.
+        assert [w.points for w in result.gameweeks][:3] == [11, 8, 9]
+        assert result.chips_played == {1: BENCH_BOOST, 3: TRIPLE_CAPTAIN}
+
+    @pytest.mark.parametrize("chip_by_gameweek, windows", [
+        ({1: BENCH_BOOST, 2: BENCH_BOOST}, (ChipWindow(BENCH_BOOST, 1, 8),)),  # twice
+        ({1: BENCH_BOOST}, (ChipWindow(BENCH_BOOST, 2, 8),)),                  # too early
+        ({1: WILDCARD}, (ChipWindow(WILDCARD, 1, 8),)),     # the squad was just built
+        ({2: FREE_HIT, 3: FREE_HIT},
+         (ChipWindow(FREE_HIT, 1, 8), ChipWindow(FREE_HIT, 1, 8))),  # back to back
+        ({2: TRIPLE_CAPTAIN}, ()),                          # not in this season's rules
+    ])
+    def test_an_illegal_chip_raises(self, chip_by_gameweek, windows):
+        with pytest.raises(IllegalChip):
+            self._run(chip_by_gameweek, windows)
+
+    def test_season_rules_give_each_chip_once_per_window(self):
+        windows = CHIP_WINDOWS_BY_SEASON["2025-26"]
+        assert len(windows) == 8
+        assert {(w.first_gameweek <= 19 < w.last_gameweek) for w in windows} == {False}
+
+    def _fixtures_season(self, extra: dict[int, int] = {}, blank: dict[int, int] = {}):
+        """Squad player p plays club p + 10 every week. ``extra`` adds a
+        second fixture for the first n squad clubs in a gameweek;
+        ``blank`` removes the first n."""
+        season = _season(self.POINTS, last_gameweek=LAST_GAMEWEEK)
+        fixtures, next_id = [], 1
+        for gameweek in range(FIRST_GAMEWEEK, LAST_GAMEWEEK + 1):
+            for club in range(1, 11):
+                copies = 1 + (club <= extra.get(gameweek, 0)) - (club <= blank.get(gameweek, 0))
+                for _ in range(copies):
+                    fixtures.append(Fixture(id=next_id, event=gameweek, team_h=club,
+                                            team_a=club + 10, finished=True))
+                    next_id += 1
+        return replace(season, fixtures=fixtures)
+
+    def _simple(self, season, windows):
+        config = replace(CONFIG, transfer_policy=None, chip_windows=windows,
+                         chip_policy=SimpleRules())
+        return run_replay(season, _fixed_scorer(GOOD_POOL_SCORES), config)
+
+    def test_simple_rules_bench_boost_waits_for_the_double(self):
+        result = self._simple(self._fixtures_season(extra={3: 5}),
+                              (ChipWindow(BENCH_BOOST, 1, 3),))
+        assert result.chips_played == {3: BENCH_BOOST}
+
+    def test_simple_rules_free_hit_goes_in_the_blank(self):
+        result = self._simple(self._fixtures_season(blank={2: 5}),
+                              (ChipWindow(FREE_HIT, 1, 3),))
+        assert result.chips_played == {2: FREE_HIT}
+
+    def test_simple_rules_plays_a_chip_before_its_window_closes(self):
+        result = self._simple(self._fixtures_season(),
+                              (ChipWindow(TRIPLE_CAPTAIN, 1, 2), ChipWindow(BENCH_BOOST, 1, 2)))
+        assert set(result.chips_played.values()) == {TRIPLE_CAPTAIN, BENCH_BOOST}
+
+    def test_hindsight_chips_beats_no_chips_and_each_gain_is_counted(self):
+        season = _season(self.POINTS, last_gameweek=LONG_SEASON_LAST_GAMEWEEK)
+        config = replace(CONFIG, transfer_policy=None, chip_windows=self.ONE_OF_EACH)
+        schedule, result = best_chip_schedule(season, self._scorer, config)
+        baseline = run_replay(season, self._scorer, config)
+        # The free hit takes gameweek 2's stars (+16); bench boost adds
+        # three bench points; triple captain one more captain point. A
+        # wildcard to 11-20 would score nothing after week 2.
+        assert schedule[2] == FREE_HIT
+        assert WILDCARD not in schedule.values()
+        gains = chip_gains(season, self._scorer, replace(config, chip_policy=None), result)
+        assert result.total_points - baseline.total_points == sum(gains.values()) == 16 + 3 + 1
 
 
 class TestSavingPolicies:
