@@ -153,12 +153,16 @@ def is_valid_bundle(
 
     # Simulate team-count deltas across all moves.
     new_counts = dict(counts)
+    clubs_bought_into: set[int] = set()
     for m in moves:
         out_p = player_by_id[m.out_player_id]
         in_p = player_by_id[m.in_player_id]
         new_counts[out_p.team] = new_counts.get(out_p.team, 0) - 1
         new_counts[in_p.team] = new_counts.get(in_p.team, 0) + 1
-    return all(c <= MAX_PLAYERS_PER_TEAM for c in new_counts.values())
+        clubs_bought_into.add(in_p.team)
+    # Only clubs bought into are checked: a squad player's real-life move
+    # can leave four from one club, which FPL lets a manager keep.
+    return all(new_counts[club] <= MAX_PLAYERS_PER_TEAM for club in clubs_bought_into)
 
 
 def derive_free_transfers(

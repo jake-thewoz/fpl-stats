@@ -273,6 +273,30 @@ class TestIsValidBundle:
             moves, team_counts(squad), bank=0, player_by_id=by_id
         )
 
+    def test_four_from_one_club_does_not_block_an_unrelated_move(self):
+        # A real-life transfer left four from team 5. FPL lets the manager
+        # keep them; only buying into team 5 is blocked.
+        squad = [
+            _player(1, team=1),
+            *(_player(id_, team=5) for id_ in (20, 21, 22, 23)),
+        ]
+        in_p = _player(30, team=2)
+        by_id = {p.id: p for p in [*squad, in_p]}
+        assert is_valid_bundle(
+            (_move(1, 30),), team_counts(squad), bank=0, player_by_id=by_id
+        )
+
+    def test_four_from_one_club_still_blocks_buying_into_it(self):
+        squad = [
+            _player(1, team=1),
+            *(_player(id_, team=5) for id_ in (20, 21, 22, 23)),
+        ]
+        in_p = _player(30, team=5)
+        by_id = {p.id: p for p in [*squad, in_p]}
+        assert not is_valid_bundle(
+            (_move(1, 30),), team_counts(squad), bank=0, player_by_id=by_id
+        )
+
     def test_duplicate_in_player_rejected(self):
         # Defensive: two slots can't bring in the same player.
         squad = [_player(1, team=1), _player(2, team=2)]
