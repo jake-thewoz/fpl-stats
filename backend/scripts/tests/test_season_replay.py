@@ -541,3 +541,19 @@ def test_report_lists_strategies_by_total():
                                   run_date="2026-11-19")
     assert "| steady | 24 | 3 | 0 | 0 | 3 | £50.0m / £50.0m / £50.0m | 100% |" in report
     assert "## Simplifications" in report
+
+
+@pytest.mark.parametrize(("injury_flags", "header", "note"), [
+    (False, "Injury flags: no.", "No injury news"),
+    (True, "Injury flags: yes.", "Injury flags: the xP strategies use FPL's flags"),
+])
+def test_report_says_whether_injury_flags_were_used(injury_flags, header, note):
+    season = _season({(p, g): 1 for p in range(1, 11) for g in range(1, 4)})
+    results = {"hindsight": run_replay(season, hindsight_scorer, CONFIG)}
+    report = render_replay_report(results=results, ceiling_name="hindsight",
+                                  budget_tenths=SQUAD_PRICE, season=SEASON,
+                                  strength_name="neutral", coefficients_label="bundled",
+                                  run_date="2026-11-19", injury_flags=injury_flags)
+    assert header in report
+    assert f"- {note}" in report
+

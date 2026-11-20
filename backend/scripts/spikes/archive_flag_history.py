@@ -26,23 +26,22 @@ from pathlib import Path
 import boto3
 from botocore.config import Config
 
+_SCRIPTS_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(_SCRIPTS_DIR.parent / "layers" / "fpl_schemas" / "python"))
+sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from data import stack_output  # noqa: E402
+from flag_history import CHANGE_LOG_PATH  # noqa: E402
+
 SNAPSHOT_PREFIX = "fpl/bootstrap-static/"
-STACK_NAME = "FplStatsStack"
 BUCKET_OUTPUT_KEY = "SnapshotsBucketName"
 TRACKED_FIELDS = (
     "status", "chance_of_playing_this_round", "chance_of_playing_next_round",
     "news", "news_added", "now_cost", "team",
 )
 DOWNLOAD_WORKERS = 16
-OUTPUT_PATH = Path(__file__).parent / "flag_history" / "changes.jsonl.gz"
 
 log = logging.getLogger(__name__)
-
-
-def _bucket_name() -> str:
-    outputs = boto3.client("cloudformation").describe_stacks(
-        StackName=STACK_NAME)["Stacks"][0]["Outputs"]
-    return next(o["OutputValue"] for o in outputs if o["OutputKey"] == BUCKET_OUTPUT_KEY)
 
 
 def _snapshot_time(key: str) -> str:
@@ -57,8 +56,8 @@ def _tracked(s3, bucket: str, key: str) -> dict[int, dict]:
 def _read_existing() -> dict[str, dict[int, dict]]:
     """snapshot time -> {player_id: changed fields} from an earlier run."""
     changes: dict[str, dict[int, dict]] = {}
-    if OUTPUT_PATH.exists():
-        with gzip.open(OUTPUT_PATH, "rt") as handle:
+    if CHANGE_LOG_PATH.exists():
+        with gzip.open(CHANGE_LOG_PATH, "rt") as handle:
             for line in handle:
                 row = json.loads(line)
                 snapshot_changes = changes.setdefault(row["snapshot"], {})
@@ -70,7 +69,7 @@ def _read_existing() -> dict[str, dict[int, dict]]:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     s3 = boto3.client("s3", config=Config(max_pool_connections=DOWNLOAD_WORKERS))
-    bucket = _bucket_name()
+    bucket = stack_output(BUCKET_OUTPUT_KEY)
     keys = sorted(
         obj["Key"]
         for page in s3.get_paginator("list_objects_v2").paginate(
@@ -99,8 +98,8 @@ def main() -> int:
                 state.setdefault(player_id, {}).update(diff)
         merged[_snapshot_time(key)] = changed
 
-    OUTPUT_PATH.parent.mkdir(exist_ok=True)
-    with gzip.open(OUTPUT_PATH, "wt") as handle:
+    CHANGE_LOG_PATH.parent.mkdir(exist_ok=True)
+    with gzip.open(CHANGE_LOG_PATH, "wt") as handle:
         for snapshot in sorted(merged):
             # A row with player_id null marks a snapshot with no changes.
             if not merged[snapshot]:
@@ -109,7 +108,7 @@ def main() -> int:
             for player_id, fields in sorted(merged[snapshot].items()):
                 handle.write(json.dumps({"snapshot": snapshot, "player_id": player_id,
                                          "fields": fields}) + "\n")
-    log.info("Wrote %s: %d snapshots", OUTPUT_PATH, len(merged))
+    log.info("Wrote %s: %d snapshots", CHANGE_LOG_PATH, len(merged))
     return 0
 
 

@@ -273,7 +273,18 @@ python3 replay_season.py --season 2025-26 --strength fpl
 python3 replay_season.py --season 2025-26 --strength fpl --coefficients candidate.json
 python3 replay_season.py --season 2025-26 --strength fpl --budget 102 --strategy xp --dry-run
 python3 replay_season.py --season 2025-26 --strength fpl --chips
+python3 spikes/archive_flag_history.py   # refresh the flag change log first
+python3 replay_season.py --season current --strength fpl --flags
 ```
+
+`--season current` replays the season in progress from the cache table
+(AWS credentials needed; `neutral` or `fpl` strength only, as there are
+no odds for it). `--flags` gives the xP strategies FPL's injury flags as
+the app saw them at its last xP run (04:30 or 16:00 UTC) before each
+deadline, using production's rule (`minutes_probability_from_flag`) and
+the change log from `spikes/archive_flag_history.py`. Only the current
+season has flag history; snapshots are kept 400 days, so next season's
+replay can use flags all year (#261).
 
 `--chips` adds a Chips section (about a minute more): `xp` with each
 chip policy from `replay_chips.py`: `no_chips`, `simple_rules` (bench
@@ -285,7 +296,7 @@ points: the ceiling). Each season's real chip windows are in
 is the final one.
 
 Writes `backtest_results/replay-<season>-<strength>-<date>.md` (with
-`-budget<£m>` before the date for a non-default `--budget`), about 30
+`-flags` and `-budget<£m>` before the date when used), about 30
 seconds (the planners solve one small integer programme a week). `--strategy` (repeatable) replays only the named strategies. **No model change ships unless the `xp` total goes up.** Swings
 of about 150 points come from the starting squad alone, so treat a small
 gain as noise. Rules and simplifications are in `season_replay.py`'s

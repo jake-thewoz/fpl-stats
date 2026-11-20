@@ -20,26 +20,23 @@ Usage
 """
 from __future__ import annotations
 
-import gzip
-import json
 import sys
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
-
-import boto3
 
 _SCRIPTS_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR.parent / "layers" / "fpl_schemas" / "python"))
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from data import load_bootstrap  # noqa: E402
+from data import cache_table, load_bootstrap  # noqa: E402
 from flag_history import (  # noqa: E402
     FlagSummary,
     FlagTimeline,
     PlayerWeek,
+    deadlines,
     flag_changes,
     last_daily_run,
+    read_change_log,
     stale_at_deadline,
     summarize,
     time_changes,
@@ -49,9 +46,6 @@ from season_archive import load_current_season  # noqa: E402
 from xp_v2 import load_default_coefficients  # noqa: E402
 from xp_v2_features import FeatureWindow, load_default_priors, season_play_rate  # noqa: E402
 
-CHANGE_LOG_PATH = Path(__file__).parent / "flag_history" / "changes.jsonl.gz"
-STACK_NAME = "FplStatsStack"
-TABLE_OUTPUT_KEY = "CacheTableName"
 # The daily xP analyzer's schedule (AnalyzePlayerXpV2Schedule in the stack), UTC.
 XP_RUN_HOUR = 4
 XP_RUN_MINUTE = 30
@@ -61,13 +55,6 @@ FIRST_SCORED_GAMEWEEK = 3
 SINGLE_GAMEWEEK = 1
 REGULAR_PLAY_RATE = 0.5
 AVAILABILITY_BUCKETS = (0.0, 0.25, 0.5, 0.75)
-
-
-def _table():
-    outputs = boto3.client("cloudformation").describe_stacks(
-        StackName=STACK_NAME)["Stacks"][0]["Outputs"]
-    name = next(o["OutputValue"] for o in outputs if o["OutputKey"] == TABLE_OUTPUT_KEY)
-    return boto3.resource("dynamodb").Table(name)
 
 
 def _summary_row(summary: FlagSummary) -> str:
@@ -84,13 +71,9 @@ SUMMARY_HEADER = (
 
 
 def main() -> int:
-    with gzip.open(CHANGE_LOG_PATH, "rt") as handle:
-        rows = [json.loads(line) for line in handle]
-    table = _table()
-    deadline_by_gameweek = {
-        gw.id: datetime.fromisoformat(gw.deadline_time.replace("Z", "+00:00"))
-        for gw in load_bootstrap(table).gameweeks
-    }
+    rows = read_change_log()
+    table = cache_table()
+    deadline_by_gameweek = deadlines(load_bootstrap(table))
     season = load_current_season(table)
     last_round = max(row.round for row in season.rows)
 

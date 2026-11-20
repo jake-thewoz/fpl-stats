@@ -25,6 +25,10 @@ from typing import Iterable
 
 from schemas import Fixture, Gameweek, Player, parse_fpl_datetime
 
+AVAILABLE_STATUS = "a"
+# FPL's chance of playing is a percentage; 100 also doubles as "no concern".
+FULL_CHANCE_OF_PLAYING = 100
+
 
 def open_gameweek_ids(
     gameweeks: Iterable[Gameweek],
@@ -112,8 +116,8 @@ def minutes_probability(player: Player) -> float:
     """
     cop = player.chance_of_playing_next_round
     if cop is not None:
-        return max(0.0, min(1.0, cop / 100.0))
-    if player.status == "a":
+        return max(0.0, min(1.0, cop / FULL_CHANCE_OF_PLAYING))
+    if player.status == AVAILABLE_STATUS:
         return 1.0
     return 0.0
 
@@ -149,12 +153,27 @@ def minutes_probability_with_selection(
     - Anything else (status='i'/'s'/'u'/None, or cop=0 explicitly):
       returns 0.0.
     """
-    cop = player.chance_of_playing_next_round
-    if cop is not None and cop < 100:
+    return minutes_probability_from_flag(
+        status=player.status,
+        chance_of_playing=player.chance_of_playing_next_round,
+        season_play_rate=season_play_rate,
+    )
+
+
+def minutes_probability_from_flag(
+    *,
+    status: str | None,
+    chance_of_playing: int | None,
+    season_play_rate: float,
+) -> float:
+    """``minutes_probability_with_selection`` on the bare flag fields, for
+    callers that hold a flag rather than a ``Player`` (the season replay
+    reads flags from snapshot history, #261)."""
+    if chance_of_playing is not None and chance_of_playing < FULL_CHANCE_OF_PLAYING:
         # Real availability flag — 0 (unavailable), 25/50/75 (doubt).
-        return max(0.0, min(1.0, cop / 100.0))
-    # cop is None OR cop=100 (FPL's "no concern" filler) — both reduce
-    # to "no specific FPL signal". Dampen by season selection rate.
-    if player.status == "a":
+        return max(0.0, min(1.0, chance_of_playing / FULL_CHANCE_OF_PLAYING))
+    # No chance, or 100 (FPL's "no concern" filler): both reduce to "no
+    # specific FPL signal". Dampen by season selection rate.
+    if status == AVAILABLE_STATUS:
         return max(0.0, min(1.0, season_play_rate))
     return 0.0

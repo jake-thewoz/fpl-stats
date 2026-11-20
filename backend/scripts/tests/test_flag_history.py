@@ -7,12 +7,14 @@ import pytest
 
 from flag_history import (
     UNFLAGGED,
+    DeadlineFlags,
     FlagState,
     FlagTimeline,
     PlayerWeek,
     flag_adjusted,
     flag_changes,
     last_daily_run,
+    last_run,
     stale_at_deadline,
     summarize,
     time_changes,
@@ -100,3 +102,26 @@ def test_summarize_compares_errors_with_and_without_the_flag():
 def test_stale_when_the_flag_moved_after_the_run():
     assert stale_at_deadline(_week(UNFLAGGED, INJURED))
     assert not stale_at_deadline(_week(DOUBTFUL, DOUBTFUL))
+
+
+TWO_RUNS = ((4, 30), (16, 0))
+
+
+def test_last_run_is_the_latest_of_the_daily_runs():
+    assert last_run(DEADLINE, TWO_RUNS) == DEADLINE.replace(hour=16, minute=0)
+    morning = DEADLINE.replace(hour=11)
+    assert last_run(morning, TWO_RUNS) == morning.replace(hour=4, minute=30)
+    before_dawn = DEADLINE.replace(hour=2)
+    assert last_run(before_dawn, TWO_RUNS) == datetime(2026, 11, 5, 16, tzinfo=timezone.utc)
+
+
+def test_deadline_flags_are_the_flags_at_the_last_run_before_the_deadline():
+    gameweek = 11
+    rows = ROWS + [
+        # After the 16:00 run, before the 18:30 deadline: too late for the app.
+        _row("2026-11-06T17-00-00Z", {"status": "a", "chance_of_playing_next_round": None}),
+    ]
+    flags = DeadlineFlags(FlagTimeline.of(rows), {gameweek: DEADLINE}, TWO_RUNS)
+    assert flags.flag(PLAYER, gameweek) == INJURED
+    assert flags.flag(PLAYER + 1, gameweek) == UNFLAGGED
+

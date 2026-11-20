@@ -8,10 +8,15 @@ cleared, so it counts the same as no chance at all: available.
 """
 from __future__ import annotations
 
+import gzip
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Iterable
+
+from schemas import Bootstrap, parse_fpl_datetime
 
 AVAILABLE_STATUS = "a"
 FULL_CHANCE = 100
@@ -22,6 +27,17 @@ STATUS_FIELD = "status"
 CHANCE_FIELD = "chance_of_playing_next_round"
 SNAPSHOT_TIME_FORMAT = "%Y-%m-%dT%H-%M-%SZ"
 SECONDS_PER_HOUR = 3600
+# Written by spikes/archive_flag_history.py (gitignored).
+CHANGE_LOG_PATH = Path(__file__).parent / "spikes" / "flag_history" / "changes.jsonl.gz"
+# The xP analyzer's daily runs as (hour, minute) UTC: XP_DAILY_RUN and
+# XP_PRE_DEADLINE_RUN in backend/lib/fpl-stats-stack.ts (#260).
+XP_RUN_TIMES_UTC = ((4, 30), (16, 0))
+
+
+def read_change_log(path: Path = CHANGE_LOG_PATH) -> list[dict]:
+    """The flag change log's rows: one per player per snapshot that changed."""
+    with gzip.open(path, "rt") as handle:
+        return [json.loads(line) for line in handle]
 
 
 @dataclass(frozen=True)
@@ -127,6 +143,30 @@ def last_daily_run(before: datetime, run_hour: int, run_minute: int) -> datetime
     """The latest daily run (UTC) at or before ``before``."""
     run = before.replace(hour=run_hour, minute=run_minute, second=0, microsecond=0)
     return run if run <= before else run - timedelta(days=1)
+
+
+def deadlines(bootstrap: Bootstrap) -> dict[int, datetime]:
+    """Each gameweek's deadline (UTC)."""
+    return {gw.id: parse_fpl_datetime(gw.deadline_time) for gw in bootstrap.gameweeks}
+
+
+def last_run(before: datetime, run_times: Iterable[tuple[int, int]]) -> datetime:
+    """The latest of several daily runs (UTC) at or before ``before``."""
+    return max(last_daily_run(before, hour, minute) for hour, minute in run_times)
+
+
+@dataclass(frozen=True)
+class DeadlineFlags:
+    """Each player's flag as the app saw it for a gameweek: at the last
+    xP run before that gameweek's deadline."""
+
+    timeline: FlagTimeline
+    deadline_by_gameweek: dict[int, datetime]
+    run_times: tuple[tuple[int, int], ...] = XP_RUN_TIMES_UTC
+
+    def flag(self, player_id: int, gameweek: int) -> FlagState:
+        run = last_run(self.deadline_by_gameweek[gameweek], self.run_times)
+        return self.timeline.at(player_id, run)
 
 
 @dataclass(frozen=True)
