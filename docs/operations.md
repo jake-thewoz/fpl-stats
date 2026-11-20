@@ -210,6 +210,6 @@ The report opens with `Ship gate: PASS` or `FAIL` and the rule that failed. On P
 
 ## Cost and free tier
 
-The stack is designed to sit inside the free tier at friends-and-family traffic: no VPC (so no NAT Gateway), no provisioned concurrency, HTTP API rather than REST API, S3 lifecycle expiry at 90 days, one-week log retention. DynamoDB is on-demand; at this traffic it costs cents a month. Note that DynamoDB's always-free 25 RCU / 25 WCU applies to **provisioned** mode, not on-demand.
+The stack is designed to sit inside the free tier at friends-and-family traffic: no VPC (so no NAT Gateway), no provisioned concurrency, HTTP API rather than REST API, S3 lifecycle expiry (90 days, but 400 for bootstrap snapshots: about 35 GB a year in Standard-IA, roughly $0.45 a month, which is past S3's 5 GB free tier), one-week log retention. DynamoDB is on-demand; at this traffic it costs cents a month. Note that DynamoDB's always-free 25 RCU / 25 WCU applies to **provisioned** mode, not on-demand.
 
 Things that would push past free tier, so flag them before adding: NAT Gateways, provisioned concurrency, SnapStart, provisioned-capacity DynamoDB above 25 units, Lambdas above ~1,769 MB (single-threaded Python gains nothing past one vCPU), and a custom domain (Route 53 registration is not free).
