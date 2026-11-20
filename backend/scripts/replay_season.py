@@ -42,7 +42,7 @@ from replay_chips import (  # noqa: E402
     chip_gains,
     no_chips,
 )
-from replay_policies import AllowHits, UseBanked, one_a_week  # noqa: E402
+from replay_policies import AllowHits, Planner, UseBanked, one_a_week  # noqa: E402
 from replay_strategies import (  # noqa: E402
     FORM,
     HINDSIGHT,
@@ -50,6 +50,8 @@ from replay_strategies import (  # noqa: E402
     XP,
     XP_ALLOW_HITS,
     XP_NO_TRANSFERS,
+    XP_PLANNER_LONG,
+    XP_PLANNER_SHORT,
     XP_USE_BANKED,
     XpScorer,
     form_scorer,
@@ -60,6 +62,7 @@ from season_archive import ARCHIVE_SEASONS, load_archive_season  # noqa: E402
 from season_replay import STARTING_BUDGET_TENTHS, ReplayConfig, run_replay  # noqa: E402
 from season_replay_report import ChipComparison, ChipRun, render_replay_report  # noqa: E402
 from squad_optimizer import TENTHS_PER_MILLION  # noqa: E402
+from transfer_planner import PlanSettings  # noqa: E402
 from xp_v2 import load_coefficients, load_default_coefficients  # noqa: E402
 from xp_v2_features import FeatureWindow, load_default_priors  # noqa: E402
 
@@ -67,7 +70,9 @@ log = logging.getLogger(__name__)
 
 _BACKTEST_RESULTS_DIR = _THIS_DIR / "backtest_results"
 _BUNDLED_COEFFICIENTS_LABEL = "bundled"
-_STRATEGY_NAMES = (XP, XP_USE_BANKED, XP_ALLOW_HITS, XP_NO_TRANSFERS, FORM, OWNERSHIP, HINDSIGHT)
+_STRATEGY_NAMES = (XP, XP_USE_BANKED, XP_ALLOW_HITS, XP_PLANNER_SHORT, XP_PLANNER_LONG,
+                   XP_NO_TRANSFERS, FORM, OWNERSHIP, HINDSIGHT)
+_PLANNER_HORIZON_BY_STRATEGY = {XP_PLANNER_SHORT: 3, XP_PLANNER_LONG: 5}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,6 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         XP: (xp_scorer, one_a_week),
         XP_USE_BANKED: (xp_scorer, UseBanked()),
         XP_ALLOW_HITS: (xp_scorer, AllowHits()),
+        **{
+            name: (xp_scorer, Planner(xp_scorer, PlanSettings(rules=ReplayConfig().rules),
+                                      horizon=horizon))
+            for name, horizon in _PLANNER_HORIZON_BY_STRATEGY.items()
+        },
         XP_NO_TRANSFERS: (xp_scorer, None),
         FORM: (form_scorer, one_a_week),
         OWNERSHIP: (ownership_scorer, one_a_week),

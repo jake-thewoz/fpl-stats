@@ -20,7 +20,9 @@ SIMPLIFICATIONS = (
     "No Assistant Manager chip (2024-25).",
     "Each strategy's transfer policy is in its name: `xp`, `form`, `ownership` and "
     "`hindsight` make one transfer a week if it gains anything; `xp_use_banked` saves "
-    "transfers for bigger gains; `xp_allow_hits` may also take one 4-point hit a week.",
+    "transfers for bigger gains; `xp_allow_hits` may also take one 4-point hit a week; "
+    "`xp_planner_h3` and `xp_planner_h5` plan 3 or 5 weeks ahead (saving, hits, line-ups "
+    "and captains together) and make only this week's moves.",
     "No injury news: scorers only see past minutes.",
     "Starts at gameweek 5, so totals cover GW5 to the end of the season.",
     "No vice-captain: if the captain doesn't play, nobody is doubled.",
