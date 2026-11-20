@@ -49,7 +49,7 @@ multiply for any chip.
                               │                (point-in-time, Bayesian-shrunk)
                               ▼                              │
                   analyze_player_xp_v2 Lambda  ◄─────────────┘
-                  (daily 04:30 UTC)                     ▼
+                  (daily 04:30 + 16:00 UTC)             ▼
                               │             xp_v2.xp_for_horizon
                               ▼                              │
                               └──────────────────────────────┘
@@ -263,7 +263,7 @@ moved.
 
 | File | Role |
 |---|---|
-| `lambdas/analyze_player_xp_v2/handler.py` | Daily 04:30 UTC. Computes per-player xP for the next 5 GWs, writes one row per player at `pk=analytics#player_xp_v2`. |
+| `lambdas/analyze_player_xp_v2/handler.py` | Daily 04:30 and 16:00 UTC. Computes per-player xP for the next 5 GWs, writes one row per player at `pk=analytics#player_xp_v2`. |
 | `lambdas/analyze_player_xp_v2/compute.py` | `opp_strength_from_difficulty` and `build_fixture_context` — translate FPL fixture difficulty (1–5) into the model's continuous opp_strength signal (0.0–1.0). |
 | `lambdas/analyze_transfer_suggestions/v2_horizon.py` | `read_v2_horizon_xps` — reads the precomputed horizon and sums whatever subset the user's `?horizon=N` selects. Single Query, ~100 ms. |
 | `lambdas/analytics_players_xp/handler.py` | `GET /analytics/players/xp` — slim per-player projection for the mobile xP column. Reads from `analytics#player_xp_v2`. |

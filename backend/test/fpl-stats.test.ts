@@ -8,6 +8,8 @@ import {
   BOOTSTRAP_SNAPSHOT_EXPIRATION_DAYS,
   BOOTSTRAP_SNAPSHOT_PREFIX,
   SNAPSHOT_EXPIRATION_DAYS,
+  XP_DAILY_RUN,
+  XP_PRE_DEADLINE_RUN,
 } from '../lib/fpl-stats-stack';
 import { DEFAULT_MEMORY_MB } from '../lib/fpl-python-function';
 
@@ -131,6 +133,22 @@ describe('Ingestion alarms', () => {
       expect(matching.length).toBe(1);
     },
   );
+});
+
+describe('xP analyzer schedule', () => {
+  test.each([
+    ['early-morning', XP_DAILY_RUN],
+    ['pre-deadline', XP_PRE_DEADLINE_RUN],
+  ])('runs daily at the %s time', (_label, time) => {
+    template.hasResourceProperties('AWS::Events::Rule', {
+      ScheduleExpression: `cron(${time.minute} ${time.hour} * * ? *)`,
+      Targets: Match.arrayWith([
+        Match.objectLike({
+          Arn: { 'Fn::GetAtt': [Match.stringLikeRegexp('^AnalyzePlayerXpV2'), 'Arn'] },
+        }),
+      ]),
+    });
+  });
 });
 
 describe('HttpApi', () => {

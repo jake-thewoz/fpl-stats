@@ -49,6 +49,21 @@ const SNAPSHOT_ABORT_UPLOAD_DAYS = 7;
 export const API_THROTTLE_RATE_LIMIT = 20;
 export const API_THROTTLE_BURST_LIMIT = 40;
 
+// xP analyzer runs (UTC). The early run follows the 04:00 form analyzer
+// in the post-match quiet window. The afternoon run catches injury flags
+// FPL updates after Friday press conferences: in GW1-11 of 2026-27 it
+// would have caught 98 of the 103 flag changes that landed after the
+// early run and before a deadline (#245, #260). Friday deadlines are
+// 17:30 or 18:30 UTC, and ingest snapshots currently land at :18 and :48
+// (a rate rule keeps the phase it was created with), so 16:00
+// reads the 15:48 snapshot at least 90 minutes before any of them.
+export const XP_DAILY_RUN = { hour: '4', minute: '30' };
+export const XP_PRE_DEADLINE_RUN = { hour: '16', minute: '0' };
+
+const CLOCK_FIELD_WIDTH = 2;
+const formatUtcTime = (time: { hour: string; minute: string }) =>
+  `${time.hour.padStart(CLOCK_FIELD_WIDTH, '0')}:${time.minute.padStart(CLOCK_FIELD_WIDTH, '0')} UTC`;
+
 export class FplStatsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -378,12 +393,18 @@ export class FplStatsStack extends cdk.Stack {
       targets: [new LambdaTarget(analyzePlayerFormFn)],
     });
 
-    // v2 analyzer runs at 04:30 UTC, after the form analyzer. Shares
-    // the match-window guard so a live match defers it to the next tick.
+    // The match-window guard skips a run while a match is live; the next
+    // scheduled run picks up the work. On Saturdays the afternoon run is
+    // usually skipped, which is harmless: that gameweek's deadline has passed.
     new Rule(this, 'AnalyzePlayerXpV2Schedule', {
-      description:
-        'Trigger player-xP-v2 analyzer daily at 04:30 UTC.',
-      schedule: Schedule.cron({ minute: '30', hour: '4' }),
+      description: `Trigger player-xP-v2 analyzer daily at ${formatUtcTime(XP_DAILY_RUN)}.`,
+      schedule: Schedule.cron(XP_DAILY_RUN),
+      targets: [new LambdaTarget(analyzePlayerXpV2Fn)],
+    });
+
+    new Rule(this, 'AnalyzePlayerXpV2PreDeadlineSchedule', {
+      description: `Re-run player-xP-v2 analyzer daily at ${formatUtcTime(XP_PRE_DEADLINE_RUN)} so afternoon injury news reaches evening deadlines.`,
+      schedule: Schedule.cron(XP_PRE_DEADLINE_RUN),
       targets: [new LambdaTarget(analyzePlayerXpV2Fn)],
     });
 
@@ -454,7 +475,7 @@ export class FplStatsStack extends cdk.Stack {
       })
       .createAlarm(this, 'AnalyzePlayerXpV2ErrorsAlarm', {
         alarmDescription:
-          'Player-xP-v2 analyzer errored on two consecutive daily runs — analytics#player_xp_v2 rows may be stale, which means transfer suggestions and the players-list xP column will degrade until the next successful run.',
+          'Player-xP-v2 analyzer errored on two consecutive days — analytics#player_xp_v2 rows may be stale, which means transfer suggestions and the players-list xP column will degrade until the next successful run.',
         threshold: 1,
         evaluationPeriods: 2,
         datapointsToAlarm: 2,
