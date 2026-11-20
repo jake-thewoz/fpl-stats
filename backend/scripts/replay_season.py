@@ -7,6 +7,7 @@ Usage
     python3 replay_season.py --season 2025-26 --strength fpl
     python3 replay_season.py --season 2025-26 --coefficients candidate.json
     python3 replay_season.py --season 2025-26 --budget 102 --strategy xp --dry-run
+    python3 replay_season.py --season 2025-26 --strength fpl --chips
 
 Writes ``backtest_results/replay-<season>-<strength>-<date>.md``, with
 ``-budget<£m>`` before the date when the budget is not the default.
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +31,17 @@ sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from replay_accuracy import DEFAULT_STRENGTH, STRENGTH_BY_NAME  # noqa: E402
+from replay_chips import (  # noqa: E402
+    CHIP_WINDOWS_BY_SEASON,
+    FIXTURE_LOOKAHEAD_GAMEWEEKS,
+    HINDSIGHT_CHIPS,
+    NO_CHIPS,
+    SIMPLE_RULES,
+    SimpleRules,
+    best_chip_schedule,
+    chip_gains,
+    no_chips,
+)
 from replay_policies import AllowHits, UseBanked, one_a_week  # noqa: E402
 from replay_strategies import (  # noqa: E402
     FORM,
@@ -45,7 +58,7 @@ from replay_strategies import (  # noqa: E402
 )
 from season_archive import ARCHIVE_SEASONS, load_archive_season  # noqa: E402
 from season_replay import STARTING_BUDGET_TENTHS, ReplayConfig, run_replay  # noqa: E402
-from season_replay_report import render_replay_report  # noqa: E402
+from season_replay_report import ChipComparison, ChipRun, render_replay_report  # noqa: E402
 from squad_optimizer import TENTHS_PER_MILLION  # noqa: E402
 from xp_v2 import load_coefficients, load_default_coefficients  # noqa: E402
 from xp_v2_features import FeatureWindow, load_default_priors  # noqa: E402
@@ -70,9 +83,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="Starting budget in £m (default %(default)s).")
     parser.add_argument("--strategy", action="append", choices=_STRATEGY_NAMES,
                         help="Replay only this strategy; repeat for several (default: all).")
+    parser.add_argument("--chips", action="store_true",
+                        help=f"Add a Chips section: `{XP}` with each chip policy (about a "
+                             "minute more).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the report without writing it.")
     args = parser.parse_args(argv)
+    if args.chips and args.season not in CHIP_WINDOWS_BY_SEASON:
+        parser.error(f"--chips: no chip rules for {args.season}; "
+                     f"known: {', '.join(CHIP_WINDOWS_BY_SEASON)}")
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -101,6 +120,26 @@ def main(argv: list[str] | None = None) -> int:
         config = ReplayConfig(transfer_policy=policy, budget_tenths=budget_tenths)
         results[name] = run_replay(season, scorer, config)
 
+    chips = None
+    if args.chips:
+        log.info("Replaying %s with chips", args.season)
+        chip_config = ReplayConfig(transfer_policy=one_a_week, budget_tenths=budget_tenths,
+                                   chip_windows=CHIP_WINDOWS_BY_SEASON[args.season])
+        chip_results = {
+            NO_CHIPS: run_replay(season, xp_scorer, replace(chip_config, chip_policy=no_chips)),
+            SIMPLE_RULES: run_replay(season, xp_scorer,
+                                     replace(chip_config, chip_policy=SimpleRules())),
+            HINDSIGHT_CHIPS: best_chip_schedule(season, xp_scorer, chip_config)[1],
+        }
+        chips = ChipComparison(
+            strategy=XP, baseline=NO_CHIPS, lookahead=FIXTURE_LOOKAHEAD_GAMEWEEKS,
+            ceiling=HINDSIGHT_CHIPS,
+            runs={
+                name: ChipRun(result, chip_gains(season, xp_scorer, chip_config, result))
+                for name, result in chip_results.items()
+            },
+        )
+
     run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     report = render_replay_report(
         results=results,
@@ -110,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         strength_name=args.strength,
         coefficients_label=str(args.coefficients) if args.coefficients else _BUNDLED_COEFFICIENTS_LABEL,
         run_date=run_date,
+        chips=chips,
     )
     print(report)
 

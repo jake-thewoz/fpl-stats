@@ -259,7 +259,17 @@ source .venv/bin/activate
 python3 replay_season.py --season 2025-26 --strength fpl
 python3 replay_season.py --season 2025-26 --strength fpl --coefficients candidate.json
 python3 replay_season.py --season 2025-26 --strength fpl --budget 102 --strategy xp --dry-run
+python3 replay_season.py --season 2025-26 --strength fpl --chips
 ```
+
+`--chips` adds a Chips section (about a minute more): `xp` with each
+chip policy from `replay_chips.py`: `no_chips`, `simple_rules` (bench
+boost and triple captain on doubles, free hit on blanks, wildcard
+mid-window) and `hindsight_chips` (each chip in its best week by actual
+points: the ceiling). Each season's real chip windows are in
+`CHIP_WINDOWS_BY_SEASON`; chip policies see fixtures only
+`FIXTURE_LOOKAHEAD_GAMEWEEKS` ahead, because the archive's fixture list
+is the final one.
 
 Writes `backtest_results/replay-<season>-<strength>-<date>.md` (with
 `-budget<£m>` before the date for a non-default `--budget`), about 4
