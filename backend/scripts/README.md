@@ -248,15 +248,22 @@ strategies above), `use_banked` (`xp_use_banked`: saves transfers for
 bigger gains), `allow_hits` (`xp_allow_hits`: may also take one hit a
 week) or none (`xp_no_transfers`).
 
+Money follows FPL's rules: a player sells for his purchase price plus
+half of any rise (rounded down to £0.1m), or his full current price
+after a fall. The report shows each strategy's team value (squad selling
+value + bank) at the start, middle and end.
+
 ```bash
 cd backend/scripts
 source .venv/bin/activate
 python3 replay_season.py --season 2025-26 --strength fpl
 python3 replay_season.py --season 2025-26 --strength fpl --coefficients candidate.json
+python3 replay_season.py --season 2025-26 --strength fpl --budget 102 --strategy xp --dry-run
 ```
 
-Writes `backtest_results/replay-<season>-<strength>-<date>.md`, about 3
-seconds. **No model change ships unless the `xp` total goes up.** Swings
+Writes `backtest_results/replay-<season>-<strength>-<date>.md` (with
+`-budget<£m>` before the date for a non-default `--budget`), about 4
+seconds. `--strategy` (repeatable) replays only the named strategies. **No model change ships unless the `xp` total goes up.** Swings
 of about 150 points come from the starting squad alone, so treat a small
 gain as noise. Rules and simplifications are in `season_replay.py`'s
 docstring; scorers in `replay_strategies.py`.

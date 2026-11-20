@@ -85,12 +85,14 @@ def _best_moves(
         - (0.0 if player_id in state.squad else min_gain_per_transfer)
         for player_id, by_gameweek in state.scores.items()
     }
-    pool = buyable_players(season, gameweek)
+    # Squad players stay out of the pool, which would otherwise shadow
+    # their selling price with their price.
+    pool = [p for p in buyable_players(season, gameweek) if p not in state.squad]
     for player_id in pool:
         if player_id not in horizon_scores:
             horizon_scores[player_id] = -min_gain_per_transfer
     bundles: list[TransferBundle] = suggest_transfer_bundles(
-        squad=[archive_player(season, p, gameweek) for p in sorted(state.squad)],
+        squad=[state.squad_player(p) for p in sorted(state.squad)],
         bank=state.bank,
         candidate_pool=[archive_player(season, p, gameweek) for p in pool],
         horizon_xps=horizon_scores,

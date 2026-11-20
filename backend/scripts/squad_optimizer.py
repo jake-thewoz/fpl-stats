@@ -22,6 +22,12 @@ from xp_v2 import DEF, FWD, GKP, MID
 
 # How much a bench player's xP counts next to a starter's.
 DEFAULT_BENCH_WEIGHT = 0.1
+# FPL's API prices players in tenths of £1m.
+TENTHS_PER_MILLION = 10
+
+
+def format_millions(tenths: int) -> str:
+    return f"£{tenths / TENTHS_PER_MILLION:.1f}m"
 
 
 class NoFeasibleSquad(Exception):
