@@ -246,7 +246,10 @@ five, and extra ones cost 4 points. What to do with them is a transfer
 policy (`replay_policies.py`): `one_a_week` (the default for the
 strategies above), `use_banked` (`xp_use_banked`: saves transfers for
 bigger gains), `allow_hits` (`xp_allow_hits`: may also take one hit a
-week) or none (`xp_no_transfers`).
+week), `planner` (`xp_planner_h3`, `xp_planner_h5`: plans 3 or 5 weeks
+of transfers, hits, line-ups and captains at once with
+`transfer_planner.py`, then makes only this week's moves) or none
+(`xp_no_transfers`).
 
 Money follows FPL's rules: a player sells for his purchase price plus
 half of any rise (rounded down to £0.1m), or his full current price
@@ -272,8 +275,8 @@ points: the ceiling). Each season's real chip windows are in
 is the final one.
 
 Writes `backtest_results/replay-<season>-<strength>-<date>.md` (with
-`-budget<£m>` before the date for a non-default `--budget`), about 4
-seconds. `--strategy` (repeatable) replays only the named strategies. **No model change ships unless the `xp` total goes up.** Swings
+`-budget<£m>` before the date for a non-default `--budget`), about 30
+seconds (the planners solve one small integer programme a week). `--strategy` (repeatable) replays only the named strategies. **No model change ships unless the `xp` total goes up.** Swings
 of about 150 points come from the starting squad alone, so treat a small
 gain as noise. Rules and simplifications are in `season_replay.py`'s
 docstring; scorers in `replay_strategies.py`.

@@ -1,20 +1,25 @@
 """Transfer policies for the season replay: given the squad, bank, saved
 free transfers and this week's scores, which transfers to make.
 
-All three use production's ``suggest_transfer_bundles``, with the same
-25-candidates-per-slot shortlist: if the 25 best upgrades for every slot
-are unaffordable, no transfer is made, as in the app.
+``one_a_week``, ``UseBanked`` and ``AllowHits`` use production's
+``suggest_transfer_bundles``, with the same 25-candidates-per-slot
+shortlist: if the 25 best upgrades for every slot are unaffordable, no
+transfer is made, as in the app. ``Planner`` plans several weeks at
+once with ``transfer_planner.py`` and makes only this week's moves.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from compute import MAX_BANKED_FREE_TRANSFERS, TransferBundle, suggest_transfer_bundles
-from season_replay import Transfer, TransferState, archive_player, buyable_players
+from season_replay import Scorer, Transfer, TransferState, archive_player, buyable_players
+from transfer_planner import PlanSettings, PlayerOption, pair_moves, plan_transfers
 
 ONE_A_WEEK = "one_a_week"
 USE_BANKED = "use_banked"
 ALLOW_HITS = "allow_hits"
+PLANNER = "planner"
+DEFAULT_PLANNER_HORIZON = 5
 
 # Predicted points, over the scoring horizon, that a transfer must gain
 # before a saving policy spends it. Below this the transfer is kept.
@@ -59,6 +64,41 @@ class AllowHits:
             min_gain_per_transfer=self.min_gain_per_transfer,
         )
         return moves or _use_it_or_lose_it(state)
+
+
+@dataclass(frozen=True)
+class Planner:
+    """Plans ``horizon`` weeks ahead and makes this week's moves. It asks
+    ``scorer`` for its own horizon, so the replay's starting squad and
+    line-ups stay the same as every other policy's."""
+
+    scorer: Scorer
+    settings: PlanSettings
+    horizon: int = DEFAULT_PLANNER_HORIZON
+
+    def __call__(self, state: TransferState) -> tuple[Transfer, ...]:
+        season, gameweek = state.season, state.gameweek
+        scores = self.scorer(season, gameweek, self.horizon)
+        weeks = range(gameweek, gameweek + self.horizon)
+        options = []
+        for player_id in sorted(set(buyable_players(season, gameweek)) | state.squad):
+            player = archive_player(season, player_id, gameweek)
+            options.append(PlayerOption(
+                player_id=player_id,
+                position=player.element_type,
+                club=player.team,
+                price=player.now_cost,
+                sell_price=(state.squad_player(player_id).now_cost
+                            if player_id in state.squad else player.now_cost),
+                points_by_week=tuple(scores.get(player_id, {}).get(week, 0.0) for week in weeks),
+            ))
+        plan = plan_transfers(options=options, squad=state.squad, bank=state.bank,
+                              free_transfers=state.free_transfers, settings=self.settings)
+        horizon_points = {o.player_id: sum(o.points_by_week) for o in options}
+        return tuple(
+            Transfer(out_id, in_id, horizon_points[in_id] - horizon_points[out_id])
+            for out_id, in_id in pair_moves(plan.weeks[0], season.position_by_player)
+        )
 
 
 def _use_it_or_lose_it(state: TransferState) -> tuple[Transfer, ...]:
