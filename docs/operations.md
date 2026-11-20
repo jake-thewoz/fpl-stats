@@ -54,7 +54,7 @@ curl -s "$API_URL/players" | jq -c '{players: (.players | length)}'
 curl -s "$API_URL/analytics/players/xp" | jq -c '{gameweek, computed_at, players: (.players | length)}'
 ```
 
-Expect `{"ok": true, ...}`; the current and next gameweek with about 10 fixtures; roughly 650–750 players; and xP for the **next open** gameweek (one past the current one once its deadline has passed) with a `computed_at` from the last 04:30 UTC run, or later if someone invoked it by hand. A `computed_at` more than a day old means the analyzer is failing or skipping.
+Expect `{"ok": true, ...}`; the current and next gameweek with about 10 fixtures; roughly 650–750 players; and xP for the **next open** gameweek (one past the current one once its deadline has passed) with a `computed_at` from the last 04:30 or 16:00 UTC run, or later if someone invoked it by hand. A `computed_at` more than a day old means the analyzer is failing or skipping.
 
 Timing a route (useful after a deploy, see [performance](performance.md)):
 

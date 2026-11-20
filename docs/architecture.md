@@ -5,8 +5,8 @@ How FPL Stats is put together, as of October 2026 (after PR #213). For the click
 ## The big picture
 
 ```
-                         ┌───────────────────── EventBridge (4 rules, UTC) ─────────────────────┐
-                         │ every 30 min        Sun 02:00             daily 04:00     daily 04:30 │
+                         ┌───────────────────── EventBridge (5 rules, UTC) ─────────────────────┐
+                         │ every 30 min        Sun 02:00             daily 04:00  04:30 + 16:00 │
                          ▼                     ▼                     ▼               ▼
  FPL API ───────► ingest_fpl         ingest_player_history   analyze_player_form  analyze_player_xp_v2
  (public)            │    │                   │                     │  ▲               │  ▲
@@ -54,7 +54,7 @@ Stack outputs: `ApiBaseUrl`, `CacheTableName`, `SnapshotsBucketName`, `IngestFpl
 | `ingest_fpl` | every 30 min | 256 MB / 60 s | Fetches `bootstrap-static` and `fixtures` (both or nothing). Writes raw JSON to S3 first, then a slim pydantic-validated subset to `fpl#bootstrap` and `fpl#fixtures`, plus the extra per-player stats to `fpl#player_stats`. |
 | `ingest_player_history` | Sun 02:00 | 256 MB / 5 min | Calls `element-summary/{id}` for every player (~700, 50 ms apart). Replaces each player's history rows and deletes ids no longer in bootstrap, which is how the yearly id renumbering is handled (#158). |
 | `analyze_player_form` | daily 04:00 | 256 MB / 60 s | Rolling form over the last 5 GWs and difficulty of the next 5 fixtures (FPL's difficulty rating; ClubELO was dropped in #167). Still calls FPL's `event/{gw}/live` directly (#150). |
-| `analyze_player_xp_v2` | daily 04:30 | 512 MB / 60 s | Skips if any match kicked off in the last 2 hours (`match_window.py`). Otherwise scans ~21k history rows and writes xP for the next 5 gameweeks whose deadline is still ahead. See [xP model](xp-model.md). |
+| `analyze_player_xp_v2` | daily 04:30 and 16:00 | 512 MB / 60 s | The 16:00 run catches injury flags FPL updates after Friday press conferences, before evening deadlines (#260). Skips if any match kicked off in the last 2 hours (`match_window.py`). Otherwise scans ~21k history rows and writes xP for the next 5 gameweeks whose deadline is still ahead. See [xP model](xp-model.md). |
 
 The analyzers are chained by clock, not by events: they assume the Sunday ingest finished because they run hours later. Step Functions would make that explicit (#40).
 

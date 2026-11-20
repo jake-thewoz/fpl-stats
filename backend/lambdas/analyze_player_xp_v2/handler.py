@@ -39,8 +39,10 @@ signal.
 
 Schedule
 --------
-04:30 UTC daily, parallel to the v1 analyzer. Both share the
-match-window guard, so a live match defers both runs to the next tick.
+Daily at 04:30 UTC, and again at 16:00 UTC so injury flags FPL updates
+after Friday press conferences reach evening deadlines (#260). The
+match-window guard skips a run while a match is live; the next scheduled
+run picks up the work.
 """
 from __future__ import annotations
 
