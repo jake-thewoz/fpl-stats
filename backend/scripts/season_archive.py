@@ -8,6 +8,8 @@ and read from there afterwards.
 """
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import sys
 import urllib.request
@@ -38,6 +40,15 @@ DOWNLOAD_TIMEOUT_SECONDS = 60
 ARCHIVE_TEXT_ENCODING = "utf-8"
 
 FIXTURES_KEY = {"pk": "fpl#fixtures", "sk": "latest"}
+# football-data.co.uk's Premier League match results and odds, one file
+# a season under a four-digit code ("2025-26" -> "2526").
+ODDS_BASE_URL = "https://football-data.co.uk/mmz4281"
+ODDS_FILE_NAME = "E0.csv"
+ODDS_CACHE_SUBDIR = "odds"
+ODDS_TEXT_ENCODING = "utf-8-sig"
+_SEASON_CODE_DIGITS = 2
+TEAM_NAME_COLUMN = "name"
+TEAM_ID_COLUMN = "id"
 
 
 def load_archive_season(season: str) -> SeasonData:
@@ -105,6 +116,33 @@ def load_fixtures(table: Any) -> list[Fixture]:
     if not item:
         raise RuntimeError("fpl#fixtures missing — has ingest_fpl run?")
     return [Fixture.model_validate(fixture) for fixture in item["data"]]
+
+
+def load_odds_csv(season: str) -> str:
+    """football-data.co.uk's odds file for ``season``, downloaded on first use."""
+    start_year, end_year = season.split("-")
+    code = start_year[-_SEASON_CODE_DIGITS:] + end_year[-_SEASON_CODE_DIGITS:]
+    cached_path = SEASON_CACHE_DIR / ODDS_CACHE_SUBDIR / f"{code}-{ODDS_FILE_NAME}"
+    if not cached_path.exists():
+        url = f"{ODDS_BASE_URL}/{code}/{ODDS_FILE_NAME}"
+        log.info("Downloading %s", url)
+        with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+            body = response.read()
+        cached_path.parent.mkdir(parents=True, exist_ok=True)
+        cached_path.write_bytes(body)
+    return cached_path.read_text(encoding=ODDS_TEXT_ENCODING)
+
+
+def load_team_ids(season: str) -> dict[str, int]:
+    """FPL club name -> team id for a past season."""
+    reader = csv.DictReader(io.StringIO(_cached_archive_file(season, TEAMS_PATH)))
+    return {row[TEAM_NAME_COLUMN]: int(row[TEAM_ID_COLUMN]) for row in reader}
+
+
+def previous_season(season: str) -> str:
+    start_year, end_year = (int(part) for part in season.split("-"))
+    width = len(season.split("-")[1])
+    return f"{start_year - 1}-{str(end_year - 1).zfill(width)}"
 
 
 def _cached_archive_file(season: str, relative_path: str) -> str:

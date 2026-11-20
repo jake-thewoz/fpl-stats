@@ -358,7 +358,7 @@ def mae_overall(pairs: Iterable[FitPair]) -> float | None:
 
 def spearman_overall(pairs: Iterable[FitPair]) -> float | None:
     points = [(pair.predicted.total, pair.actual.total) for pair in pairs]
-    return _spearman(points) if len(points) >= 2 else None
+    return spearman(points) if len(points) >= 2 else None
 
 
 def spearman_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:
@@ -372,11 +372,11 @@ def spearman_per_position(pairs: Iterable[FitPair]) -> dict[int, float]:
     for pos, points in by_pos.items():
         if len(points) < 2:
             continue
-        out[pos] = _spearman(points)
+        out[pos] = spearman(points)
     return out
 
 
-def _spearman(points: list[tuple[float, float]]) -> float:
+def spearman(points: list[tuple[float, float]]) -> float:
     """Spearman ρ on a list of (x, y) tuples. Tied ranks averaged."""
     xs = [p[0] for p in points]
     ys = [p[1] for p in points]

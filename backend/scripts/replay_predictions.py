@@ -48,8 +48,10 @@ FPL_DIFFICULTY_SPAN = 4
 
 
 class FixtureStrength(Protocol):
-    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool) -> float:
-        """Opponent strength in 0..1 from the given side's point of view."""
+    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                 as_of_gw: int | None = None) -> float:
+        """Opponent strength in 0..1 from the given side's point of view,
+        standing just before ``as_of_gw`` (None: no time limit)."""
         ...
 
 
@@ -57,7 +59,8 @@ class FixtureStrength(Protocol):
 class NeutralStrength:
     """Every opponent is mid-table: what the offline scripts used before."""
 
-    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool) -> float:
+    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                 as_of_gw: int | None = None) -> float:
         return NEUTRAL_OPPONENT_STRENGTH
 
 
@@ -65,7 +68,8 @@ class NeutralStrength:
 class FplDifficultyStrength:
     """FPL's published 1–5 fixture difficulty, mapped onto 0..1."""
 
-    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool) -> float:
+    def strength(self, season: SeasonData, fixture: Fixture, for_home_team: bool,
+                 as_of_gw: int | None = None) -> float:
         difficulty = fixture.team_h_difficulty if for_home_team else fixture.team_a_difficulty
         if difficulty is None:
             return NEUTRAL_OPPONENT_STRENGTH
@@ -125,7 +129,7 @@ def predict_horizon(
         )
         fixtures_by_gw = {
             gameweek: [
-                _fixture_context(season, fixture, team_id, fixture_strength)
+                _fixture_context(season, fixture, team_id, fixture_strength, as_of_gw)
                 for fixture in fixtures_by_team_gameweek[(team_id, gameweek)]
             ]
             for gameweek in target_gameweeks
@@ -152,10 +156,12 @@ def _club_before(
 
 def _fixture_context(
     season: SeasonData, fixture: Fixture, team_id: int, fixture_strength: FixtureStrength,
+    as_of_gw: int,
 ) -> FixtureContext:
     is_home = fixture.team_h == team_id
     return FixtureContext(
         home=is_home,
-        opponent_strength=fixture_strength.strength(season, fixture, for_home_team=is_home),
+        opponent_strength=fixture_strength.strength(season, fixture, for_home_team=is_home,
+                                                    as_of_gw=as_of_gw),
         fpl_difficulty=fixture.team_h_difficulty if is_home else fixture.team_a_difficulty,
     )

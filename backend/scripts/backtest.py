@@ -25,7 +25,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
-from fit import _spearman
+from fit import spearman
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def spearman_overall(rows: Iterable[BacktestRow], *, model: str) -> float:
         return 0.0
     pred_attr = f"{model}_pred"
     points = [(getattr(r, pred_attr), r.actual_total) for r in rows_list]
-    return _spearman(points)
+    return spearman(points)
 
 
 def mae_by_position(
@@ -98,7 +98,7 @@ def spearman_by_position(
     for pos, points in by_pos.items():
         if len(points) < 2:
             continue
-        out[pos] = _spearman(points)
+        out[pos] = spearman(points)
     return out
 
 
