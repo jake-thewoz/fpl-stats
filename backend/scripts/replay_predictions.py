@@ -25,10 +25,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
 
+from flag_history import FlagState
 from schemas import Fixture, PlayerHistoryRow
 from season_data import SeasonData
+from xp_compute import minutes_probability_from_flag
 from xp_v2 import FixtureContext, V2Coefficients, xp_for_horizon
 from xp_v2_features import (
     FeatureWindow,
@@ -110,8 +112,15 @@ def predict_horizon(
     priors: PositionPriors,
     window: FeatureWindow,
     fixture_strength: FixtureStrength,
+    flag_of: Callable[[int], FlagState] | None = None,
 ) -> dict[int, dict[int, float]]:
-    """player_id -> {gameweek -> predicted points}, for as_of_gw .. as_of_gw + horizon - 1."""
+    """player_id -> {gameweek -> predicted points}, for as_of_gw .. as_of_gw + horizon - 1.
+
+    ``flag_of`` gives each player's injury flag before ``as_of_gw``'s
+    deadline. With it, the first week's chance of playing follows
+    production's rule (the flag's chance when set, else the play rate)
+    and later weeks recover toward the play rate. Without it, every week
+    uses the play rate."""
     target_gameweeks = range(as_of_gw, as_of_gw + horizon)
     rows_by_player: dict[int, list[PlayerHistoryRow]] = defaultdict(list)
     rows_by_team: dict[int, list[PlayerHistoryRow]] = defaultdict(list)
@@ -170,9 +179,15 @@ def predict_horizon(
             ]
             for gameweek in target_gameweeks
         }
+        base_minutes_prob = minutes_prob
+        if flag_of is not None:
+            flag = flag_of(player_id)
+            base_minutes_prob = minutes_probability_from_flag(
+                status=flag.status, chance_of_playing=flag.chance, season_play_rate=minutes_prob,
+            )
         components_by_gw = xp_for_horizon(
             position=position, rates=rates, fixtures_by_gw=fixtures_by_gw,
-            base_minutes_prob=minutes_prob, recovered_minutes_prob=minutes_prob, coefs=coefs,
+            base_minutes_prob=base_minutes_prob, recovered_minutes_prob=minutes_prob, coefs=coefs,
         )
         predictions[player_id] = {
             gameweek: components.total for gameweek, components in components_by_gw.items()

@@ -8,6 +8,7 @@ from xp_compute import (
     current_and_next_gameweek,
     fixtures_in_gw_for_team,
     minutes_probability,
+    minutes_probability_from_flag,
     minutes_probability_with_selection,
     open_gameweek_ids,
     upcoming_gameweek_ids,
@@ -282,3 +283,27 @@ class TestOpenGameweekIds:
     def test_empty_after_final_deadline(self):
         gws = [_gw(37, finished=True), _gw(38)]
         assert open_gameweek_ids(gws, _deadline(38) + timedelta(hours=1)) == []
+
+
+# ---------------------------------------------------------------------------
+# minutes_probability_from_flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("status", "chance", "play_rate", "expected"),
+    [
+        ("d", 75, 0.4, 0.75),     # a real doubt is trusted over the play rate
+        ("i", 0, 0.9, 0.0),
+        ("a", None, 0.6, 0.6),    # no flag: the play rate
+        ("a", 100, 0.6, 0.6),     # 100 is FPL's "no concern" filler
+        ("i", None, 0.9, 0.0),    # injured with no stated chance
+        ("u", 100, 0.9, 0.0),
+        (None, None, 0.9, 0.0),
+    ],
+)
+def test_minutes_probability_from_flag(status, chance, play_rate, expected):
+    assert minutes_probability_from_flag(
+        status=status, chance_of_playing=chance, season_play_rate=play_rate,
+    ) == pytest.approx(expected)
+

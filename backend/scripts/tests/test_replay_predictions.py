@@ -15,6 +15,7 @@ from replay_predictions import (
     NeutralStrength,
     predict_horizon,
 )
+from flag_history import UNFLAGGED, FlagState
 from schemas import Fixture, PlayerHistoryRow
 from season_data import SeasonData
 from xp_v2 import DEF, FWD, GKP, MID, load_default_coefficients
@@ -97,8 +98,9 @@ def _season(*, fixtures: list[Fixture] | None = None, squad=SQUAD,
 
 
 def _predict(season: SeasonData, *, as_of_gw: int = AS_OF_GW, horizon: int = HORIZON,
-             strength=NeutralStrength()) -> dict[int, dict[int, float]]:
-    return predict_horizon(season, as_of_gw, horizon, COEFS, PRIORS, WINDOW, strength)
+             strength=NeutralStrength(), flag_of=None) -> dict[int, dict[int, float]]:
+    return predict_horizon(season, as_of_gw, horizon, COEFS, PRIORS, WINDOW, strength,
+                           flag_of=flag_of)
 
 
 def _rewrite_from_round(season: SeasonData, first_round: int) -> SeasonData:
@@ -299,3 +301,33 @@ def test_accuracy_report_has_a_row_per_position() -> None:
     for name in ("| GK |", "| DEF |", "| MID |", "| FWD |", "| **overall** |"):
         assert name in report
     assert "GW 6–8" in report
+
+
+INJURED_MID = 12
+
+
+def test_unflagged_players_predict_as_without_flags() -> None:
+    season = _season()
+    assert _predict(season, flag_of=lambda player_id: UNFLAGGED) == _predict(season)
+
+
+def test_flag_sets_the_first_weeks_chance_and_later_weeks_recover() -> None:
+    season = _season()
+    flags = {INJURED_MID: FlagState("i", 0)}
+    with_flags = _predict(season, flag_of=lambda player_id: flags.get(player_id, UNFLAGGED))
+    without = _predict(season)
+    first, second, last = range(AS_OF_GW, AS_OF_GW + HORIZON)
+    assert with_flags[INJURED_MID][first] == 0.0
+    assert 0.0 < with_flags[INJURED_MID][second] <= with_flags[INJURED_MID][last]
+    assert with_flags[INJURED_MID][last] <= without[INJURED_MID][last]
+    assert with_flags[INJURED_MID + 1] == without[INJURED_MID + 1]
+
+
+def test_doubtful_flag_scales_the_first_week() -> None:
+    season = _season()
+    flags = {INJURED_MID: FlagState("d", 50)}
+    with_flags = _predict(season, flag_of=lambda player_id: flags.get(player_id, UNFLAGGED))
+    without = _predict(season)
+    assert with_flags[INJURED_MID][AS_OF_GW] < without[INJURED_MID][AS_OF_GW]
+    assert with_flags[INJURED_MID][AS_OF_GW] > 0.0
+

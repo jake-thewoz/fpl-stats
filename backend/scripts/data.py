@@ -24,10 +24,14 @@ import logging
 from collections import defaultdict
 from typing import Any, Iterable
 
+import boto3
 from boto3.dynamodb.conditions import Attr
 
 from fit import FitPair, decompose_actual_xp
 from schemas import Bootstrap, PlayerHistoryRow
+
+STACK_NAME = "FplStatsStack"
+CACHE_TABLE_OUTPUT_KEY = "CacheTableName"
 from season_data import SeasonData
 from xp_v2 import (
     DEFAULT_RULES,
@@ -50,6 +54,18 @@ log = logging.getLogger(__name__)
 # Neutral fixture context used for every training pair. See module
 # docstring for why we don't vary opp_strength on the historical fit.
 _NEUTRAL_OPP_STRENGTH = 0.5
+
+
+def stack_output(output_key: str) -> str:
+    """A CloudFormation output of the deployed stack, e.g. the table name."""
+    outputs = boto3.client("cloudformation").describe_stacks(
+        StackName=STACK_NAME)["Stacks"][0]["Outputs"]
+    return next(o["OutputValue"] for o in outputs if o["OutputKey"] == output_key)
+
+
+def cache_table() -> Any:
+    """The deployed stack's DynamoDB cache table."""
+    return boto3.resource("dynamodb").Table(stack_output(CACHE_TABLE_OUTPUT_KEY))
 
 
 def scan_player_history(table: Any) -> list[PlayerHistoryRow]:

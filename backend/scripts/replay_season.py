@@ -8,6 +8,12 @@ Usage
     python3 replay_season.py --season 2025-26 --coefficients candidate.json
     python3 replay_season.py --season 2025-26 --budget 102 --strategy xp --dry-run
     python3 replay_season.py --season 2025-26 --strength fpl --chips
+    python3 replay_season.py --season current --strength fpl --flags
+
+``--season current`` replays the season in progress from the cache table
+(AWS credentials needed). ``--flags`` gives the xP strategies FPL's
+injury flags from the change log that ``spikes/archive_flag_history.py``
+writes; only the current season has one (#261).
 
 Writes ``backtest_results/replay-<season>-<strength>-<date>.md``, with
 ``-budget<£m>`` before the date when the budget is not the default.
@@ -30,8 +36,12 @@ sys.path.insert(0, str(_TRANSFER_LAMBDA_DIR))
 sys.path.insert(0, str(_LAYER_PY_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
+from data import cache_table, load_bootstrap  # noqa: E402
+from flag_history import DeadlineFlags, FlagTimeline, deadlines, read_change_log  # noqa: E402
 from replay_accuracy import (  # noqa: E402
     DEFAULT_STRENGTH,
+    FPL,
+    NEUTRAL,
     STRENGTH_HELP,
     STRENGTH_NAMES,
     build_fixture_strength,
@@ -63,7 +73,7 @@ from replay_strategies import (  # noqa: E402
     hindsight_scorer,
     ownership_scorer,
 )
-from season_archive import ARCHIVE_SEASONS, load_archive_season  # noqa: E402
+from season_archive import ARCHIVE_SEASONS, load_archive_season, load_current_season  # noqa: E402
 from season_replay import STARTING_BUDGET_TENTHS, ReplayConfig, run_replay  # noqa: E402
 from season_replay_report import ChipComparison, ChipRun, render_replay_report  # noqa: E402
 from squad_optimizer import TENTHS_PER_MILLION  # noqa: E402
@@ -78,12 +88,15 @@ _BUNDLED_COEFFICIENTS_LABEL = "bundled"
 _STRATEGY_NAMES = (XP, XP_USE_BANKED, XP_ALLOW_HITS, XP_PLANNER_SHORT, XP_PLANNER_LONG,
                    XP_NO_TRANSFERS, FORM, OWNERSHIP, HINDSIGHT)
 _PLANNER_HORIZON_BY_STRATEGY = {XP_PLANNER_SHORT: 3, XP_PLANNER_LONG: 5}
+CURRENT_SEASON = "current"
+# There are no odds downloads for the season in progress.
+_CURRENT_SEASON_STRENGTHS = (NEUTRAL, FPL)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--season", required=True, choices=ARCHIVE_SEASONS)
+    parser.add_argument("--season", required=True, choices=(*ARCHIVE_SEASONS, CURRENT_SEASON))
     parser.add_argument("--strength", choices=STRENGTH_NAMES, default=DEFAULT_STRENGTH,
                         help=STRENGTH_HELP)
     parser.add_argument("--coefficients", type=Path,
@@ -96,9 +109,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chips", action="store_true",
                         help=f"Add a Chips section: `{XP}` with each chip policy (about a "
                              "minute more).")
+    parser.add_argument("--flags", action="store_true",
+                        help="Give the xP strategies FPL's injury flags (current season only).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the report without writing it.")
     args = parser.parse_args(argv)
+    is_current = args.season == CURRENT_SEASON
+    if args.flags and not is_current:
+        parser.error("--flags: only the current season has flag history")
+    if is_current and args.strength not in _CURRENT_SEASON_STRENGTHS:
+        parser.error(f"--strength: the current season supports {', '.join(_CURRENT_SEASON_STRENGTHS)}")
     if args.chips and args.season not in CHIP_WINDOWS_BY_SEASON:
         parser.error(f"--chips: no chip rules for {args.season}; "
                      f"known: {', '.join(CHIP_WINDOWS_BY_SEASON)}")
@@ -106,11 +126,20 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    season = load_archive_season(args.season)
+    flags = None
+    if is_current:
+        table = cache_table()
+        season = load_current_season(table)
+        if args.flags:
+            flags = DeadlineFlags(FlagTimeline.of(read_change_log()),
+                                  deadlines(load_bootstrap(table)))
+    else:
+        season = load_archive_season(args.season)
     coefs = load_coefficients(args.coefficients) if args.coefficients else load_default_coefficients()
     xp_scorer = XpScorer(
         coefs=coefs, priors=load_default_priors(), window=FeatureWindow(),
-        fixture_strength=build_fixture_strength(args.strength, args.season),
+        fixture_strength=build_fixture_strength(args.strength, season.season),
+        flags=flags,
     )
     budget_tenths = round(args.budget * TENTHS_PER_MILLION)
     strategies = {
@@ -131,13 +160,13 @@ def main(argv: list[str] | None = None) -> int:
     for name, (scorer, policy) in strategies.items():
         if args.strategy and name not in args.strategy:
             continue
-        log.info("Replaying %s with %s", args.season, name)
+        log.info("Replaying %s with %s", season.season, name)
         config = ReplayConfig(transfer_policy=policy, budget_tenths=budget_tenths)
         results[name] = run_replay(season, scorer, config)
 
     chips = None
     if args.chips:
-        log.info("Replaying %s with chips", args.season)
+        log.info("Replaying %s with chips", season.season)
         chip_config = ReplayConfig(transfer_policy=one_a_week, budget_tenths=budget_tenths,
                                    chip_windows=CHIP_WINDOWS_BY_SEASON[args.season])
         chip_results = {
@@ -160,24 +189,26 @@ def main(argv: list[str] | None = None) -> int:
         results=results,
         ceiling_name=HINDSIGHT,
         budget_tenths=budget_tenths,
-        season=args.season,
+        season=season.season,
         strength_name=args.strength,
         coefficients_label=str(args.coefficients) if args.coefficients else _BUNDLED_COEFFICIENTS_LABEL,
         run_date=run_date,
         chips=chips,
+        injury_flags=flags is not None,
     )
     print(report)
 
     if args.dry_run:
         return 0
     _BACKTEST_RESULTS_DIR.mkdir(exist_ok=True)
+    flags_label = "-flags" if flags is not None else ""
     budget_label = (
         "" if budget_tenths == STARTING_BUDGET_TENTHS
         else f"-budget{budget_tenths / TENTHS_PER_MILLION:g}"
     )
     report_path = (
         _BACKTEST_RESULTS_DIR
-        / f"replay-{args.season}-{args.strength}{budget_label}-{run_date}.md"
+        / f"replay-{season.season}-{args.strength}{flags_label}{budget_label}-{run_date}.md"
     )
     report_path.write_text(report)
     log.info("Wrote %s", report_path)

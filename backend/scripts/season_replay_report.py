@@ -15,6 +15,11 @@ CHIP_LABELS = {
     TRIPLE_CAPTAIN: "triple captain",
 }
 
+NO_INJURY_NEWS = "No injury news: scorers only see past minutes."
+WITH_INJURY_FLAGS = (
+    "Injury flags: the xP strategies use FPL's flags as the app saw them at its last "
+    "xP run (04:30 or 16:00 UTC) before each deadline. `form` and `ownership` ignore them."
+)
 SIMPLIFICATIONS = (
     "The main table plays no chips; the Chips section, when present, adds them to `xp`.",
     "No Assistant Manager chip (2024-25).",
@@ -23,7 +28,6 @@ SIMPLIFICATIONS = (
     "transfers for bigger gains; `xp_allow_hits` may also take one 4-point hit a week; "
     "`xp_planner_h3` and `xp_planner_h5` plan 3 or 5 weeks ahead (saving, hits, line-ups "
     "and captains together) and make only this week's moves.",
-    "No injury news: scorers only see past minutes.",
     "Starts at gameweek 5, so totals cover GW5 to the end of the season.",
     "No vice-captain: if the captain doesn't play, nobody is doubled.",
     "Transfers come from the app's own search, which shortlists each position's 25 "
@@ -41,6 +45,7 @@ def render_replay_report(
     coefficients_label: str,
     run_date: str,
     chips: ChipComparison | None = None,
+    injury_flags: bool = False,
 ) -> str:
     """A ``ceiling_name`` missing from ``results`` leaves the share column blank."""
     ceiling = results.get(ceiling_name)
@@ -48,7 +53,8 @@ def render_replay_report(
         f"# Season replay — {season} — {run_date}",
         "",
         f"Fixture strength: {strength_name}. Coefficients: {coefficients_label}. "
-        f"Starting budget: {format_millions(budget_tenths)}.",
+        f"Starting budget: {format_millions(budget_tenths)}. "
+        f"Injury flags: {'yes' if injury_flags else 'no'}.",
         f"`{ceiling_name}` knows the actual points in advance: it is the ceiling, "
         "not a strategy anyone can follow.",
         "",
@@ -90,7 +96,8 @@ def render_replay_report(
         lines += render_chip_section(chips)
 
     lines += ["", "## Simplifications", ""]
-    lines += [f"- {item}" for item in SIMPLIFICATIONS]
+    simplifications = (WITH_INJURY_FLAGS if injury_flags else NO_INJURY_NEWS, *SIMPLIFICATIONS)
+    lines += [f"- {item}" for item in simplifications]
     return "\n".join(lines) + "\n"
 
 

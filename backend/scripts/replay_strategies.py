@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import Callable
 
+from flag_history import DeadlineFlags, FlagState
 from replay_predictions import FixtureStrength, predict_horizon
 from season_data import SeasonData
 from season_replay import Scores
@@ -32,12 +34,15 @@ FORM_WINDOW_GAMEWEEKS = 4
 @dataclass
 class XpScorer:
     """The app's xP as of each gameweek. Results are cached so ``xp``
-    and ``xp_no_transfers`` share one set of predictions."""
+    and ``xp_no_transfers`` share one set of predictions. With ``flags``,
+    each gameweek's xP uses the injury flags the app saw before its
+    deadline."""
 
     coefs: V2Coefficients
     priors: PositionPriors
     window: FeatureWindow
     fixture_strength: FixtureStrength
+    flags: DeadlineFlags | None = None
     _cache: dict[tuple[str, int, int], Scores] = field(default_factory=dict, repr=False)
 
     def __call__(self, season: SeasonData, as_of_gw: int, horizon: int) -> Scores:
@@ -45,9 +50,15 @@ class XpScorer:
         if key not in self._cache:
             self._cache[key] = predict_horizon(
                 season, as_of_gw, horizon, self.coefs, self.priors, self.window,
-                self.fixture_strength,
+                self.fixture_strength, flag_of=self._flag_lookup(as_of_gw),
             )
         return self._cache[key]
+
+    def _flag_lookup(self, gameweek: int) -> Callable[[int], FlagState] | None:
+        if self.flags is None:
+            return None
+        flags = self.flags
+        return lambda player_id: flags.flag(player_id, gameweek)
 
 
 def form_scorer(season: SeasonData, as_of_gw: int, horizon: int) -> Scores:
